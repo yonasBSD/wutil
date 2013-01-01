@@ -1,5 +1,7 @@
 #include "utils.h"
+
 #include <regex.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,4 +89,12 @@ int remove_matching_strings(char **strings, const char *pattern) {
 
   regfree(&regex);
   return 0;
+}
+
+bool string_array_contains(char **strings, char *pattern) {
+  for (int i = 0; strings[i] != NULL; i++) {
+    if (strcmp(strings[i], pattern) == 0)
+      return true;
+  }
+  return false;
 }
