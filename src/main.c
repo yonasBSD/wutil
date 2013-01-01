@@ -35,22 +35,30 @@ static int cmd_list(int argc, char **argv) {
   return 0;
 }
 
-static int cmd_show(int argc, char **argv) {
+static char *parse_interface_arg(int argc, char **argv) {
   if (argc < 3) {
-    fputs("<interface> not provided", stderr);
-    return 1;
+    fprintf(stderr, "<interface> not provided\n");
+    return NULL;
   }
 
   if (argc > 3) {
     fprintf(stderr, "bad value %s\n", argv[3]);
-    return 1;
+    return NULL;
   }
 
   char *interface_name = argv[2];
   if (!is_valid_interface(interface_name)) {
     fprintf(stderr, "unknown interface %s\n", interface_name);
-    return 1;
+    return NULL;
   }
+
+  return interface_name;
+}
+
+static int cmd_show(int argc, char **argv) {
+  char *interface_name = parse_interface_arg(argc, argv);
+  if (interface_name == NULL)
+    return 1;
 
   enum connection_state state = get_interface_connection_state(interface_name);
   printf("%s\t%s\n", interface_name, connection_state_to_string[state]);
@@ -59,61 +67,25 @@ static int cmd_show(int argc, char **argv) {
 }
 
 static int cmd_enable(int argc, char **argv) {
-  if (argc < 3) {
-    fputs("<interface> not provided", stderr);
+  char *interface_name = parse_interface_arg(argc, argv);
+  if (interface_name == NULL)
     return 1;
-  }
-
-  if (argc > 3) {
-    fprintf(stderr, "bad value %s\n", argv[3]);
-    return 1;
-  }
-
-  char *interface_name = argv[2];
-  if (!is_valid_interface(interface_name)) {
-    fprintf(stderr, "unknown interface %s\n", interface_name);
-    return 1;
-  }
 
   return enable_interface(interface_name);
 }
 
 static int cmd_disable(int argc, char **argv) {
-  if (argc < 3) {
-    fputs("<interface> not provided", stderr);
+  char *interface_name = parse_interface_arg(argc, argv);
+  if (interface_name == NULL)
     return 1;
-  }
-
-  if (argc > 3) {
-    fprintf(stderr, "bad value %s\n", argv[3]);
-    return 1;
-  }
-
-  char *interface_name = argv[2];
-  if (!is_valid_interface(interface_name)) {
-    fprintf(stderr, "unknown interface %s\n", interface_name);
-    return 1;
-  }
 
   return disable_interface(interface_name);
 }
 
 static int cmd_restart(int argc, char **argv) {
-  if (argc < 3) {
-    fputs("<interface> not provided", stderr);
+  char *interface_name = parse_interface_arg(argc, argv);
+  if (interface_name == NULL)
     return 1;
-  }
-
-  if (argc > 3) {
-    fprintf(stderr, "bad value %s\n", argv[3]);
-    return 1;
-  }
-
-  char *interface_name = argv[2];
-  if (!is_valid_interface(interface_name)) {
-    fprintf(stderr, "unknown interface %s\n", interface_name);
-    return 1;
-  }
 
   return restart_interface(interface_name);
 }

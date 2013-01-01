@@ -98,7 +98,7 @@ void free_network_intefaces(struct network_interface **interfaces) {
 
 static void guard_root_access() {
   if (geteuid() != 0) {
-    fprintf(stderr, "Insufficient permissions\n");
+    fprintf(stderr, "insufficient permissions\n");
     exit(EXIT_FAILURE);
   }
 }
