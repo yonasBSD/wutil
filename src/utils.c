@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,4 +69,22 @@ void free_string_array(char **strings) {
   for (char i = 0; strings[i] != NULL; i++)
     free(strings[i]);
   free(strings);
+}
+
+int remove_matching_strings(char **strings, const char *pattern) {
+  regex_t regex;
+  if (regcomp(&regex, pattern, REG_EXTENDED | REG_NOSUB) != 0)
+    return 1;
+
+  int new_end = 0;
+  for (int i = 0; strings[i] != NULL; i++) {
+    if (regexec(&regex, strings[i], 0, NULL, 0) == 0)
+      free(strings[i]);
+    else
+      strings[new_end++] = strings[i];
+  }
+  strings[new_end] = NULL;
+
+  regfree(&regex);
+  return 0;
 }

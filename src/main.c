@@ -18,14 +18,14 @@ static int cmd_help(int argc, char **argv) {
 
 static int cmd_list(int argc, char **argv) {
   FILE *fp = popen("ifconfig -l", "r");
-  if (!fp) {
+  if (fp == NULL) {
     perror("popen `ifconfig -l` failed");
     pclose(fp);
     return 1;
   }
 
   char buffer[256];
-  if (!fgets(buffer, sizeof(buffer), fp)) {
+  if (fgets(buffer, sizeof(buffer), fp) == 0) {
     pclose(fp);
     return 1;
   }
@@ -34,6 +34,12 @@ static int cmd_list(int argc, char **argv) {
   buffer[strcspn(buffer, "\n")] = '\0';
   char **interfaces = split_string(buffer, " ");
   if (interfaces == NULL)
+    return 1;
+
+  const char pattern[] =
+      "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
+      "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
+  if (remove_matching_strings(interfaces, pattern) != 0)
     return 1;
 
   for (char i = 0; interfaces[i] != NULL; i++)
