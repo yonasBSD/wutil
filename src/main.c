@@ -1,4 +1,5 @@
 #include "string_utils.h"
+#include "usage.h"
 #include "utils.h"
 
 #include <stdio.h>

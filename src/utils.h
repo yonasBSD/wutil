@@ -14,7 +14,6 @@ struct network_interface {
   enum connection_state state;
 };
 
-void usage(char *program_name);
 char **get_network_interface_names();
 enum connection_state get_interface_connection_state(char *interface_name);
 struct network_interface **get_network_interfaces();
