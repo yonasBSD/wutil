@@ -12,16 +12,6 @@ char *connection_state_to_string[] = {
     [UNPLUGGED] = "Unplugged",
 };
 
-static bool file_contains(FILE *fp, char *pattern) {
-  char buffer[1024];
-  bool online = false;
-  while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-    if (strstr(buffer, pattern) != NULL)
-      return true;
-  }
-  return false;
-}
-
 enum connection_state get_interface_connection_state(char *interface_name) {
   char command[16];
   sprintf(command, "ifconfig %s", interface_name);

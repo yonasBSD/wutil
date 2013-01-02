@@ -71,3 +71,12 @@ bool string_array_contains(char **strings, char *pattern) {
   }
   return false;
 }
+
+bool file_contains(FILE *fp, char *pattern) {
+  char buffer[1024];
+  while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+    if (strstr(buffer, pattern) != NULL)
+      return true;
+  }
+  return false;
+}
