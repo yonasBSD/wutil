@@ -26,7 +26,7 @@ static int cmd_list(int argc, char **argv) {
   struct network_interface **interfaces = get_network_interfaces();
   puts("name\tstate");
   puts("----\t-----");
-  for (char i = 0; interfaces[i] != NULL; i++) {
+  for (int i = 0; interfaces[i] != NULL; i++) {
     printf("%s\t%s\n", interfaces[i]->name,
            connection_state_to_string[interfaces[i]->state]);
   }
