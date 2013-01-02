@@ -13,8 +13,8 @@ const char *connection_state_to_string[] = {
 };
 
 enum connection_state get_interface_connection_state(char *interface_name) {
-  char command[16];
-  sprintf(command, "ifconfig %s", interface_name);
+  char command[256];
+  snprintf(command, sizeof(command), "ifconfig %s", interface_name);
   FILE *fp = popen(command, "r");
   if (fp == NULL) {
     perror("popen failed");
@@ -107,24 +107,25 @@ static void guard_root_access() {
 int enable_interface(char *interface_name) {
   guard_root_access();
 
-  char command[32];
-  sprintf(command, "ifconfig %s up", interface_name);
+  char command[256];
+  snprintf(command, sizeof(command), "ifconfig %s up", interface_name);
   return system(command);
 }
 
 int disable_interface(char *interface_name) {
   guard_root_access();
 
-  char command[32];
-  sprintf(command, "ifconfig %s down", interface_name);
+  char command[256];
+  snprintf(command, sizeof(command), "ifconfig %s down", interface_name);
   return system(command);
 }
 
 int restart_interface(char *interface_name) {
   guard_root_access();
 
-  char command[128];
-  sprintf(command, "service netif restart %s > /dev/null 2>&1", interface_name);
+  char command[256];
+  snprintf(command, sizeof(command),
+           "service netif restart %s > /dev/null 2>&1", interface_name);
   return system(command);
 }
 
@@ -195,8 +196,8 @@ void free_wifi_networks(struct wifi_network **networks) {
 }
 
 struct wifi_network **scan_network_interface(char *interface_name) {
-  char command[128];
-  sprintf(command, "ifconfig %s scan", interface_name);
+  char command[256];
+  snprintf(command, sizeof(command), "ifconfig %s scan", interface_name);
   FILE *fp = popen(command, "r");
   if (fp == NULL) {
     perror("popen failed");
