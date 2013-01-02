@@ -6,7 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 
-char *connection_state_to_string[] = {
+const char *connection_state_to_string[] = {
     [CONNECTED] = "Connected",
     [DISCONNECTED] = "Disconnected",
     [UNPLUGGED] = "Unplugged",
@@ -16,15 +16,26 @@ enum connection_state get_interface_connection_state(char *interface_name) {
   char command[16];
   sprintf(command, "ifconfig %s", interface_name);
   FILE *fp = popen(command, "r");
-  if (fp == NULL)
-    return false;
+  if (fp == NULL) {
+    perror("popen failed");
+    exit(1);
+  }
 
-  enum connection_state state = file_contains(fp, "inet ") ? CONNECTED
-                                : file_contains(fp, "status: active")
+  char **lines = file_read_lines(fp);
+  pclose(fp);
+  if (lines == NULL)
+    exit(1);
+
+  char *output = lines_to_string(lines);
+  free_string_array(lines);
+  if (lines == NULL)
+    exit(1);
+
+  enum connection_state state = strstr(output, "inet ") ? CONNECTED
+                                : strstr(output, "status: active")
                                     ? DISCONNECTED
                                     : UNPLUGGED;
-
-  pclose(fp);
+  free(output);
   return state;
 }
 
@@ -122,4 +133,102 @@ bool is_valid_interface(char *interface_name) {
   bool is_valid = string_array_contains(interface_names, interface_name);
   free_string_array(interface_names);
   return is_valid;
+}
+
+static struct wifi_network *extract_wifi_network(char *network_info) {
+  char ssid[256], bssid[18], channel[5], date_rate[5], sn[8],
+      beacon_interval[4], capabilities[256];
+  if (sscanf(network_info, "%255s %17s %4s %4s %7s %3s %[^\n]", ssid, bssid,
+             channel, date_rate, sn, beacon_interval, capabilities) != 7)
+    return NULL;
+  int signal, noise;
+  if (sscanf(sn, "%d:%d", &signal, &noise) != 2)
+    return NULL;
+
+  struct wifi_network *network = malloc(sizeof(struct wifi_network));
+  if (network == NULL)
+    return NULL;
+
+  network->ssid = strdup(ssid);
+  if (network->ssid == NULL) {
+    free(network);
+    return NULL;
+  }
+
+  network->bssid = strdup(bssid);
+  if (network->bssid == NULL) {
+    free(network->ssid);
+    free(network);
+    return NULL;
+  }
+
+  network->channel = atoi(channel);
+  network->data_rate = atoi(date_rate);
+  network->signal_dbm = signal;
+  network->noise_dbm = noise;
+  network->beacon_interval = atoi(beacon_interval);
+
+  network->capabilities = strdup(capabilities);
+  if (network->capabilities == NULL) {
+    free(network->bssid);
+    free(network->ssid);
+    free(network);
+    return NULL;
+  }
+
+  return network;
+}
+
+void free_wifi_network(struct wifi_network *network) {
+  if (network == NULL)
+    return;
+  free(network->capabilities);
+  free(network->bssid);
+  free(network->ssid);
+  free(network);
+}
+
+void free_wifi_networks(struct wifi_network **networks) {
+  for (int i = 0; networks[i] != NULL; i++)
+    free_wifi_network(networks[i]);
+  free(networks);
+}
+
+struct wifi_network **scan_network_interface(char *interface_name) {
+  char command[128];
+  sprintf(command, "ifconfig %s scan", interface_name);
+  FILE *fp = popen(command, "r");
+  if (fp == NULL) {
+    perror("popen failed");
+    return NULL;
+  }
+
+  char **lines = file_read_lines(fp);
+  pclose(fp);
+  if (lines == NULL)
+    return NULL;
+  int line_count = string_array_length(lines);
+  if (line_count == 0) {
+    free_string_array(lines);
+    return NULL;
+  }
+
+  char *output = lines_to_string(lines);
+  if (strstr(output, "unable to get scan results"))
+    return NULL;
+
+  struct wifi_network **wifi_networks =
+      calloc(line_count, sizeof(struct wifi_network **));
+  for (int i = 1; lines[i] != NULL; i++) {
+    wifi_networks[i - 1] = extract_wifi_network(lines[i]);
+    if (wifi_networks[i - 1] == NULL) {
+      free_wifi_networks(wifi_networks);
+      return NULL;
+    }
+  }
+  wifi_networks[line_count - 1] = NULL;
+
+  free(output);
+  free_string_array(lines);
+  return wifi_networks;
 }

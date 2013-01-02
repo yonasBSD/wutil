@@ -90,10 +90,33 @@ static int cmd_restart(int argc, char **argv) {
   return restart_interface(interface_name);
 }
 
+static int cmd_scan(int argc, char **argv) {
+  char *interface_name = parse_interface_arg(argc, argv);
+  if (interface_name == NULL)
+    return 1;
+  struct wifi_network **networks = scan_network_interface(interface_name);
+  if (networks == NULL)
+    return 1;
+
+  printf("%-20.20s %-9.9s %6s %s\n", "SSID", "SIGNAL", "CHANNEL",
+         "CAPABILITIES");
+  for (int i = 0; networks[i] != NULL; i++) {
+    struct wifi_network *network = networks[i];
+    char signal_str[9];
+    snprintf(signal_str, sizeof(signal_str), "%d dBm", network->signal_dbm);
+    printf("%-20.20s %-9s %6d  %s\n", network->ssid, signal_str,
+           network->channel, network->capabilities);
+  }
+
+  free_wifi_networks(networks);
+  return 0;
+}
+
 static const struct command_t commands[] = {
-    {"help", cmd_help},     {"list", cmd_list},       {"show", cmd_show},
-    {"enable", cmd_enable}, {"disable", cmd_disable}, {"restart", cmd_restart},
-    {NULL, NULL},
+    {"help", cmd_help},       {"list", cmd_list},
+    {"show", cmd_show},       {"enable", cmd_enable},
+    {"disable", cmd_disable}, {"restart", cmd_restart},
+    {"scan", cmd_scan},       {NULL, NULL},
 };
 
 int main(int argc, char **argv) {

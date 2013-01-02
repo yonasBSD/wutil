@@ -9,6 +9,9 @@ char **split_string(char *string, char *separators);
 void free_string_array(char **strings);
 int remove_matching_strings(char **strings, const char *pattern);
 bool string_array_contains(char **strings, char *pattern);
-bool file_contains(FILE *fp, char *pattern);
+int string_array_length(char **strings);
+char **file_read_lines(FILE *fp);
+char *strcatdup(char *s1, char *s2);
+char *lines_to_string(char **lines);
 
 #endif
