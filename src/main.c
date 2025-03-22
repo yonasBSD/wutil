@@ -31,7 +31,7 @@ static int cmd_list(int argc, char **argv) {
            connection_state_to_string[interfaces[i]->state]);
   }
 
-  free_network_intefaces(interfaces);
+  free_network_interfaces(interfaces);
   return 0;
 }
 

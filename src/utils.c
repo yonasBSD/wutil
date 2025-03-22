@@ -55,7 +55,7 @@ struct network_interface *get_network_interface_by_name(char *interface_name) {
     }
   }
 
-  free_network_intefaces(interfaces);
+  free_network_interfaces(interfaces);
   return interface;
 }
 
@@ -109,7 +109,7 @@ struct network_interface **get_network_interfaces() {
   return interfaces;
 }
 
-void free_network_intefaces(struct network_interface **interfaces) {
+void free_network_interfaces(struct network_interface **interfaces) {
   for (int i = 0; interfaces[i] != NULL; i++) {
     free(interfaces[i]->name);
     free(interfaces[i]);

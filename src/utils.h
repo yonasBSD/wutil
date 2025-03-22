@@ -31,7 +31,7 @@ char **get_network_interface_names();
 enum connection_state get_interface_connection_state(char *interface_name);
 struct network_interface *get_network_interface_by_name(char *interface_name);
 struct network_interface **get_network_interfaces();
-void free_network_intefaces(struct network_interface **interfaces);
+void free_network_interfaces(struct network_interface **interfaces);
 int enable_interface(char *interface_name);
 int disable_interface(char *interface_name);
 int restart_interface(char *interface_name);
