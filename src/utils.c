@@ -39,6 +39,26 @@ enum connection_state get_interface_connection_state(char *interface_name) {
   return state;
 }
 
+struct network_interface *get_network_interface_by_name(char *interface_name) {
+  struct network_interface **interfaces = get_network_interfaces();
+  int count = 0;
+  while (interfaces[count] != NULL)
+    count++;
+
+  struct network_interface *interface = NULL;
+  for (int i = 0; interfaces[i] != NULL; i++) {
+    if (strcmp(interfaces[i]->name, interface_name) == 0) {
+      interface = interfaces[i];
+      interfaces[i] = interfaces[count - 1];
+      interfaces[count - 1] = NULL;
+      break;
+    }
+  }
+
+  free_network_intefaces(interfaces);
+  return interface;
+}
+
 char **get_network_interface_names() {
   FILE *fp = popen("ifconfig -l", "r");
   if (fp == NULL) {
@@ -232,4 +252,29 @@ struct wifi_network **scan_network_interface(char *interface_name) {
   free(output);
   free_string_array(lines);
   return wifi_networks;
+}
+
+int disconnect_network_interface(char *interface_name) {
+  guard_root_access();
+
+  char command[256];
+  snprintf(command, sizeof(command), "ifconfig %s down", interface_name);
+  if (system(command) != 0) {
+    fprintf(stderr, "failed to bring %s down\n", interface_name);
+    return 1;
+  }
+
+  snprintf(command, sizeof(command), "ifconfig %s ssid 'none'", interface_name);
+  if (system(command) != 0) {
+    fprintf(stderr, "failed to clear SSID on %s\n", interface_name);
+    return 1;
+  }
+
+  snprintf(command, sizeof(command), "ifconfig %s up", interface_name);
+  if (system(command) != 0) {
+    fprintf(stderr, "failed to bring %s up\n", interface_name);
+    return 1;
+  }
+
+  return 0;
 }

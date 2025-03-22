@@ -112,11 +112,31 @@ static int cmd_scan(int argc, char **argv) {
   return 0;
 }
 
+static int cmd_disconnect(int argc, char **argv) {
+  char *interface_name = parse_interface_arg(argc, argv);
+  if (interface_name == NULL)
+    return 1;
+
+  struct network_interface *interface =
+      get_network_interface_by_name(interface_name);
+  if (interface->state != CONNECTED) {
+    fprintf(stderr, "%s is not connected\n", interface_name);
+    return 1;
+  }
+
+  return disconnect_network_interface(interface->name);
+}
+
 static const struct command_t commands[] = {
-    {"help", cmd_help},       {"list", cmd_list},
-    {"show", cmd_show},       {"enable", cmd_enable},
-    {"disable", cmd_disable}, {"restart", cmd_restart},
-    {"scan", cmd_scan},       {NULL, NULL},
+    {"help", cmd_help},
+    {"list", cmd_list},
+    {"show", cmd_show},
+    {"enable", cmd_enable},
+    {"disable", cmd_disable},
+    {"restart", cmd_restart},
+    {"scan", cmd_scan},
+    {"disconnect", cmd_disconnect},
+    {NULL, NULL},
 };
 
 int main(int argc, char **argv) {

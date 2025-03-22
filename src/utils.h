@@ -29,6 +29,7 @@ struct wifi_network {
 
 char **get_network_interface_names();
 enum connection_state get_interface_connection_state(char *interface_name);
+struct network_interface *get_network_interface_by_name(char *interface_name);
 struct network_interface **get_network_interfaces();
 void free_network_intefaces(struct network_interface **interfaces);
 int enable_interface(char *interface_name);
@@ -38,5 +39,6 @@ bool is_valid_interface(char *interface_name);
 struct wifi_network **scan_network_interface(char *interface_name);
 void free_wifi_network(struct wifi_network *network);
 void free_wifi_networks(struct wifi_network **network);
+int disconnect_network_interface(char *interface_name);
 
 #endif
