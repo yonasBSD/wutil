@@ -1,6 +1,7 @@
 #include "usage.h"
 #include "utils.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -135,7 +136,8 @@ static int cmd_disconnect(int argc, char **argv) {
   return disconnect_network_interface(interface->name);
 }
 
-static void read_password(char *buffer, size_t size) {
+static void read_password(char *buffer, size_t size, const char *prompt_format,
+                          ...) {
   struct termios oldt, newt;
 
   tcgetattr(STDIN_FILENO, &oldt);
@@ -144,7 +146,11 @@ static void read_password(char *buffer, size_t size) {
   newt.c_lflag &= ~(ECHO);
   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
-  printf("enter network password: ");
+  va_list args;
+  va_start(args, prompt_format);
+  vprintf(prompt_format, args);
+  va_end(args);
+
   if (fgets(buffer, size, stdin) == NULL) {
     perror("error reading password");
     buffer[0] = '\0';
@@ -187,7 +193,8 @@ static int cmd_connect(int argc, char **argv) {
     if (argv[4] != NULL)
       strncpy(password, argv[4], sizeof(password) - 1);
     else if (is_wifi_network_secured(network))
-      read_password(password, sizeof(password));
+      read_password(password, sizeof(password),
+                    "enter password for %s: ", ssid);
     password[sizeof(password) - 1] = '\0';
 
     if (configure_wifi_network(network, password) != 0) {
