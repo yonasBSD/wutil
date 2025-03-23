@@ -38,9 +38,15 @@ int disable_interface(char *interface_name);
 int restart_interface(char *interface_name);
 bool is_valid_interface(char *interface_name);
 struct wifi_network **scan_network_interface(char *interface_name);
+struct wifi_network *get_wifi_network_by_ssid(char *network_interface,
+                                              char *ssid);
 void free_wifi_network(struct wifi_network *network);
 void free_wifi_networks(struct wifi_network **network);
 int disconnect_network_interface(char *interface_name);
 char *retrieve_network_interface_connected_ssid(char *interface_name);
+int connect_to_ssid(char *network_interface, char *ssid);
+bool is_ssid_configured(char *ssid);
+int configure_wifi_network(struct wifi_network *network, char *password);
+bool is_wifi_network_secured(struct wifi_network *network);
 
 #endif

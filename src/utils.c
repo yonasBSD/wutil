@@ -40,6 +40,9 @@ enum connection_state get_interface_connection_state(char *interface_name) {
 }
 
 struct network_interface *get_network_interface_by_name(char *interface_name) {
+  if (interface_name == NULL)
+    return NULL;
+
   struct network_interface **interfaces = get_network_interfaces();
   int count = 0;
   while (interfaces[count] != NULL)
@@ -289,6 +292,33 @@ struct wifi_network **scan_network_interface(char *interface_name) {
   return wifi_networks;
 }
 
+struct wifi_network *get_wifi_network_by_ssid(char *network_interface,
+                                              char *ssid) {
+  if (ssid == NULL)
+    return NULL;
+
+  struct wifi_network **networks = scan_network_interface(network_interface);
+  if (networks == NULL)
+    return NULL;
+
+  int count = 0;
+  while (networks[count] != NULL)
+    count++;
+
+  struct wifi_network *network = NULL;
+  for (int i = 0; networks[i] != NULL; i++) {
+    if (strcmp(networks[i]->ssid, ssid) == 0) {
+      network = networks[i];
+      networks[i] = networks[count - 1];
+      networks[count - 1] = NULL;
+      break;
+    }
+  }
+
+  free_wifi_networks(networks);
+  return network;
+}
+
 int disconnect_network_interface(char *interface_name) {
   guard_root_access();
 
@@ -312,4 +342,89 @@ int disconnect_network_interface(char *interface_name) {
   }
 
   return 0;
+}
+
+int connect_to_ssid(char *network_interface, char *ssid) {
+  guard_root_access();
+
+  if (system("killall wpa_supplicant > /dev/null 2>&1") != 0)
+    return 1;
+
+  char command[256];
+  snprintf(command, sizeof(command), "ifconfig %s ssid '%s' > /dev/null 2>&1",
+           network_interface, ssid);
+  if (system(command) != 0)
+    return 1;
+
+  snprintf(
+      command, sizeof(command),
+      "wpa_supplicant -B -i %s -c /etc/wpa_supplicant.conf > /dev/null 2>&1",
+      network_interface);
+  return system(command);
+}
+
+bool is_ssid_configured(char *ssid) {
+  FILE *conf_file = fopen("/etc/wpa_supplicant.conf", "r");
+  if (conf_file == NULL)
+    return false;
+  char **conf_lines = file_read_lines(conf_file);
+  char *wpa_supplicant_conf = lines_to_string(conf_lines);
+  free_string_array(conf_lines);
+
+  bool is_configured = strstr(wpa_supplicant_conf, ssid);
+
+  free(wpa_supplicant_conf);
+  return is_configured;
+}
+
+int configure_wifi_network(struct wifi_network *network, char *password) {
+  guard_root_access();
+
+  if (password == NULL)
+    password = "";
+
+  char security[256];
+  if (strstr(network->capabilities, "RSN")) {
+    snprintf(security, sizeof(security),
+             "\n key_mgmt=WPA-PSK"
+             "\n proto=RSN"
+             "\n psk=\"%s\"",
+             password);
+  } else if (strstr(network->capabilities, "WPA")) {
+    snprintf(security, sizeof(security),
+             "\n key_mgmt=WPA-PSK"
+             "\n proto=WPA"
+             "\n psk=\"%s\"",
+             password);
+  } else {
+    snprintf(security, sizeof(security),
+             "\n key_mgmt=NONE"
+             "\n wep_tx_keyidx=0"
+             "\n wep_key0=%s",
+             password);
+  }
+
+  FILE *conf_file = fopen("/etc/wpa_supplicant.conf", "a");
+  if (conf_file == NULL) {
+    perror("failed to open /etc/wpa_supplicant.conf");
+    return 1;
+  }
+
+  fprintf(conf_file,
+          "\nnetwork={"
+          "\n ssid=\"%s\""
+          "%s"
+          "\n}"
+          "\n",
+          network->ssid, security);
+
+  fclose(conf_file);
+  return 0;
+}
+
+bool is_wifi_network_secured(struct wifi_network *network) {
+  if (strstr(network->capabilities, "RSN") ||
+      strstr(network->capabilities, "WPA"))
+    return true;
+  return false;
 }
