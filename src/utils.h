@@ -14,6 +14,7 @@ extern const char *connection_state_to_string[];
 struct network_interface {
   char *name;
   enum connection_state state;
+  char *connected_ssid;
 };
 
 struct wifi_network {
@@ -40,5 +41,6 @@ struct wifi_network **scan_network_interface(char *interface_name);
 void free_wifi_network(struct wifi_network *network);
 void free_wifi_networks(struct wifi_network **network);
 int disconnect_network_interface(char *interface_name);
+char *retrieve_network_interface_connected_ssid(char *interface_name);
 
 #endif

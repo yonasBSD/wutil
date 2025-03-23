@@ -24,11 +24,12 @@ static int cmd_list(int argc, char **argv) {
   }
 
   struct network_interface **interfaces = get_network_interfaces();
-  puts("name\tstate");
-  puts("----\t-----");
+  printf("%-10s %-12s %-20s\n", "NAME", "STATE", "CONNECTED SSID");
   for (int i = 0; interfaces[i] != NULL; i++) {
-    printf("%s\t%s\n", interfaces[i]->name,
-           connection_state_to_string[interfaces[i]->state]);
+    char *ssid = interfaces[i]->connected_ssid;
+    ssid = ssid == NULL ? "" : ssid;
+    printf("%-10s %-12s %-20s\n", interfaces[i]->name,
+           connection_state_to_string[interfaces[i]->state], ssid);
   }
 
   free_network_interfaces(interfaces);
@@ -60,8 +61,13 @@ static int cmd_show(int argc, char **argv) {
   if (interface_name == NULL)
     return 1;
 
-  enum connection_state state = get_interface_connection_state(interface_name);
-  printf("%s\t%s\n", interface_name, connection_state_to_string[state]);
+  struct network_interface *interface =
+      get_network_interface_by_name(interface_name);
+
+  char *ssid = interface->connected_ssid;
+  ssid = ssid == NULL ? "" : ssid;
+  printf("%-10s %-12s %-20s\n", interface_name,
+         connection_state_to_string[interface->state], ssid);
 
   return 0;
 }

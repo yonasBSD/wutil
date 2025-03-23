@@ -89,6 +89,34 @@ char **get_network_interface_names() {
   return interface_names;
 }
 
+char *retrieve_network_interface_connected_ssid(char *interface_name) {
+  char command[256];
+  snprintf(command, sizeof(command), "ifconfig %s", interface_name);
+  FILE *fp = popen(command, "r");
+  if (fp == NULL) {
+    perror("popen failed");
+    return NULL;
+  }
+
+  char **lines = file_read_lines(fp);
+  pclose(fp);
+  if (lines == NULL)
+    return NULL;
+
+  char *ssid = NULL;
+  for (int i = 0; lines[i] != NULL; i++) {
+    char *ssid_index = strstr(lines[i], "ssid ");
+    if (ssid_index != NULL) {
+      char *ssid_start = ssid_index + strlen("ssid ");
+      char *ssid_end = strstr(lines[i], " channel");
+      ssid = strndup(ssid_start, ssid_end - ssid_start);
+      break;
+    }
+  }
+  free_string_array(lines);
+  return ssid;
+}
+
 struct network_interface **get_network_interfaces() {
   char **interface_names = get_network_interface_names();
 
@@ -101,6 +129,8 @@ struct network_interface **get_network_interfaces() {
   for (int i = 0; interface_names[i] != NULL; i++) {
     interfaces[i] = malloc(sizeof(struct network_interface));
     interfaces[i]->name = interface_names[i];
+    interfaces[i]->connected_ssid =
+        retrieve_network_interface_connected_ssid(interfaces[i]->name);
     interfaces[i]->state = get_interface_connection_state(interfaces[i]->name);
   }
   interfaces[interfaces_count] = NULL;
@@ -109,10 +139,15 @@ struct network_interface **get_network_interfaces() {
   return interfaces;
 }
 
+void free_network_interface(struct network_interface *interface) {
+  free(interface->name);
+  free(interface->connected_ssid);
+  free(interface);
+}
+
 void free_network_interfaces(struct network_interface **interfaces) {
   for (int i = 0; interfaces[i] != NULL; i++) {
-    free(interfaces[i]->name);
-    free(interfaces[i]);
+    free_network_interface(interfaces[i]);
   }
   free(interfaces);
 }
