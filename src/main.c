@@ -1,6 +1,7 @@
 #include "usage.h"
 #include "utils.h"
 
+#include <getopt.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -121,6 +122,43 @@ static int cmd_scan(int argc, char **argv) {
   return 0;
 }
 
+static int cmd_configure(int argc, char **argv) {
+  if (argc < 3) {
+    fprintf(stderr, "<interface> not provided\n");
+    return 1;
+  }
+
+  char *interface_name = argv[2];
+  if (!is_valid_interface(interface_name)) {
+    fprintf(stderr, "unknown interface %s\n", interface_name);
+    return 1;
+  }
+
+  struct network_configuration *config =
+      generate_network_configuration(argc - 2, argv + 2);
+  if (config == NULL) {
+    return 1;
+  }
+
+  printf("Interface: %s\n", interface_name);
+  if (config->method)
+    printf("Method: %s\n", config->method);
+  if (config->ip)
+    printf("IP: %s\n", config->ip);
+  if (config->netmask)
+    printf("Netmask: %s\n", config->netmask);
+  if (config->gateway)
+    printf("Gateway: %s\n", config->gateway);
+  if (config->dns1)
+    printf("DNS1: %s\n", config->dns1);
+  if (config->dns2)
+    printf("DNS2: %s\n", config->dns2);
+  if (config->search_domain)
+    printf("Search Domain: %s\n", config->search_domain);
+
+  return 0;
+}
+
 static int cmd_disconnect(int argc, char **argv) {
   char *interface_name = parse_interface_arg(argc, argv);
   if (interface_name == NULL)
@@ -213,11 +251,17 @@ static int cmd_connect(int argc, char **argv) {
 }
 
 static const struct command_t commands[] = {
-    {"help", cmd_help},       {"list", cmd_list},
-    {"show", cmd_show},       {"enable", cmd_enable},
-    {"disable", cmd_disable}, {"restart", cmd_restart},
-    {"scan", cmd_scan},       {"disconnect", cmd_disconnect},
-    {"connect", cmd_connect}, {NULL, NULL},
+    {"help", cmd_help},
+    {"list", cmd_list},
+    {"show", cmd_show},
+    {"enable", cmd_enable},
+    {"disable", cmd_disable},
+    {"restart", cmd_restart},
+    {"scan", cmd_scan},
+    {"configure", cmd_configure},
+    {"disconnect", cmd_disconnect},
+    {"connect", cmd_connect},
+    {NULL, NULL},
 };
 
 int main(int argc, char **argv) {

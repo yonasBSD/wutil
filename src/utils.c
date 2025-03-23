@@ -1,6 +1,7 @@
 #include "utils.h"
 #include "string_utils.h"
 
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -427,4 +428,104 @@ bool is_wifi_network_secured(struct wifi_network *network) {
       strstr(network->capabilities, "WPA"))
     return true;
   return false;
+}
+
+void free_network_configuration(struct network_configuration *configuration) {
+  if (configuration == NULL)
+    return;
+
+  free(configuration->method);
+  free(configuration->ip);
+  free(configuration->netmask);
+  free(configuration->gateway);
+  free(configuration->dns1);
+  free(configuration->dns2);
+  free(configuration->search_domain);
+
+  free(configuration);
+}
+
+struct network_configuration *generate_network_configuration(int argc,
+                                                             char **argv) {
+  struct option options[] = {
+      {"method", required_argument, NULL, 'm'},
+      {"ip", required_argument, NULL, 'i'},
+      {"netmask", required_argument, NULL, 'n'},
+      {"gateway", required_argument, NULL, 'g'},
+      {"dns1", required_argument, NULL, 'd'},
+      {"dns2", required_argument, NULL, 's'},
+      {"search", required_argument, NULL, 'r'},
+      {NULL, 0, NULL, 0},
+  };
+
+  struct network_configuration *config =
+      malloc(sizeof(struct network_configuration));
+  if (config == NULL)
+    return NULL;
+  memset(config, 0, sizeof(struct network_configuration));
+
+  int opt;
+  while ((opt = getopt_long(argc, argv, "m:i:n:g:d:s:r:", options, NULL)) !=
+         -1) {
+    switch (opt) {
+    case 'm':
+      if (strcmp(optarg, "dhcp") != 0 && strcmp(optarg, "manual") != 0) {
+        fprintf(stderr, "invalid method: %s", optarg);
+        free_network_configuration(config);
+        return NULL;
+      }
+      config->method = strdup(optarg);
+      break;
+    case 'i':
+      if (config->method == NULL || strcmp(config->method, "manual") != 0) {
+        fprintf(stderr, "use --method=manual for manually setting the IP\n");
+        free_network_configuration(config);
+        return NULL;
+      }
+      config->ip = strdup(optarg);
+      break;
+    case 'n':
+      if (config->method == NULL || strcmp(config->method, "manual") != 0) {
+        fprintf(stderr,
+                "use --method=manual for manually setting the netmask\n");
+        free_network_configuration(config);
+        return NULL;
+      }
+      config->netmask = strdup(optarg);
+      break;
+    case 'g':
+      if (config->method == NULL || strcmp(config->method, "manual") != 0) {
+        fprintf(stderr,
+                "use --method=manual for manually setting the gateway\n");
+        free_network_configuration(config);
+        return NULL;
+      }
+      config->gateway = strdup(optarg);
+      break;
+    case 'd':
+      config->dns1 = strdup(optarg);
+      break;
+    case 's':
+      config->dns2 = strdup(optarg);
+      break;
+    case 'r':
+      config->search_domain = strdup(optarg);
+      break;
+    default:
+      fprintf(stderr, "unknown option '%s'\n", optarg == NULL ? "" : optarg);
+      free_network_configuration(config);
+      return NULL;
+    }
+  }
+
+  if (config->method == NULL || strcmp(config->method, "manual") == 0) {
+    if (config->ip == NULL || config->netmask == NULL) {
+      fprintf(stderr,
+              "provide both ip address and netmask for manual configuration\n");
+      free_network_configuration(config);
+      return NULL;
+    }
+  }
+
+  return config;
 }
