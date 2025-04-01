@@ -28,8 +28,14 @@ struct wifi_network {
   char *capabilities;
 };
 
+enum ip_configuration {
+  UNCHANGED = 0,
+  DHCP,
+  MANUAL,
+};
+
 struct network_configuration {
-  char *method;
+  enum ip_configuration method;
   char *ip;
   char *netmask;
   char *gateway;
@@ -61,5 +67,6 @@ bool is_wifi_network_secured(struct wifi_network *network);
 struct network_configuration *generate_network_configuration(int argc,
                                                              char **argv);
 void free_network_configuration(struct network_configuration *configuration);
+int configure_nic(char *interface_name, struct network_configuration *config);
 
 #endif

@@ -136,27 +136,27 @@ static int cmd_configure(int argc, char **argv) {
 
   struct network_configuration *config =
       generate_network_configuration(argc - 2, argv + 2);
-  if (config == NULL) {
+  if (config == NULL)
     return 1;
-  }
 
-  printf("Interface: %s\n", interface_name);
-  if (config->method)
-    printf("Method: %s\n", config->method);
+  printf("applying the following changes:\n");
+  printf("interface: %s\n", interface_name);
+  if (config->method != UNCHANGED)
+    printf("method: %s\n", config->method == DHCP ? "dhcp" : "manual");
   if (config->ip)
     printf("IP: %s\n", config->ip);
   if (config->netmask)
-    printf("Netmask: %s\n", config->netmask);
+    printf("netmask: %s\n", config->netmask);
   if (config->gateway)
-    printf("Gateway: %s\n", config->gateway);
+    printf("gateway: %s\n", config->gateway);
   if (config->dns1)
     printf("DNS1: %s\n", config->dns1);
   if (config->dns2)
     printf("DNS2: %s\n", config->dns2);
   if (config->search_domain)
-    printf("Search Domain: %s\n", config->search_domain);
+    printf("search domain: %s\n", config->search_domain);
 
-  return 0;
+  return configure_nic(interface_name, config);
 }
 
 static int cmd_disconnect(int argc, char **argv) {

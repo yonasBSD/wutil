@@ -13,5 +13,6 @@ int string_array_length(char **strings);
 char **file_read_lines(FILE *fp);
 char *strcatdup(char *s1, char *s2);
 char *lines_to_string(char **lines);
+int strncatf(char *dest, size_t dest_size, const char *format, ...);
 
 #endif

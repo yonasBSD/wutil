@@ -1,6 +1,7 @@
 #include "string_utils.h"
 
 #include <regex.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,4 +146,34 @@ int string_array_length(char **strings) {
     count++;
   }
   return count;
+}
+
+int strncatf(char *dest, size_t dest_size, const char *format, ...) {
+  va_list args, args_copy;
+  va_start(args, format);
+
+  va_copy(args_copy, args);
+  int write_size = vsnprintf(NULL, 0, format, args_copy);
+  va_end(args_copy);
+
+  if (write_size < 0)
+    return write_size;
+  write_size++; /* \0 terminator */
+
+  char *tmp = malloc(write_size);
+  if (tmp == NULL) {
+    va_end(args);
+    return -1;
+  }
+  vsnprintf(tmp, write_size, format, args);
+  va_end(args);
+
+  size_t catable_size = dest_size - strlen(dest) - 1;
+  if (catable_size > 0)
+    strncat(dest, tmp, catable_size);
+  else
+    write_size = -1;
+
+  free(tmp);
+  return write_size;
 }
