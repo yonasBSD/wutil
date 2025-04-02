@@ -1,7 +1,9 @@
 #include <stdio.h>
 
-void usage(char *program_name) {
-  // clang-format off
+void
+usage(char *program_name)
+{
+	// clang-format off
   fprintf(stderr,
       "Usage: %s [commands] [args]\n"
       "Commands:\n"
@@ -24,5 +26,5 @@ void usage(char *program_name) {
       "  disconnect <interface>                   Disconnect from the current Wi-Fi network\n"
       "  connect    <interface> <ssid> [psk]      Connect to a Wi-Fi network with optional PSK (password)\n",
       program_name);
-  // clang-format on
+	// clang-format on
 }
