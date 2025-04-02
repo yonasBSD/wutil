@@ -37,12 +37,41 @@
 #include "usage.h"
 #include "utils.h"
 
-typedef int (*cmd_handler_t)(int argc, char **argv);
+typedef int (*cmd_handler_f)(int argc, char **argv);
 
-struct command_t {
+struct command {
 	const char *name;
-	cmd_handler_t handler;
+	cmd_handler_f handler;
 };
+
+static int cmd_help(int argc, char **argv);
+static int cmd_list(int argc, char **argv);
+static int cmd_show(int argc, char **argv);
+static int cmd_enable(int argc, char **argv);
+static int cmd_disable(int argc, char **argv);
+static int cmd_restart(int argc, char **argv);
+static int cmd_scan(int argc, char **argv);
+static int cmd_configure(int argc, char **argv);
+static int cmd_disconnect(int argc, char **argv);
+static int cmd_connect(int argc, char **argv);
+
+static const struct command commands[] = {
+	{ "help", cmd_help },
+	{ "list", cmd_list },
+	{ "show", cmd_show },
+	{ "enable", cmd_enable },
+	{ "disable", cmd_disable },
+	{ "restart", cmd_restart },
+	{ "scan", cmd_scan },
+	{ "configure", cmd_configure },
+	{ "disconnect", cmd_disconnect },
+	{ "connect", cmd_connect },
+	{ NULL, NULL },
+};
+
+static char *parse_interface_arg(int argc, char **argv);
+static void read_password(char *buffer, size_t size, const char *prompt_format,
+    ...);
 
 static int
 cmd_help(int argc, char **argv)
@@ -85,13 +114,12 @@ parse_interface_arg(int argc, char **argv)
 		return NULL;
 	}
 
-	char *interface_name = argv[2];
-	if (!is_valid_interface(interface_name)) {
-		fprintf(stderr, "unknown interface %s\n", interface_name);
+	if (!is_valid_interface(argv[2])) {
+		fprintf(stderr, "unknown interface %s\n", argv[2]);
 		return NULL;
 	}
 
-	return interface_name;
+	return argv[2];
 }
 
 static int
@@ -305,20 +333,6 @@ cmd_connect(int argc, char **argv)
 	return status;
 }
 
-static const struct command_t commands[] = {
-	{ "help", cmd_help },
-	{ "list", cmd_list },
-	{ "show", cmd_show },
-	{ "enable", cmd_enable },
-	{ "disable", cmd_disable },
-	{ "restart", cmd_restart },
-	{ "scan", cmd_scan },
-	{ "configure", cmd_configure },
-	{ "disconnect", cmd_disconnect },
-	{ "connect", cmd_connect },
-	{ NULL, NULL },
-};
-
 int
 main(int argc, char **argv)
 {
@@ -327,7 +341,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	for (const struct command_t *cmd = commands; cmd->name != NULL; cmd++) {
+	for (const struct command *cmd = commands; cmd->name != NULL; cmd++) {
 		if (strcmp(argv[1], cmd->name) == 0)
 			return cmd->handler(argc, argv);
 	}

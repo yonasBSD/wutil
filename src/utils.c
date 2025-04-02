@@ -35,6 +35,16 @@
 #include "string_utils.h"
 #include "utils.h"
 
+static void guard_root_access();
+
+static struct wifi_network *extract_wifi_network(char *network_info);
+
+static int restart_networking();
+
+static int configure_ip(char *interface_name,
+    struct network_configuration *config);
+static int configure_resolvd(struct network_configuration *config);
+
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
 	[DISCONNECTED] = "Disconnected",
@@ -614,7 +624,7 @@ generate_network_configuration(int argc, char **argv)
 	return config;
 }
 
-int
+static int
 restart_networking()
 {
 	int status_code = system("service netif restart");
@@ -624,7 +634,7 @@ restart_networking()
 }
 
 // TODO: properly do it
-int
+static int
 configure_ip(char *interface_name, struct network_configuration *config)
 {
 	char ip_rc[256] = "sysrc ";
@@ -651,7 +661,7 @@ configure_ip(char *interface_name, struct network_configuration *config)
 	return status_code;
 }
 
-int
+static int
 configure_resolvd(struct network_configuration *config)
 {
 	FILE *config_file = fopen("/etc/resolv.conf", "w");
