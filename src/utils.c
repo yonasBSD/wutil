@@ -54,43 +54,50 @@ const char *connection_state_to_string[] = {
 enum connection_state
 get_interface_connection_state(char *interface_name)
 {
+	enum connection_state state;
 	char command[256];
+	FILE *fp;
+	char *output, **lines;
+
 	snprintf(command, sizeof(command), "ifconfig %s", interface_name);
-	FILE *fp = popen(command, "r");
+	fp = popen(command, "r");
 	if (fp == NULL) {
 		perror("popen failed");
 		exit(1);
 	}
 
-	char **lines = file_read_lines(fp);
+	lines = file_read_lines(fp);
 	pclose(fp);
 	if (lines == NULL)
 		exit(1);
 
-	char *output = lines_to_string(lines);
+	output = lines_to_string(lines);
 	free_string_array(lines);
 	if (lines == NULL)
 		exit(1);
 
-	enum connection_state state = strstr(output, "inet ") ? CONNECTED :
-	    strstr(output, "status: active")		      ? DISCONNECTED :
-								UNPLUGGED;
+	state = strstr(output, "inet ")	     ? CONNECTED :
+	    strstr(output, "status: active") ? DISCONNECTED :
+					       UNPLUGGED;
 	free(output);
-	return state;
+	return (state);
 }
 
 struct network_interface *
 get_network_interface_by_name(char *interface_name)
 {
-	if (interface_name == NULL)
-		return NULL;
+	int count;
+	struct network_interface *interface, **interfaces;
 
-	struct network_interface **interfaces = get_network_interfaces();
-	int count = 0;
+	if (interface_name == NULL)
+		return (NULL);
+
+	interfaces = get_network_interfaces();
+	count = 0;
 	while (interfaces[count] != NULL)
 		count++;
 
-	struct network_interface *interface = NULL;
+	interface = NULL;
 	for (int i = 0; interfaces[i] != NULL; i++) {
 		if (strcmp(interfaces[i]->name, interface_name) == 0) {
 			interface = interfaces[i];
@@ -101,82 +108,91 @@ get_network_interface_by_name(char *interface_name)
 	}
 
 	free_network_interfaces(interfaces);
-	return interface;
+	return (interface);
 }
 
 char **
 get_network_interface_names()
 {
 	FILE *fp = popen("ifconfig -l", "r");
+	char **interface_names;
+	char buffer[256];
+	const char pattern[] =
+	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
+	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
+
 	if (fp == NULL) {
 		perror("popen `ifconfig -l` failed");
-		return NULL;
+		return (NULL);
 	}
 
-	char buffer[256];
 	if (fgets(buffer, sizeof(buffer), fp) == 0) {
 		pclose(fp);
-		return NULL;
+		return (NULL);
 	}
 	pclose(fp);
 
 	buffer[strcspn(buffer, "\n")] = '\0';
-	char **interface_names = split_string(buffer, " ");
+	interface_names = split_string(buffer, " ");
 	if (interface_names == NULL)
-		return NULL;
+		return (NULL);
 
-	const char pattern[] =
-	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
-	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
 	if (remove_matching_strings(interface_names, pattern) != 0) {
 		free_string_array(interface_names);
-		return NULL;
+		return (NULL);
 	}
 
-	return interface_names;
+	return (interface_names);
 }
 
 char *
 retrieve_network_interface_connected_ssid(char *interface_name)
 {
+	FILE *fp;
+	char *ssid, **lines;
 	char command[256];
+
 	snprintf(command, sizeof(command), "ifconfig %s", interface_name);
-	FILE *fp = popen(command, "r");
+	fp = popen(command, "r");
 	if (fp == NULL) {
 		perror("popen failed");
-		return NULL;
+		return (NULL);
 	}
 
-	char **lines = file_read_lines(fp);
+	lines = file_read_lines(fp);
 	pclose(fp);
 	if (lines == NULL)
-		return NULL;
+		return (NULL);
 
-	char *ssid = NULL;
+	ssid = NULL;
 	for (int i = 0; lines[i] != NULL; i++) {
 		char *ssid_index = strstr(lines[i], "ssid ");
+
 		if (ssid_index != NULL) {
 			char *ssid_start = ssid_index + strlen("ssid ");
 			char *ssid_end = strstr(lines[i], " channel");
+
 			ssid = strndup(ssid_start, ssid_end - ssid_start);
 			break;
 		}
 	}
+
 	free_string_array(lines);
-	return ssid;
+	return (ssid);
 }
 
 struct network_interface **
 get_network_interfaces()
 {
-	char **interface_names = get_network_interface_names();
-
 	int interfaces_count = 0;
+	char **interface_names = get_network_interface_names();
+	struct network_interface **interfaces;
+
 	while (interface_names[interfaces_count] != NULL)
 		interfaces_count++;
 
-	struct network_interface **interfaces =
-	    calloc(sizeof(struct network_interface *), interfaces_count + 1);
+	interfaces = calloc(sizeof(struct network_interface *),
+	    interfaces_count + 1);
 	for (int i = 0; interface_names[i] != NULL; i++) {
 		interfaces[i] = malloc(sizeof(struct network_interface));
 		interfaces[i]->name = interface_names[i];
@@ -189,7 +205,7 @@ get_network_interfaces()
 	interfaces[interfaces_count] = NULL;
 	free(interface_names);
 
-	return interfaces;
+	return (interfaces);
 }
 
 void
@@ -203,9 +219,8 @@ free_network_interface(struct network_interface *interface)
 void
 free_network_interfaces(struct network_interface **interfaces)
 {
-	for (int i = 0; interfaces[i] != NULL; i++) {
+	for (int i = 0; interfaces[i] != NULL; i++)
 		free_network_interface(interfaces[i]);
-	}
 	free(interfaces);
 }
 
@@ -221,32 +236,35 @@ guard_root_access()
 int
 enable_interface(char *interface_name)
 {
+	char command[256];
+
 	guard_root_access();
 
-	char command[256];
 	snprintf(command, sizeof(command), "ifconfig %s up", interface_name);
-	return system(command);
+	return (system(command));
 }
 
 int
 disable_interface(char *interface_name)
 {
+	char command[256];
+
 	guard_root_access();
 
-	char command[256];
 	snprintf(command, sizeof(command), "ifconfig %s down", interface_name);
-	return system(command);
+	return (system(command));
 }
 
 int
 restart_interface(char *interface_name)
 {
+	char command[256];
+
 	guard_root_access();
 
-	char command[256];
 	snprintf(command, sizeof(command),
 	    "service netif restart %s > /dev/null 2>&1", interface_name);
-	return system(command);
+	return (system(command));
 }
 
 bool
@@ -254,38 +272,41 @@ is_valid_interface(char *interface_name)
 {
 	char **interface_names = get_network_interface_names();
 	bool is_valid = string_array_contains(interface_names, interface_name);
+
 	free_string_array(interface_names);
-	return is_valid;
+	return (is_valid);
 }
 
 static struct wifi_network *
 extract_wifi_network(char *network_info)
 {
-	char ssid[256], bssid[18], channel[5], date_rate[5], sn[8],
-	    beacon_interval[4], capabilities[256];
+	int signal, noise;
+	char beacon_interval[4], bssid[18], channel[5], capabilities[256];
+	char date_rate[5], ssid[256], sn[8];
+	struct wifi_network *network;
+
 	if (sscanf(network_info, "%255s %17s %4s %4s %7s %3s %[^\n]", ssid,
 		bssid, channel, date_rate, sn, beacon_interval,
 		capabilities) != 7)
-		return NULL;
-	int signal, noise;
+		return (NULL);
 	if (sscanf(sn, "%d:%d", &signal, &noise) != 2)
-		return NULL;
+		return (NULL);
 
-	struct wifi_network *network = malloc(sizeof(struct wifi_network));
+	network = malloc(sizeof(struct wifi_network));
 	if (network == NULL)
-		return NULL;
+		return (NULL);
 
 	network->ssid = strdup(ssid);
 	if (network->ssid == NULL) {
 		free(network);
-		return NULL;
+		return (NULL);
 	}
 
 	network->bssid = strdup(bssid);
 	if (network->bssid == NULL) {
 		free(network->ssid);
 		free(network);
-		return NULL;
+		return (NULL);
 	}
 
 	network->channel = atoi(channel);
@@ -299,10 +320,10 @@ extract_wifi_network(char *network_info)
 		free(network->bssid);
 		free(network->ssid);
 		free(network);
-		return NULL;
+		return (NULL);
 	}
 
-	return network;
+	return (network);
 }
 
 void
@@ -327,60 +348,66 @@ free_wifi_networks(struct wifi_network **networks)
 struct wifi_network **
 scan_network_interface(char *interface_name)
 {
+	int line_count;
+	FILE *fp;
+	char *output, **lines;
+	struct wifi_network **wifi_networks;
 	char command[256];
+
 	snprintf(command, sizeof(command), "ifconfig %s scan", interface_name);
-	FILE *fp = popen(command, "r");
+	fp = popen(command, "r");
 	if (fp == NULL) {
 		perror("popen failed");
-		return NULL;
+		return (NULL);
 	}
 
-	char **lines = file_read_lines(fp);
+	lines = file_read_lines(fp);
 	pclose(fp);
 	if (lines == NULL)
-		return NULL;
-	int line_count = string_array_length(lines);
+		return (NULL);
+	line_count = string_array_length(lines);
 	if (line_count == 0) {
 		free_string_array(lines);
-		return NULL;
+		return (NULL);
 	}
 
-	char *output = lines_to_string(lines);
+	output = lines_to_string(lines);
 	if (strstr(output, "unable to get scan results"))
-		return NULL;
+		return (NULL);
 
-	struct wifi_network **wifi_networks = calloc(line_count,
-	    sizeof(struct wifi_network **));
+	wifi_networks = calloc(line_count, sizeof(struct wifi_network **));
 	for (int i = 1; lines[i] != NULL; i++) {
 		wifi_networks[i - 1] = extract_wifi_network(lines[i]);
 		if (wifi_networks[i - 1] == NULL) {
 			free_wifi_networks(wifi_networks);
-			return NULL;
+			return (NULL);
 		}
 	}
 	wifi_networks[line_count - 1] = NULL;
 
 	free(output);
 	free_string_array(lines);
-	return wifi_networks;
+	return (wifi_networks);
 }
 
 struct wifi_network *
 get_wifi_network_by_ssid(char *network_interface, char *ssid)
 {
+	int count;
+	struct wifi_network *network, **networks;
+
 	if (ssid == NULL)
-		return NULL;
+		return (NULL);
 
-	struct wifi_network **networks = scan_network_interface(
-	    network_interface);
+	networks = scan_network_interface(network_interface);
 	if (networks == NULL)
-		return NULL;
+		return (NULL);
 
-	int count = 0;
+	count = 0;
 	while (networks[count] != NULL)
 		count++;
 
-	struct wifi_network *network = NULL;
+	network = NULL;
 	for (int i = 0; networks[i] != NULL; i++) {
 		if (strcmp(networks[i]->ssid, ssid) == 0) {
 			network = networks[i];
@@ -391,82 +418,90 @@ get_wifi_network_by_ssid(char *network_interface, char *ssid)
 	}
 
 	free_wifi_networks(networks);
-	return network;
+	return (network);
 }
 
 int
 disconnect_network_interface(char *interface_name)
 {
+	char command[256];
+
 	guard_root_access();
 
-	char command[256];
 	snprintf(command, sizeof(command), "ifconfig %s down", interface_name);
 	if (system(command) != 0) {
 		fprintf(stderr, "failed to bring %s down\n", interface_name);
-		return 1;
+		return (1);
 	}
 
 	snprintf(command, sizeof(command), "ifconfig %s ssid 'none'",
 	    interface_name);
 	if (system(command) != 0) {
 		fprintf(stderr, "failed to clear SSID on %s\n", interface_name);
-		return 1;
+		return (1);
 	}
 
 	snprintf(command, sizeof(command), "ifconfig %s up", interface_name);
 	if (system(command) != 0) {
 		fprintf(stderr, "failed to bring %s up\n", interface_name);
-		return 1;
+		return (1);
 	}
 
-	return 0;
+	return (0);
 }
 
 int
 connect_to_ssid(char *network_interface, char *ssid)
 {
+	char command[256];
+
 	guard_root_access();
 
 	if (system("killall wpa_supplicant > /dev/null 2>&1") != 0)
-		return 1;
+		return (1);
 
-	char command[256];
 	snprintf(command, sizeof(command),
 	    "ifconfig %s ssid '%s' > /dev/null 2>&1", network_interface, ssid);
 	if (system(command) != 0)
-		return 1;
+		return (1);
 
 	snprintf(command, sizeof(command),
 	    "wpa_supplicant -B -i %s -c /etc/wpa_supplicant.conf > /dev/null 2>&1",
 	    network_interface);
-	return system(command);
+	return (system(command));
 }
 
 bool
 is_ssid_configured(char *ssid)
 {
+	bool is_configured;
+	char *wpa_supplicant_conf, **conf_lines;
 	FILE *conf_file = fopen("/etc/wpa_supplicant.conf", "r");
+
 	if (conf_file == NULL)
-		return false;
-	char **conf_lines = file_read_lines(conf_file);
-	char *wpa_supplicant_conf = lines_to_string(conf_lines);
+		return (false);
+
+	conf_lines = file_read_lines(conf_file);
+	wpa_supplicant_conf = lines_to_string(conf_lines);
 	free_string_array(conf_lines);
 
-	bool is_configured = strstr(wpa_supplicant_conf, ssid);
+	is_configured = strstr(wpa_supplicant_conf, ssid);
 
 	free(wpa_supplicant_conf);
-	return is_configured;
+	return (is_configured);
 }
 
 int
 configure_wifi_network(struct wifi_network *network, char *password)
 {
+	FILE *conf_file;
+	char security[256];
+
 	guard_root_access();
 
 	if (password == NULL)
 		password = "";
 
-	char security[256];
 	if (strstr(network->capabilities, "RSN")) {
 		snprintf(security, sizeof(security),
 		    "\n key_mgmt=WPA-PSK"
@@ -487,10 +522,10 @@ configure_wifi_network(struct wifi_network *network, char *password)
 		    password);
 	}
 
-	FILE *conf_file = fopen("/etc/wpa_supplicant.conf", "a");
+	conf_file = fopen("/etc/wpa_supplicant.conf", "a");
 	if (conf_file == NULL) {
 		perror("failed to open /etc/wpa_supplicant.conf");
-		return 1;
+		return (1);
 	}
 
 	fprintf(conf_file,
@@ -502,7 +537,7 @@ configure_wifi_network(struct wifi_network *network, char *password)
 	    network->ssid, security);
 
 	fclose(conf_file);
-	return 0;
+	return (0);
 }
 
 bool
@@ -510,8 +545,8 @@ is_wifi_network_secured(struct wifi_network *network)
 {
 	if (strstr(network->capabilities, "RSN") ||
 	    strstr(network->capabilities, "WPA"))
-		return true;
-	return false;
+		return (true);
+	return (false);
 }
 
 void
@@ -533,6 +568,8 @@ free_network_configuration(struct network_configuration *configuration)
 struct network_configuration *
 generate_network_configuration(int argc, char **argv)
 {
+	int opt;
+	struct network_configuration *config;
 	struct option options[] = {
 		{ "method", required_argument, NULL, 'm' },
 		{ "ip", required_argument, NULL, 'i' },
@@ -544,13 +581,11 @@ generate_network_configuration(int argc, char **argv)
 		{ NULL, 0, NULL, 0 },
 	};
 
-	struct network_configuration *config = malloc(
-	    sizeof(struct network_configuration));
+	config = malloc(sizeof(struct network_configuration));
 	if (config == NULL)
-		return NULL;
+		return (NULL);
 	memset(config, 0, sizeof(struct network_configuration));
 
-	int opt;
 	while ((opt = getopt_long(argc, argv, "m:i:n:g:d:s:r:", options,
 		    NULL)) != -1) {
 		switch (opt) {
@@ -562,7 +597,7 @@ generate_network_configuration(int argc, char **argv)
 			} else {
 				fprintf(stderr, "invalid method: %s", optarg);
 				free_network_configuration(config);
-				return NULL;
+				return (NULL);
 			}
 			break;
 		case 'i':
@@ -571,7 +606,7 @@ generate_network_configuration(int argc, char **argv)
 				fprintf(stderr,
 				    "use --method=manual for manually setting the IP\n");
 				free_network_configuration(config);
-				return NULL;
+				return (NULL);
 			}
 			config->ip = strdup(optarg);
 			break;
@@ -581,7 +616,7 @@ generate_network_configuration(int argc, char **argv)
 				fprintf(stderr,
 				    "use --method=manual for manually setting the netmask\n");
 				free_network_configuration(config);
-				return NULL;
+				return (NULL);
 			}
 			config->netmask = strdup(optarg);
 			break;
@@ -591,7 +626,7 @@ generate_network_configuration(int argc, char **argv)
 				fprintf(stderr,
 				    "use --method=manual for manually setting the gateway\n");
 				free_network_configuration(config);
-				return NULL;
+				return (NULL);
 			}
 			config->gateway = strdup(optarg);
 			break;
@@ -608,7 +643,7 @@ generate_network_configuration(int argc, char **argv)
 			fprintf(stderr, "unknown option '%s'\n",
 			    optarg == NULL ? "" : optarg);
 			free_network_configuration(config);
-			return NULL;
+			return (NULL);
 		}
 	}
 
@@ -617,27 +652,30 @@ generate_network_configuration(int argc, char **argv)
 			fprintf(stderr,
 			    "provide both ip address and netmask for manual configuration\n");
 			free_network_configuration(config);
-			return NULL;
+			return (NULL);
 		}
 	}
 
-	return config;
+	return (config);
 }
 
 static int
 restart_networking()
 {
 	int status_code = system("service netif restart");
+
 	if (status_code != 0)
-		return status_code;
-	return system("service routing restart");
+		return (status_code);
+	return (system("service routing restart"));
 }
 
-// TODO: properly do it
+/* TODO: properly do it */
 static int
 configure_ip(char *interface_name, struct network_configuration *config)
 {
+	int status_code;
 	char ip_rc[256] = "sysrc ";
+
 	strncatf(ip_rc, sizeof(ip_rc), "ifconfig_%s=\"%s", interface_name,
 	    strstr(interface_name, "wlan") ? "WPA " : "");
 
@@ -647,27 +685,29 @@ configure_ip(char *interface_name, struct network_configuration *config)
 	else
 		strncat(ip_rc, "DHCP\"", sizeof(ip_rc) - strlen(ip_rc) - 1);
 
-	int status_code = system(ip_rc);
+	status_code = system(ip_rc);
 	if (status_code != 0)
-		return status_code;
+		return (status_code);
 
 	if (config->method == MANUAL) {
 		char gateway_rc[256];
+
 		snprintf(gateway_rc, sizeof(gateway_rc),
 		    "sysrc defaultrouter=\"%s\"", config->gateway);
 		status_code = system(gateway_rc);
 	}
 
-	return status_code;
+	return (status_code);
 }
 
 static int
 configure_resolvd(struct network_configuration *config)
 {
 	FILE *config_file = fopen("/etc/resolv.conf", "w");
+
 	if (config_file == NULL) {
 		perror("failed to open /etc/resolv.conf");
-		return 1;
+		return (1);
 	}
 
 	fprintf(config_file, "# Generated by wutil\n");
@@ -681,18 +721,19 @@ configure_resolvd(struct network_configuration *config)
 		fprintf(config_file, "nameserver %s\n", config->dns2);
 
 	fclose(config_file);
-	return 0;
+	return (0);
 }
 
 int
 configure_nic(char *interface_name, struct network_configuration *config)
 {
+	int status_code;
+
 	guard_root_access();
 
-	int status_code;
 	if (config->method != UNCHANGED &&
 	    (status_code = configure_ip(interface_name, config)) != 0)
-		return status_code;
+		return (status_code);
 
 	if (config->dns1 != NULL || config->dns2 != NULL ||
 	    config->search_domain != NULL) {
@@ -701,5 +742,5 @@ configure_nic(char *interface_name, struct network_configuration *config)
 	}
 
 	restart_networking();
-	return status_code;
+	return (status_code);
 }
