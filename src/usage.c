@@ -40,7 +40,7 @@ usage(char *program_name)
 	    "  enable     <interface>                   Enable <interface>\n"
 	    "  disable    <interface>                   Disable <interface>\n"
 	    "  restart    <interface>                   Restart <interface>\n"
-	    "  config     <interface>                   Configure network settings for <interface>\n"
+	    "  configure  <interface>                   Configure network settings for <interface>\n"
 	    "                                             Options:\n"
 	    "                                               --method [dhcp|manual] Set IP assignment method\n"
 	    "                                               --ip <ip_address> Static IP address (required if manual)\n"
