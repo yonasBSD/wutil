@@ -77,6 +77,7 @@ struct network_interface **get_network_interfaces();
 struct network_interface *get_network_interface_by_name(char *interface_name);
 struct wifi_network **scan_network_interface(char *interface_name);
 char *retrieve_network_interface_connected_ssid(char *interface_name);
+void free_network_interface(struct network_interface *interface);
 void free_network_interfaces(struct network_interface **interfaces);
 enum connection_state get_interface_connection_state(char *interface_name);
 

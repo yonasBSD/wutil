@@ -141,6 +141,7 @@ cmd_show(int argc, char **argv)
 	printf("%-10s %-12s %-20s\n", interface_name,
 	    connection_state_to_string[interface->state], ssid);
 
+	free_network_interface(interface);
 	return (0);
 }
 
