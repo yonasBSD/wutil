@@ -98,7 +98,6 @@ main(void)
 
 	raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
 	raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP);
-	raw.c_oflag &= ~OPOST;
 	raw.c_cflag |= CS8;
 
 	raw.c_cc[VTIME] = 0;
@@ -207,6 +206,7 @@ render(void)
 		dprintf(tty, "\n");
 
 	render_network_interfaces();
+	dprintf(tty, "\n");
 	render_networks();
 
 	print_centeredf("%sPress Tab to switch sections,"
@@ -268,7 +268,6 @@ render_network_interfaces(void)
 
 	dprintf(tty, "%*s%s%-20s%-20s%-20s%s\n", h_pad, "", FG_YELLOW, "Name",
 	    "State", "Connected SSID", RESET);
-	dprintf(tty, "\n");
 
 	for (size_t i = 0; i < interfaces_count; i++) {
 		const char *state, *ssid = interfaces[i]->connected_ssid;
@@ -309,19 +308,16 @@ render_networks(void)
 	    NO_UNDERLINE, RESET);
 	dprintf(tty, "\n");
 
-	dprintf(tty, "%*s%s%-20s%-20s%-20s%-20s%-20s%-20s%-20s%s\n", h_pad, "",
-	    FG_YELLOW, "SSID", "BSSID", "CAPS", "Channel", "Data Rate",
-	    "Signal", "Noise", RESET);
+	dprintf(tty, "%*s%s%-20s%-20s%-20s%-15s%s\n", h_pad, "", FG_YELLOW,
+	    "SSID", "Channel", "Signal (dBm)", "Noise (dBm)", RESET);
 
 	for (size_t i = 0; i < networks_count; i++) {
 		dprintf(tty, "%*s", h_pad, "");
 		if (i == selected_network && current_section == NETWORKS)
 			dprintf(tty, "%s%s", BG_GRAY, BOLD);
 
-		dprintf(tty, "%-20s%-20s%-20s%-20d%-20d%-20d%-20d%s\n",
-		    networks[i]->ssid, networks[i]->bssid,
-		    networks[i]->capabilities, networks[i]->channel,
-		    networks[i]->data_rate, networks[i]->signal_dbm,
+		dprintf(tty, "%-20s%-20d%-20d%-15d%s\n", networks[i]->ssid,
+		    networks[i]->channel, networks[i]->signal_dbm,
 		    networks[i]->noise_dbm, RESET);
 	}
 	dprintf(tty, "\n");
