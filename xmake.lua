@@ -13,3 +13,8 @@ target("wutil")
     set_kind("binary")
     add_files("src/cli.c", "src/usage.c")
     add_deps("library")
+
+target("wutui")
+    set_kind("binary")
+    add_files("src/tui.c")
+    add_deps("library")
