@@ -38,3 +38,9 @@ Commands:
 
 
 ```
+
+### wutui
+```
+$ ./build/bsd/x86_64/release/wutui
+```
+![04-09-2025-000549](https://github.com/user-attachments/assets/f564c27b-1abd-46ab-ab2b-d4b56cd122e4)
