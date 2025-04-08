@@ -7,70 +7,104 @@ VV=@
 .endif
 
 CCACHE=/usr/local/bin/ccache
-MRC=/usr/local/bin/llvm-rc
-GC=/usr/local/bin/go
-MM=/usr/bin/clang
-MXX=/usr/bin/clang
-AS=/usr/bin/clang
-CU=/usr/bin/clang
-CC=/usr/bin/clang
 RC=/usr/local/bin/rustc
+CC=/usr/bin/clang
+CU=/usr/bin/clang
+AS=/usr/bin/clang
+MM=/usr/bin/clang
+MRC=/usr/local/bin/llvm-rc
+MXX=/usr/bin/clang
 CXX=/usr/bin/clang
+GC=/usr/local/bin/go
 
-RCAR=/usr/local/bin/rustc
 AR=/usr/bin/ar
+RCAR=/usr/local/bin/rustc
 GCAR=/usr/local/bin/go
-RCSH=/usr/local/bin/rustc
-SH=/usr/bin/clang++
-RCLD=/usr/local/bin/rustc
 LD=/usr/bin/clang++
+RCLD=/usr/local/bin/rustc
 GCLD=/usr/local/bin/go
+SH=/usr/bin/clang++
+RCSH=/usr/local/bin/rustc
 
+wutui_LD=/usr/bin/clang++
+wutui_CC=/usr/bin/clang
 wutil_LD=/usr/bin/clang++
 wutil_CC=/usr/bin/clang
+library_AR=/usr/bin/ar
+library_CC=/usr/bin/clang
 
-wutil_CCFLAGS=-Qunused-arguments -m64 -g -O3 -fsanitize=address -fsanitize=undefined -DNDEBUG
-wutil_LDFLAGS=-m64 -s -fsanitize=address -fsanitize=undefined
+wutui_CCFLAGS=-Qunused-arguments -m64 -g -O3 -Wall -Wextra -Wpedantic -Wshadow -Wunused -g -fsanitize=address -fsanitize=undefined -DNDEBUG
+wutui_LDFLAGS=-m64 -Lbuild/bsd/x86_64/release -s -llibrary -fsanitize=address -fsanitize=undefined
+wutil_CCFLAGS=-Qunused-arguments -m64 -g -O3 -Wall -Wextra -Wpedantic -Wshadow -Wunused -g -fsanitize=address -fsanitize=undefined -DNDEBUG
+wutil_LDFLAGS=-m64 -Lbuild/bsd/x86_64/release -s -llibrary -fsanitize=address -fsanitize=undefined
+library_CCFLAGS=-Qunused-arguments -m64 -g -O3 -Wall -Wextra -Wpedantic -Wshadow -Wunused -g -fsanitize=address -fsanitize=undefined -DNDEBUG
+library_ARFLAGS=-cr
 
-default:  wutil
+default:  wutui wutil library
 
-all:  wutil
+all:  wutui wutil library
 
-.PHONY: default all  wutil
+.PHONY: default all  wutui wutil library
+
+wutui: build/bsd/x86_64/release/wutui
+build/bsd/x86_64/release/wutui: build/bsd/x86_64/release/liblibrary.a build/.objs/wutui/bsd/x86_64/release/src/tui.c.o
+	@echo linking.release wutui
+	@mkdir -p build/bsd/x86_64/release
+	$(VV)$(wutui_LD) -o build/bsd/x86_64/release/wutui build/.objs/wutui/bsd/x86_64/release/src/tui.c.o $(wutui_LDFLAGS)
+
+build/.objs/wutui/bsd/x86_64/release/src/tui.c.o: src/tui.c
+	@echo ccache compiling.release src/tui.c
+	@mkdir -p build/.objs/wutui/bsd/x86_64/release/src
+	$(VV)$(wutui_CC) -c $(wutui_CCFLAGS) -o build/.objs/wutui/bsd/x86_64/release/src/tui.c.o src/tui.c
 
 wutil: build/bsd/x86_64/release/wutil
-build/bsd/x86_64/release/wutil: build/.objs/wutil/bsd/x86_64/release/src/utils.c.o build/.objs/wutil/bsd/x86_64/release/src/usage.c.o build/.objs/wutil/bsd/x86_64/release/src/string_utils.c.o build/.objs/wutil/bsd/x86_64/release/src/main.c.o
+build/bsd/x86_64/release/wutil: build/bsd/x86_64/release/liblibrary.a build/.objs/wutil/bsd/x86_64/release/src/cli.c.o build/.objs/wutil/bsd/x86_64/release/src/usage.c.o
 	@echo linking.release wutil
 	@mkdir -p build/bsd/x86_64/release
-	$(VV)$(wutil_LD) -o build/bsd/x86_64/release/wutil build/.objs/wutil/bsd/x86_64/release/src/utils.c.o build/.objs/wutil/bsd/x86_64/release/src/usage.c.o build/.objs/wutil/bsd/x86_64/release/src/string_utils.c.o build/.objs/wutil/bsd/x86_64/release/src/main.c.o $(wutil_LDFLAGS)
+	$(VV)$(wutil_LD) -o build/bsd/x86_64/release/wutil build/.objs/wutil/bsd/x86_64/release/src/cli.c.o build/.objs/wutil/bsd/x86_64/release/src/usage.c.o $(wutil_LDFLAGS)
 
-build/.objs/wutil/bsd/x86_64/release/src/utils.c.o: src/utils.c
-	@echo ccache compiling.release src/utils.c
+build/.objs/wutil/bsd/x86_64/release/src/cli.c.o: src/cli.c
+	@echo ccache compiling.release src/cli.c
 	@mkdir -p build/.objs/wutil/bsd/x86_64/release/src
-	$(VV)$(wutil_CC) -c $(wutil_CCFLAGS) -o build/.objs/wutil/bsd/x86_64/release/src/utils.c.o src/utils.c
+	$(VV)$(wutil_CC) -c $(wutil_CCFLAGS) -o build/.objs/wutil/bsd/x86_64/release/src/cli.c.o src/cli.c
 
 build/.objs/wutil/bsd/x86_64/release/src/usage.c.o: src/usage.c
 	@echo ccache compiling.release src/usage.c
 	@mkdir -p build/.objs/wutil/bsd/x86_64/release/src
 	$(VV)$(wutil_CC) -c $(wutil_CCFLAGS) -o build/.objs/wutil/bsd/x86_64/release/src/usage.c.o src/usage.c
 
-build/.objs/wutil/bsd/x86_64/release/src/string_utils.c.o: src/string_utils.c
-	@echo ccache compiling.release src/string_utils.c
-	@mkdir -p build/.objs/wutil/bsd/x86_64/release/src
-	$(VV)$(wutil_CC) -c $(wutil_CCFLAGS) -o build/.objs/wutil/bsd/x86_64/release/src/string_utils.c.o src/string_utils.c
+library: build/bsd/x86_64/release/liblibrary.a
+build/bsd/x86_64/release/liblibrary.a: build/.objs/library/bsd/x86_64/release/src/lib/string_utils.c.o build/.objs/library/bsd/x86_64/release/src/lib/utils.c.o
+	@echo linking.release liblibrary.a
+	@mkdir -p build/bsd/x86_64/release
+	$(VV)$(library_AR) $(library_ARFLAGS) build/bsd/x86_64/release/liblibrary.a build/.objs/library/bsd/x86_64/release/src/lib/string_utils.c.o build/.objs/library/bsd/x86_64/release/src/lib/utils.c.o
 
-build/.objs/wutil/bsd/x86_64/release/src/main.c.o: src/main.c
-	@echo ccache compiling.release src/main.c
-	@mkdir -p build/.objs/wutil/bsd/x86_64/release/src
-	$(VV)$(wutil_CC) -c $(wutil_CCFLAGS) -o build/.objs/wutil/bsd/x86_64/release/src/main.c.o src/main.c
+build/.objs/library/bsd/x86_64/release/src/lib/string_utils.c.o: src/lib/string_utils.c
+	@echo ccache compiling.release src/lib/string_utils.c
+	@mkdir -p build/.objs/library/bsd/x86_64/release/src/lib
+	$(VV)$(library_CC) -c $(library_CCFLAGS) -o build/.objs/library/bsd/x86_64/release/src/lib/string_utils.c.o src/lib/string_utils.c
 
-clean:  clean_wutil
+build/.objs/library/bsd/x86_64/release/src/lib/utils.c.o: src/lib/utils.c
+	@echo ccache compiling.release src/lib/utils.c
+	@mkdir -p build/.objs/library/bsd/x86_64/release/src/lib
+	$(VV)$(library_CC) -c $(library_CCFLAGS) -o build/.objs/library/bsd/x86_64/release/src/lib/utils.c.o src/lib/utils.c
 
-clean_wutil: 
+clean:  clean_wutui clean_wutil clean_library
+
+clean_wutui:  clean_library
+	@rm -rf build/bsd/x86_64/release/wutui
+	@rm -rf build/bsd/x86_64/release/wutui.sym
+	@rm -rf build/.objs/wutui/bsd/x86_64/release/src/tui.c.o
+
+clean_wutil:  clean_library
 	@rm -rf build/bsd/x86_64/release/wutil
 	@rm -rf build/bsd/x86_64/release/wutil.sym
-	@rm -rf build/.objs/wutil/bsd/x86_64/release/src/utils.c.o
+	@rm -rf build/.objs/wutil/bsd/x86_64/release/src/cli.c.o
 	@rm -rf build/.objs/wutil/bsd/x86_64/release/src/usage.c.o
-	@rm -rf build/.objs/wutil/bsd/x86_64/release/src/string_utils.c.o
-	@rm -rf build/.objs/wutil/bsd/x86_64/release/src/main.c.o
+
+clean_library: 
+	@rm -rf build/bsd/x86_64/release/liblibrary.a
+	@rm -rf build/bsd/x86_64/release/library.sym
+	@rm -rf build/.objs/library/bsd/x86_64/release/src/lib/string_utils.c.o
+	@rm -rf build/.objs/library/bsd/x86_64/release/src/lib/utils.c.o
 
