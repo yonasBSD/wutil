@@ -35,11 +35,11 @@
 #include "string_utils.h"
 #include "utils.h"
 
-static void guard_root_access();
+static void guard_root_access(void);
 
 static struct wifi_network *extract_wifi_network(char *network_info);
 
-static int restart_networking();
+static int restart_networking(void);
 
 static int configure_ip(char *interface_name,
     struct network_configuration *config);
@@ -112,7 +112,7 @@ get_network_interface_by_name(char *interface_name)
 }
 
 char **
-get_network_interface_names()
+get_network_interface_names(void)
 {
 	FILE *fp = popen("ifconfig -l", "r");
 	char **interface_names;
@@ -182,7 +182,7 @@ retrieve_network_interface_connected_ssid(char *interface_name)
 }
 
 struct network_interface **
-get_network_interfaces()
+get_network_interfaces(void)
 {
 	int interfaces_count = 0;
 	char **interface_names = get_network_interface_names();
@@ -225,7 +225,7 @@ free_network_interfaces(struct network_interface **interfaces)
 }
 
 static void
-guard_root_access()
+guard_root_access(void)
 {
 	if (geteuid() != 0) {
 		fprintf(stderr, "insufficient permissions\n");
@@ -660,7 +660,7 @@ generate_network_configuration(int argc, char **argv)
 }
 
 static int
-restart_networking()
+restart_networking(void)
 {
 	int status_code = system("service netif restart");
 

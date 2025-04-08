@@ -34,8 +34,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include "lib/utils.h"
 #include "usage.h"
-#include "utils.h"
 
 typedef int (*cmd_handler_f)(int argc, char **argv);
 
@@ -76,6 +76,7 @@ static void read_password(char *buffer, size_t size, const char *prompt_format,
 static int
 cmd_help(int argc, char **argv)
 {
+	(void)argc;
 	usage(argv[0]);
 	return (0);
 }

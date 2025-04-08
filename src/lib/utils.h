@@ -72,8 +72,8 @@ struct network_configuration {
 	char *search_domain;
 };
 
-char **get_network_interface_names();
-struct network_interface **get_network_interfaces();
+char **get_network_interface_names(void);
+struct network_interface **get_network_interfaces(void);
 struct network_interface *get_network_interface_by_name(char *interface_name);
 struct wifi_network **scan_network_interface(char *interface_name);
 char *retrieve_network_interface_connected_ssid(char *interface_name);
