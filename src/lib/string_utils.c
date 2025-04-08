@@ -70,19 +70,21 @@ split_string(char *string, char *separators)
 
 		splits[i] = strdup(token);
 		if (splits[i] == NULL) {
+			free(to_free);
 			free_string_array(splits);
 			return (NULL);
 		}
 	}
 	splits[split_count] = NULL;
 
+	free(to_free);
 	return (splits);
 }
 
 void
 free_string_array(char **strings)
 {
-	for (char i = 0; strings[i] != NULL; i++)
+	for (int i = 0; strings[i] != NULL; i++)
 		free(strings[i]);
 	free(strings);
 }
