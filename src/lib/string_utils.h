@@ -32,8 +32,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-int count_chars(char *string, char *chars);
-char **split_string(char *string, char *separators);
+int count_chars(char *string, const char *chars);
+char **split_string(char *string, const char *separators);
 char *lines_to_string(char **lines);
 
 int remove_matching_strings(char **strings, const char *pattern);

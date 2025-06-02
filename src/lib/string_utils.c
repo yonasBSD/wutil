@@ -36,7 +36,7 @@
 #include "string_utils.h"
 
 int
-count_chars(char *string, char *chars)
+count_chars(char *string, const char *chars)
 {
 	int count = 0;
 
@@ -49,7 +49,7 @@ count_chars(char *string, char *chars)
 }
 
 char **
-split_string(char *string, char *separators)
+split_string(char *string, const char *separators)
 {
 	const int split_count = count_chars(string, separators) + 1;
 	char *string_copy, *to_free;

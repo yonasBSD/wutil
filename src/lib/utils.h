@@ -89,7 +89,7 @@ bool is_valid_interface(char *interface_name);
 
 struct wifi_network *get_wifi_network_by_ssid(char *network_interface,
     char *ssid);
-int configure_wifi_network(struct wifi_network *network, char *password);
+int configure_wifi_network(struct wifi_network *network, const char *password);
 bool is_wifi_network_secured(struct wifi_network *network);
 void free_wifi_network(struct wifi_network *network);
 void free_wifi_networks(struct wifi_network **network);

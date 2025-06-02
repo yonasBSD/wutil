@@ -492,7 +492,7 @@ is_ssid_configured(char *ssid)
 }
 
 int
-configure_wifi_network(struct wifi_network *network, char *password)
+configure_wifi_network(struct wifi_network *network, const char *password)
 {
 	FILE *conf_file;
 	char security[256];

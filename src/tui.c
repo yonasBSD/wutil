@@ -62,8 +62,8 @@ enum section {
 };
 static enum section current_section = NETWORK_INTERFACES;
 
-struct network_interface **interfaces = NULL;
-struct wifi_network **networks = NULL;
+static struct network_interface **interfaces = NULL;
+static struct wifi_network **networks = NULL;
 static size_t interfaces_count = 0, networks_count = 0;
 
 int

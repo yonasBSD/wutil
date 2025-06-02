@@ -94,7 +94,7 @@ cmd_list(int argc, char **argv)
 	interfaces = get_network_interfaces();
 	printf("%-10s %-12s %-20s\n", "NAME", "STATE", "CONNECTED SSID");
 	for (int i = 0; interfaces[i] != NULL; i++) {
-		char *ssid = interfaces[i]->connected_ssid;
+		const char *ssid = interfaces[i]->connected_ssid;
 		ssid = ssid == NULL ? "" : ssid;
 		printf("%-10s %-12s %-20s\n", interfaces[i]->name,
 		    connection_state_to_string[interfaces[i]->state], ssid);
@@ -129,7 +129,7 @@ static int
 cmd_show(int argc, char **argv)
 {
 	char *interface_name = parse_interface_arg(argc, argv);
-	char *ssid;
+	const char *ssid;
 	struct network_interface *interface;
 
 	if (interface_name == NULL)

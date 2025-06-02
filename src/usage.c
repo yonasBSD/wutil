@@ -28,6 +28,8 @@
 
 #include <stdio.h>
 
+#include "usage.h"
+
 void
 usage(char *program_name)
 {
