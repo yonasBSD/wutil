@@ -1,10 +1,10 @@
 PROGS=	wutil wutui
 
-SRCS.wutil= src/cli.c src/usage.c
-SRCS.wutui= src/tui.c
-SRCS+= src/lib/string_utils.c src/lib/utils.c
+SRCS.wutil= wutil.c usage.c
+SRCS.wutui= wutui.c
+SRCS+= string_utils.c utils.c
 
-MAN=	man/wutil.1
+MAN=	wutil.1
 
 WARNS?=		6
 

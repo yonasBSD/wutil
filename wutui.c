@@ -38,8 +38,8 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "lib/ctl_seq.h"
-#include "lib/utils.h"
+#include "ctl_seq.h"
+#include "utils.h"
 
 static int fetch_size(void);
 static void render(void);

@@ -34,7 +34,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "lib/utils.h"
+#include "utils.h"
 #include "usage.h"
 
 typedef int (*cmd_handler_f)(int argc, char **argv);
