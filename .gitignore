@@ -2,3 +2,14 @@
 .cache/
 build/
 compile_commands.json
+
+obj/
+wutil
+wutui
+wutil.debug
+wutil.full
+wutui.debug
+wutui.full
+.depend.*
+*.gz
+**/*.pieo
