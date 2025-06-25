@@ -1,8 +1,7 @@
 PROGS=	wutil wutui
 
-SRCS.wutil=	wutil.c usage.c
-SRCS.wutui=	wutui.c
-SRCS+=	string_utils.c utils.c
+SRCS.wutil=	wutil.c usage.c string_utils.c utils.c
+SRCS.wutui=	wutui.c string_utils.c utils.c
 
 LDADD+=	-lifconfig
 LDADD+=	-lwpa_client
