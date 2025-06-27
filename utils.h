@@ -29,6 +29,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <sys/cdefs.h>
+
+#include <libifconfig.h>
 #include <stdbool.h>
 
 enum connection_state {
@@ -101,6 +104,8 @@ struct network_configuration *generate_network_configuration(int argc,
     char **argv);
 int configure_nic(char *interface_name, struct network_configuration *config);
 void free_network_configuration(struct network_configuration *configuration);
+void print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
+    void *udata __unused);
 int get_ssid(const char *ifname, char *ssid, int ssid_len);
 
 #endif /* !UTILS_H */

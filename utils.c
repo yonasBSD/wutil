@@ -768,3 +768,21 @@ configure_nic(char *interface_name, struct network_configuration *config)
 	return (status_code);
 }
 
+void
+print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
+{
+	regex_t *filter_regex = udata;
+	enum connection_state state;
+	char ssid[IEEE80211_NWID_LEN + 1] = { 0 };
+
+	if (regexec(filter_regex, ifa->ifa_name, 0, NULL, 0) == 0)
+		return;
+
+	state = get_interface_connection_state(ifa->ifa_name);
+
+	if (get_ssid(ifa->ifa_name, ssid, sizeof(ssid)) != 0)
+		ssid[0] = '\0';
+
+	printf("%-10s %-12s %-20s\n", ifa->ifa_name,
+	    connection_state_to_string[state], ssid);
+}

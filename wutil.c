@@ -27,6 +27,8 @@
  */
 
 #include <getopt.h>
+#include <libifconfig.h>
+#include <regex.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,8 +36,8 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "utils.h"
 #include "usage.h"
+#include "utils.h"
 
 typedef int (*cmd_handler_f)(int argc, char **argv);
 
@@ -84,24 +86,40 @@ cmd_help(int argc, char **argv)
 static int
 cmd_list(int argc, char **argv)
 {
-	struct network_interface **interfaces;
+	struct ifconfig_handle *lifh;
+	const char not_nics[] =
+	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
+	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
+	regex_t filter_regex;
+	int ret = 0;
 
 	if (argc > 2) {
-		fprintf(stderr, "bad value %s\n", argv[3]);
+		fprintf(stderr, "bad value %s\n", argv[2]);
 		return (1);
 	}
 
-	interfaces = get_network_interfaces();
-	printf("%-10s %-12s %-20s\n", "NAME", "STATE", "CONNECTED SSID");
-	for (int i = 0; interfaces[i] != NULL; i++) {
-		const char *ssid = interfaces[i]->connected_ssid;
-		ssid = ssid == NULL ? "" : ssid;
-		printf("%-10s %-12s %-20s\n", interfaces[i]->name,
-		    connection_state_to_string[interfaces[i]->state], ssid);
+	lifh = ifconfig_open();
+	if (lifh == NULL) {
+		fprintf(stderr, "Failed to open libifconfig handle.\n");
+		return (1);
 	}
 
-	free_network_interfaces(interfaces);
-	return (0);
+	if (regcomp(&filter_regex, not_nics, REG_EXTENDED | REG_NOSUB) != 0) {
+		ret = 1;
+		goto cleanup;
+	}
+
+	printf("%-10s %-12s %-20s\n", "NAME", "STATE", "CONNECTED SSID");
+	if (ifconfig_foreach_iface(lifh, print_interface, &filter_regex) != 0) {
+		fprintf(stderr, "Failed to get network interfaces.\n");
+		ret = 1;
+	}
+
+	regfree(&filter_regex);
+cleanup:
+	ifconfig_close(lifh);
+
+	return (ret);
 }
 
 static char *
