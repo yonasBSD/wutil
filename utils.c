@@ -26,7 +26,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <net/if.h>
+#include <net80211/ieee80211_ioctl.h>
+
 #include <getopt.h>
+#include <ifaddrs.h>
+#include <lib80211/lib80211_ioctl.h>
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -143,6 +149,23 @@ get_network_interface_names(void)
 	}
 
 	return (interface_names);
+}
+
+int
+get_ssid(const char *ifname, char *ssid, int ssid_len)
+{
+	int ret;
+	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (sockfd < 0)
+		return (-1);
+
+	ret = lib80211_get80211(sockfd, ifname, IEEE80211_IOC_SSID, ssid,
+	    ssid_len);
+
+	close(sockfd);
+
+	return (ret);
 }
 
 char *
@@ -744,3 +767,4 @@ configure_nic(char *interface_name, struct network_configuration *config)
 	restart_networking();
 	return (status_code);
 }
+

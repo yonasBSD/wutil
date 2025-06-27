@@ -101,5 +101,6 @@ struct network_configuration *generate_network_configuration(int argc,
     char **argv);
 int configure_nic(char *interface_name, struct network_configuration *config);
 void free_network_configuration(struct network_configuration *configuration);
+int get_ssid(const char *ifname, char *ssid, int ssid_len);
 
 #endif /* !UTILS_H */
