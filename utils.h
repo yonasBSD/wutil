@@ -32,6 +32,7 @@
 #include <sys/cdefs.h>
 
 #include <libifconfig.h>
+#include <regex.h>
 #include <stdbool.h>
 
 enum connection_state {
@@ -109,5 +110,6 @@ void free_network_configuration(struct network_configuration *configuration);
 void print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 int get_ssid(const char *ifname, char *ssid, int ssid_len);
+int regcomp_ignored_ifaces(regex_t *re);
 
 #endif /* !UTILS_H */

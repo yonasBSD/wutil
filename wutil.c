@@ -86,17 +86,21 @@ cmd_help(int argc, char **argv)
 static int
 cmd_list(int argc, char **argv)
 {
-	struct ifconfig_handle *lifh;
-	const char not_nics[] =
-	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
-	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
-	regex_t filter_regex;
 	int ret = 0;
+	struct ifconfig_handle *lifh;
+	regex_t regex;
+	struct {
+		regex_t *ignore;
+		char *ifname;
+	} data = { &regex, NULL };
 
 	if (argc > 2) {
 		fprintf(stderr, "bad value %s\n", argv[2]);
 		return (1);
 	}
+
+	if (regcomp_ignored_ifaces(data.ignore) != 0)
+		return (1);
 
 	lifh = ifconfig_open();
 	if (lifh == NULL) {
@@ -104,19 +108,13 @@ cmd_list(int argc, char **argv)
 		return (1);
 	}
 
-	if (regcomp(&filter_regex, not_nics, REG_EXTENDED | REG_NOSUB) != 0) {
-		ret = 1;
-		goto cleanup;
-	}
-
 	printf("%-10s %-12s %-20s\n", "NAME", "STATE", "CONNECTED SSID");
-	if (ifconfig_foreach_iface(lifh, print_interface, &filter_regex) != 0) {
+	if (ifconfig_foreach_iface(lifh, print_interface, &data) != 0) {
 		fprintf(stderr, "Failed to get network interfaces.\n");
 		ret = 1;
 	}
 
-	regfree(&filter_regex);
-cleanup:
+	regfree(data.ignore);
 	ifconfig_close(lifh);
 
 	return (ret);
@@ -146,22 +144,30 @@ parse_interface_arg(int argc, char **argv)
 static int
 cmd_show(int argc, char **argv)
 {
+	int ret = 0;
 	char *interface_name = parse_interface_arg(argc, argv);
-	const char *ssid;
-	struct network_interface *interface;
+	struct ifconfig_handle *lifh;
+	struct {
+		regex_t *ignore;
+		char *ifname;
+	} data = { NULL, interface_name };
 
 	if (interface_name == NULL)
 		return (1);
 
-	interface = get_network_interface_by_name(interface_name);
-	ssid = interface->connected_ssid;
+	lifh = ifconfig_open();
+	if (lifh == NULL) {
+		fprintf(stderr, "Failed to open libifconfig handle.\n");
+		return (1);
+	}
 
-	ssid = ssid == NULL ? "" : ssid;
-	printf("%-10s %-12s %-20s\n", interface_name,
-	    connection_state_to_string[interface->state], ssid);
+	if (ifconfig_foreach_iface(lifh, print_interface, &data) != 0) {
+		fprintf(stderr, "Failed to get network interfaces.\n");
+		ret = 1;
+	}
 
-	free_network_interface(interface);
-	return (0);
+	ifconfig_close(lifh);
+	return (ret);
 }
 
 static int

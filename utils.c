@@ -776,6 +776,8 @@ is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
 {
 	bool *is_af_inet = udata;
 
+	(void)lifh;
+
 	if (is_af_inet == NULL)
 		return;
 
@@ -821,18 +823,34 @@ get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
 void
 print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 {
-	regex_t *filter_regex = udata;
+	struct {
+		regex_t *ignore;
+		char *ifname;
+	} *data = udata;
 	enum connection_state state;
 	char ssid[IEEE80211_NWID_LEN + 1] = { 0 };
 
-	if (regexec(filter_regex, ifa->ifa_name, 0, NULL, 0) == 0)
+	if (data != NULL && data->ignore != NULL &&
+	    regexec(data->ignore, ifa->ifa_name, 0, NULL, 0) == 0)
+		return;
+
+	if (data != NULL && data->ifname != NULL &&
+	    strcmp(ifa->ifa_name, data->ifname) != 0)
 		return;
 
 	state = get_connection_state(lifh, ifa);
-
 	if (get_ssid(ifa->ifa_name, ssid, sizeof(ssid)) != 0)
 		ssid[0] = '\0';
 
 	printf("%-10s %-12s %-20s\n", ifa->ifa_name,
 	    connection_state_to_string[state], ssid);
+}
+
+int
+regcomp_ignored_ifaces(regex_t *re)
+{
+	const char not_nics[] =
+	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
+	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
+	return (regcomp(re, not_nics, REG_EXTENDED | REG_NOSUB) != 0);
 }
