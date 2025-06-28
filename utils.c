@@ -32,6 +32,7 @@
 #include <getopt.h>
 #include <ifaddrs.h>
 #include <lib80211/lib80211_ioctl.h>
+#include <libifconfig.h>
 #include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -770,6 +771,53 @@ configure_nic(char *interface_name, struct network_configuration *config)
 	return (status_code);
 }
 
+static void
+is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
+{
+	bool *is_af_inet = udata;
+
+	if (is_af_inet == NULL)
+		return;
+
+	if (ifa->ifa_addr->sa_family == AF_INET ||
+	    ifa->ifa_addr->sa_family == AF_INET6) {
+		*is_af_inet = true;
+	}
+}
+
+static enum connection_state
+get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
+{
+	bool is_interface_online = false;
+	struct ifmediareq *ifmr;
+	enum connection_state state = NA;
+	const char *status;
+
+	if (lifh == NULL || ifa == NULL)
+		return (NA);
+
+	ifconfig_foreach_ifaddr(lifh, ifa, is_ifaddr_af_inet,
+	    &is_interface_online);
+
+	if (ifconfig_media_get_mediareq(lifh, ifa->ifa_name, &ifmr) != 0)
+		return (NA);
+
+	status = ifconfig_media_get_status(ifmr);
+	if (strncmp("wlan", ifa->ifa_name, strlen("wlan")) == 0) {
+		state = (ifa->ifa_flags & IFF_UP) == 0 ? DISABLED :
+		    strcmp(status, "associated") == 0 && is_interface_online ?
+							 CONNECTED :
+							 DISCONNECTED;
+	} else if (strcmp(status, "active") == 0) {
+		state = is_interface_online ? CONNECTED : DISCONNECTED;
+	} else {
+		state = UNPLUGGED;
+	}
+
+	free(ifmr);
+	return (state);
+}
+
 void
 print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 {
@@ -780,7 +828,7 @@ print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 	if (regexec(filter_regex, ifa->ifa_name, 0, NULL, 0) == 0)
 		return;
 
-	state = get_interface_connection_state(ifa->ifa_name);
+	state = get_connection_state(lifh, ifa);
 
 	if (get_ssid(ifa->ifa_name, ssid, sizeof(ssid)) != 0)
 		ssid[0] = '\0';
