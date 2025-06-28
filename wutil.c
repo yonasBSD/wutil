@@ -173,7 +173,7 @@ cmd_show(int argc, char **argv)
 static int
 cmd_enable(int argc, char **argv)
 {
-	char *interface_name = parse_interface_arg(argc, argv);
+	const char *interface_name = parse_interface_arg(argc, argv);
 
 	if (interface_name == NULL)
 		return (1);

@@ -26,6 +26,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/ioccom.h>
+#include <sys/sockio.h>
+
 #include <net/if.h>
 #include <net80211/ieee80211_ioctl.h>
 
@@ -51,6 +54,9 @@ static int restart_networking(void);
 static int configure_ip(char *interface_name,
     struct network_configuration *config);
 static int configure_resolvd(struct network_configuration *config);
+
+static int modify_if_flags(int sockfd, const char *ifname, int set_flag,
+    int clear_flag);
 
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
@@ -259,26 +265,56 @@ guard_root_access(void)
 	}
 }
 
-int
-enable_interface(char *interface_name)
+static int
+modify_if_flags(int sockfd, const char *ifname, int set_flag, int clear_flag)
 {
-	char command[256];
+	struct ifreq ifr;
 
-	guard_root_access();
+	strlcpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) == -1) {
+		perror("ioctl SIOCGIFFLAGS failed");
+		return (-1);
+	}
 
-	snprintf(command, sizeof(command), "ifconfig %s up", interface_name);
-	return (system(command));
+	ifr.ifr_flags |= set_flag;
+	ifr.ifr_flags &= ~clear_flag;
+
+	if (ioctl(sockfd, SIOCSIFFLAGS, &ifr) == -1)
+		perror("ioctl SIOCSIFFLAGS failed");
+
+	return (0);
 }
 
 int
-disable_interface(char *interface_name)
+enable_interface(const char *ifname)
 {
-	char command[256];
+	int ret = 0;
+	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
-	guard_root_access();
+	if (sockfd < 0)
+		return (-1);
 
-	snprintf(command, sizeof(command), "ifconfig %s down", interface_name);
-	return (system(command));
+	ret = modify_if_flags(sockfd, ifname, IFF_UP, 0);
+
+	close(sockfd);
+
+	return (ret);
+}
+
+int
+disable_interface(const char *ifname)
+{
+	int ret = 0;
+	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (sockfd < 0)
+		return (-1);
+
+	ret = modify_if_flags(sockfd, ifname, 0, IFF_UP);
+
+	close(sockfd);
+
+	return (ret);
 }
 
 int
