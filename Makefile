@@ -5,7 +5,6 @@ SRCS.wutui=	wutui.c string_utils.c utils.c
 
 LDADD+=	-lifconfig
 LDADD+=	-l80211
-LDADD+=	-lwpa_client
 
 MAN=	wutil.1
 
