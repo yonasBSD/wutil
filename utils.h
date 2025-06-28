@@ -91,7 +91,7 @@ int enable_interface(char *interface_name);
 int disable_interface(char *interface_name);
 int disconnect_network_interface(char *interface_name);
 int restart_interface(char *interface_name);
-bool is_valid_interface(char *interface_name);
+bool is_valid_interface(const char *ifname);
 
 struct wifi_network *get_wifi_network_by_ssid(char *network_interface,
     char *ssid);

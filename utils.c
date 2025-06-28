@@ -294,12 +294,21 @@ restart_interface(char *interface_name)
 }
 
 bool
-is_valid_interface(char *interface_name)
+is_valid_interface(const char *ifname)
 {
-	char **interface_names = get_network_interface_names();
-	bool is_valid = string_array_contains(interface_names, interface_name);
+	bool is_valid;
+	regex_t ignored_ifaces;
 
-	free_string_array(interface_names);
+	if (ifname == NULL)
+		return (false);
+
+	is_valid = if_nametoindex(ifname); /* returns 0 if invalid i.e false */
+
+	regcomp_ignored_ifaces(&ignored_ifaces);
+	if (regexec(&ignored_ifaces, ifname, 0, NULL, 0) == 0)
+		is_valid = false;
+	regfree(&ignored_ifaces);
+
 	return (is_valid);
 }
 
