@@ -55,6 +55,8 @@ const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
 	[DISCONNECTED] = "Disconnected",
 	[UNPLUGGED] = "Unplugged",
+	[DISABLED] = "Disabled",
+	[NA] = "N/A",
 };
 
 enum connection_state

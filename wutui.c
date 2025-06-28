@@ -276,17 +276,7 @@ render_network_interfaces(void)
 		if (i == selected_nic && current_section == NETWORK_INTERFACES)
 			dprintf(tty, "%s%s", BG_GRAY, BOLD);
 
-		switch (interfaces[i]->state) {
-		case CONNECTED:
-			state = "connected";
-			break;
-		case DISCONNECTED:
-			state = "disconnected";
-			break;
-		case UNPLUGGED:
-			state = "unplugged";
-			break;
-		}
+		state = connection_state_to_string[interfaces[i]->state];
 
 		ssid = ssid != NULL ? ssid : "-";
 		dprintf(tty, "%-20s%-20s%-20s%s\n", interfaces[i]->name, state,

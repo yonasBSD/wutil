@@ -38,6 +38,8 @@ enum connection_state {
 	CONNECTED,
 	DISCONNECTED,
 	UNPLUGGED,
+	DISABLED,
+	NA,
 };
 
 extern const char *connection_state_to_string[];
