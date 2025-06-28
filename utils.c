@@ -58,6 +58,12 @@ static int configure_resolvd(struct network_configuration *config);
 static int modify_if_flags(int sockfd, const char *ifname, int set_flag,
     int clear_flag);
 
+static void is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
+    void *udata);
+
+static enum connection_state get_connection_state(struct ifconfig_handle *lifh,
+    struct ifaddrs *ifa);
+
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
 	[DISCONNECTED] = "Disconnected",
