@@ -206,20 +206,20 @@ cmd_restart(int argc, char **argv)
 static int
 cmd_scan(int argc, char **argv)
 {
-	char *interface_name = parse_interface_arg(argc, argv);
-	struct wifi_network **networks;
+	const char *interface_name = parse_interface_arg(argc, argv);
+	struct wifi_network_list *networks;
+	struct wifi_network *network;
 
 	if (interface_name == NULL)
 		return (1);
 
-	networks = scan_network_interface(interface_name);
+	networks = get_scan_results(interface_name);
 	if (networks == NULL)
 		return (1);
 
 	printf("%-20.20s %-9.9s %6s %s\n", "SSID", "SIGNAL", "CHANNEL",
 	    "CAPABILITIES");
-	for (int i = 0; networks[i] != NULL; i++) {
-		struct wifi_network *network = networks[i];
+	STAILQ_FOREACH(network, networks, next) {
 		char signal_str[9];
 
 		snprintf(signal_str, sizeof(signal_str), "%d dBm",
@@ -228,7 +228,7 @@ cmd_scan(int argc, char **argv)
 		    network->channel, network->capabilities);
 	}
 
-	free_wifi_networks(networks);
+	free_wifi_networks_list(networks);
 	return (0);
 }
 

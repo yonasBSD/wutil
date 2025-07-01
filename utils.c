@@ -26,9 +26,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/_param.h>
 #include <sys/ioccom.h>
 #include <sys/sockio.h>
 
+#include <net/ethernet.h>
 #include <net/if.h>
 #include <net80211/ieee80211_ioctl.h>
 
@@ -68,6 +70,7 @@ static char *caps_to_str(int capinfo, char *capstr);
 
 static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
+
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
 	[DISCONNECTED] = "Disconnected",
@@ -1009,4 +1012,99 @@ freq_to_chan(uint16_t freq, uint16_t flags)
 	}
 #undef IS_FREQ_IN_PSB
 #undef MAPPSB
+}
+
+struct wifi_network_list *
+get_scan_results(const char *ifname)
+{
+	int len;
+	char buf[24 * 1024];
+	struct wifi_network *entry;
+	struct wifi_network_list *head = NULL;
+	int sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
+
+	if (sockfd < 0) {
+		perror("failed to open PF_ROUTE socket");
+		return (NULL);
+	}
+
+	if (lib80211_get80211len(sockfd, ifname, IEEE80211_IOC_SCAN_RESULTS,
+		buf, sizeof(buf), &len) != 0) {
+		perror("IEEE80211_IOC_SCAN_RESULTS failed");
+		goto cleanup;
+	}
+
+	head = malloc(sizeof(*head));
+	if (head == NULL) {
+		perror("malloc failed");
+		goto cleanup;
+	}
+	STAILQ_INIT(head);
+
+	for (int i = 0; i < len;) {
+		struct ieee80211req_scan_result *result = (void *)&buf[i];
+
+		entry = malloc(sizeof(struct wifi_network));
+		if (entry == NULL) {
+			perror("malloc failed");
+			free_wifi_networks_list(head);
+			break;
+		}
+
+		entry->ssid = calloc(result->isr_ssid_len + 1, sizeof(char));
+		if (entry->ssid == NULL) {
+			perror("calloc failed");
+			free(entry);
+			free_wifi_networks_list(head);
+			break;
+		}
+		strncpy(entry->ssid, (char *)result + result->isr_ie_off,
+		    result->isr_ssid_len);
+
+		entry->bssid = calloc(18, sizeof(char));
+		if (entry->bssid == NULL) {
+			perror("calloc failed");
+			free(entry->ssid);
+			free(entry);
+			free_wifi_networks_list(head);
+			break;
+		}
+		ether_ntoa_r((const struct ether_addr *)result->isr_bssid,
+		    entry->bssid);
+
+		entry->channel = freq_to_chan(result->isr_freq,
+		    result->isr_flags);
+
+		entry->data_rate = -1;
+		for (size_t j = 0; j < result->isr_nrates; j++) {
+			int rate = IEEE80211_RV(result->isr_rates[j]) / 2;
+			if (rate > entry->data_rate)
+				entry->data_rate = rate;
+		}
+
+		entry->signal_dbm = (result->isr_rssi / 2) + result->isr_noise;
+		entry->noise_dbm = result->isr_noise;
+		entry->beacon_interval = result->isr_intval;
+
+		entry->capabilities = calloc(12, sizeof(char));
+		if (entry->capabilities == NULL) {
+			perror("calloc failed");
+			free(entry->bssid);
+			free(entry->ssid);
+			free(entry);
+			free_wifi_networks_list(head);
+			break;
+		}
+		if (caps_to_str(result->isr_capinfo, entry->capabilities) ==
+		    NULL)
+			free(entry->capabilities);
+
+		STAILQ_INSERT_TAIL(head, entry, next);
+
+		i += result->isr_len;
+	}
+
+cleanup:
+	close(sockfd);
+	return (head);
 }
