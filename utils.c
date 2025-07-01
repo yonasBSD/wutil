@@ -27,11 +27,14 @@
  */
 
 #include <sys/_param.h>
+#include <sys/event.h>
 #include <sys/ioccom.h>
 #include <sys/sockio.h>
 
 #include <net/ethernet.h>
 #include <net/if.h>
+#include <net/route.h>
+#include <net80211/ieee80211_freebsd.h>
 #include <net80211/ieee80211_ioctl.h>
 
 #include <getopt.h>
@@ -1012,6 +1015,67 @@ freq_to_chan(uint16_t freq, uint16_t flags)
 	}
 #undef IS_FREQ_IN_PSB
 #undef MAPPSB
+}
+
+void
+scan(const char *ifname)
+{
+	struct ieee80211_scan_req req = { 0 };
+	int sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
+	char hdr[2048];
+	struct rt_msghdr *rt_hdr;
+	struct kevent tevent;
+
+	req.sr_flags = IEEE80211_IOC_SCAN_ACTIVE | IEEE80211_IOC_SCAN_BGSCAN |
+	    IEEE80211_IOC_SCAN_NOPICK | IEEE80211_IOC_SCAN_ONCE |
+	    IEEE80211_IOC_SCAN_FLUSH;
+	req.sr_duration = IEEE80211_IOC_SCAN_FOREVER;
+
+	if (lib80211_set80211(sockfd, ifname, IEEE80211_IOC_SCAN_REQ, 0,
+		sizeof(req), &req) == -1) {
+		goto cleanup;
+	}
+
+	int kq = kqueue();
+	if (kq == -1) {
+		perror("kqueue() failed");
+		goto cleanup;
+	}
+
+	struct kevent event;
+	EV_SET(&event, sockfd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+	if (kevent(kq, &event, 1, NULL, 0, NULL) == -1) {
+		perror("kevent registeration failed");
+		goto cleanup;
+	}
+
+	do {
+		int ret = kevent(kq, NULL, 0, &tevent, 1, NULL);
+		if (ret == -1) {
+			perror("kevent wait failed");
+			break;
+		}
+
+		if (tevent.flags & EV_ERROR) {
+			perror("event error");
+			break;
+		}
+
+		if (read(sockfd, hdr, sizeof(hdr)) < 0) {
+			perror("read(PF_ROUTE)");
+			break;
+		}
+
+		rt_hdr = (void *)hdr;
+		if (rt_hdr->rtm_version != RTM_VERSION)
+			break;
+	} while (!(rt_hdr->rtm_type == RTM_IEEE80211 &&
+	    ((struct if_announcemsghdr *)hdr)->ifan_what ==
+		RTM_IEEE80211_SCAN));
+
+	close(kq);
+cleanup:
+	close(sockfd);
 }
 
 struct wifi_network_list *

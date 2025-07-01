@@ -119,5 +119,6 @@ int regcomp_ignored_ifaces(regex_t *re);
 void free_wifi_networks_list(struct wifi_network_list *);
 
 struct wifi_network_list *get_scan_results(const char *ifname);
+void scan(const char *iface);
 
 #endif /* !UTILS_H */

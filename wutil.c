@@ -213,6 +213,8 @@ cmd_scan(int argc, char **argv)
 	if (interface_name == NULL)
 		return (1);
 
+	scan(interface_name);
+
 	networks = get_scan_results(interface_name);
 	if (networks == NULL)
 		return (1);
