@@ -426,6 +426,15 @@ free_wifi_networks(struct wifi_network **networks)
 	free(networks);
 }
 
+void
+free_wifi_networks_list(struct wifi_network_list *head)
+{
+	struct wifi_network *entry, *tmp;
+	STAILQ_FOREACH_SAFE(entry, head, next, tmp)
+		free(entry);
+	free(head);
+}
+
 struct wifi_network **
 scan_network_interface(char *interface_name)
 {

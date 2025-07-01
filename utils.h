@@ -30,6 +30,7 @@
 #define UTILS_H
 
 #include <sys/cdefs.h>
+#include <sys/queue.h>
 
 #include <libifconfig.h>
 #include <regex.h>
@@ -60,7 +61,10 @@ struct wifi_network {
 	int signal_dbm;
 	int noise_dbm;
 	int beacon_interval;
+	STAILQ_ENTRY(wifi_network) next;
 };
+
+STAILQ_HEAD(wifi_network_list, wifi_network);
 
 enum ip_configuration {
 	UNCHANGED = 0,
@@ -111,5 +115,7 @@ void print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 int get_ssid(const char *ifname, char *ssid, int ssid_len);
 int regcomp_ignored_ifaces(regex_t *re);
+
+void free_wifi_networks_list(struct wifi_network_list *);
 
 #endif /* !UTILS_H */
