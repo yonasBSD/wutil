@@ -26,7 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/_param.h>
+#include <sys/param.h>
 #include <sys/event.h>
 #include <sys/ioccom.h>
 #include <sys/sockio.h>
