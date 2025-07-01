@@ -64,6 +64,8 @@ static void is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
 static enum connection_state get_connection_state(struct ifconfig_handle *lifh,
     struct ifaddrs *ifa);
 
+static char *caps_to_str(int capinfo, char *capstr);
+
 static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
 const char *connection_state_to_string[] = {
@@ -907,6 +909,39 @@ regcomp_ignored_ifaces(regex_t *re)
 	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
 	return (regcomp(re, not_nics, REG_EXTENDED | REG_NOSUB) != 0);
 }
+
+static char *
+caps_to_str(int capinfo, char *capstr)
+{
+	struct {
+		int bit;
+		char c;
+	} caps[] = {
+		{ IEEE80211_CAPINFO_ESS, 'E' },
+		{ IEEE80211_CAPINFO_IBSS, 'I' },
+		{ IEEE80211_CAPINFO_CF_POLLABLE, 'c' },
+		{ IEEE80211_CAPINFO_CF_POLLREQ, 'C' },
+		{ IEEE80211_CAPINFO_PRIVACY, 'P' },
+		{ IEEE80211_CAPINFO_SHORT_PREAMBLE, 'S' },
+		{ IEEE80211_CAPINFO_PBCC, 'B' },
+		{ IEEE80211_CAPINFO_CHNL_AGILITY, 'A' },
+		{ IEEE80211_CAPINFO_SHORT_SLOTTIME, 's' },
+		{ IEEE80211_CAPINFO_RSN, 'R' },
+		{ IEEE80211_CAPINFO_DSSSOFDM, 'D' },
+	};
+	char *cp = capstr;
+
+	for (size_t i = 0; cp != NULL && i < nitems(caps); i++) {
+		if (capinfo & caps[i].bit)
+			*cp++ += caps[i].c;
+	}
+	if (cp == NULL)
+		return NULL;
+	*cp = '\0';
+
+	return capstr;
+}
+
 static int
 map_gsm_freq(uint16_t freq, uint16_t flags)
 {
