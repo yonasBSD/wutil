@@ -1018,35 +1018,35 @@ freq_to_chan(uint16_t freq, uint16_t flags)
 }
 
 void
-scan(const char *ifname)
+scan_and_wait(int rt_sockfd, const char *ifname)
 {
 	struct ieee80211_scan_req req = { 0 };
-	int sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
+	int kq;
+	struct kevent event;
+	struct kevent tevent;
 	char hdr[2048];
 	struct rt_msghdr *rt_hdr;
-	struct kevent tevent;
 
 	req.sr_flags = IEEE80211_IOC_SCAN_ACTIVE | IEEE80211_IOC_SCAN_BGSCAN |
 	    IEEE80211_IOC_SCAN_NOPICK | IEEE80211_IOC_SCAN_ONCE |
 	    IEEE80211_IOC_SCAN_FLUSH;
 	req.sr_duration = IEEE80211_IOC_SCAN_FOREVER;
 
-	if (lib80211_set80211(sockfd, ifname, IEEE80211_IOC_SCAN_REQ, 0,
-		sizeof(req), &req) == -1) {
-		goto cleanup;
-	}
+	if (lib80211_set80211(rt_sockfd, ifname, IEEE80211_IOC_SCAN_REQ, 0,
+		sizeof(req), &req) == -1)
+		return;
 
-	int kq = kqueue();
+	kq = kqueue();
 	if (kq == -1) {
 		perror("kqueue() failed");
-		goto cleanup;
+		return;
 	}
 
-	struct kevent event;
-	EV_SET(&event, sockfd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+	EV_SET(&event, rt_sockfd, EVFILT_READ, EV_ADD, 0, 0, NULL);
 	if (kevent(kq, &event, 1, NULL, 0, NULL) == -1) {
 		perror("kevent registeration failed");
-		goto cleanup;
+		close(kq);
+		return;
 	}
 
 	do {
@@ -1061,7 +1061,7 @@ scan(const char *ifname)
 			break;
 		}
 
-		if (read(sockfd, hdr, sizeof(hdr)) < 0) {
+		if (read(rt_sockfd, hdr, sizeof(hdr)) < 0) {
 			perror("read(PF_ROUTE)");
 			break;
 		}
@@ -1074,34 +1074,26 @@ scan(const char *ifname)
 		RTM_IEEE80211_SCAN));
 
 	close(kq);
-cleanup:
-	close(sockfd);
 }
 
 struct wifi_network_list *
-get_scan_results(const char *ifname)
+get_scan_results(int rt_sockfd, const char *ifname)
 {
 	int len;
 	char buf[24 * 1024];
 	struct wifi_network *entry;
 	struct wifi_network_list *head = NULL;
-	int sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
 
-	if (sockfd < 0) {
-		perror("failed to open PF_ROUTE socket");
-		return (NULL);
-	}
-
-	if (lib80211_get80211len(sockfd, ifname, IEEE80211_IOC_SCAN_RESULTS,
+	if (lib80211_get80211len(rt_sockfd, ifname, IEEE80211_IOC_SCAN_RESULTS,
 		buf, sizeof(buf), &len) != 0) {
 		perror("IEEE80211_IOC_SCAN_RESULTS failed");
-		goto cleanup;
+		return (NULL);
 	}
 
 	head = malloc(sizeof(*head));
 	if (head == NULL) {
 		perror("malloc failed");
-		goto cleanup;
+		return (NULL);
 	}
 	STAILQ_INIT(head);
 
@@ -1168,7 +1160,5 @@ get_scan_results(const char *ifname)
 		i += result->isr_len;
 	}
 
-cleanup:
-	close(sockfd);
 	return (head);
 }

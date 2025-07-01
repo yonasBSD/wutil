@@ -213,9 +213,15 @@ cmd_scan(int argc, char **argv)
 	if (interface_name == NULL)
 		return (1);
 
-	scan(interface_name);
+	int rt_sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
+	if (rt_sockfd < 0) {
+		perror("socket(PF_ROUTE)");
+		return (1);
+	}
+	scan_and_wait(rt_sockfd, interface_name);
+	networks = get_scan_results(rt_sockfd, interface_name);
+	close(rt_sockfd);
 
-	networks = get_scan_results(interface_name);
 	if (networks == NULL)
 		return (1);
 
