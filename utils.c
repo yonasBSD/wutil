@@ -64,6 +64,8 @@ static void is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
 static enum connection_state get_connection_state(struct ifconfig_handle *lifh,
     struct ifaddrs *ifa);
 
+static int map_gsm_freq(uint16_t freq, uint16_t flags);
+static int freq_to_chan(uint16_t freq, uint16_t flags);
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
 	[DISCONNECTED] = "Disconnected",
@@ -904,4 +906,63 @@ regcomp_ignored_ifaces(regex_t *re)
 	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
 	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
 	return (regcomp(re, not_nics, REG_EXTENDED | REG_NOSUB) != 0);
+}
+static int
+map_gsm_freq(uint16_t freq, uint16_t flags)
+{
+	freq *= 10;
+	if (flags & IEEE80211_CHAN_QUARTER)
+		freq += 5;
+	else if (flags & IEEE80211_CHAN_HALF)
+		freq += 10;
+	else
+		freq += 20;
+	/* NB: there is no 907/20 wide but leave room */
+	return (freq - 906 * 10) / 5;
+}
+
+static int
+freq_to_chan(uint16_t freq, uint16_t flags)
+{
+#define IS_FREQ_IN_PSB(_freq) ((_freq) > 4940 && (_freq) < 4990)
+#define MAPPSB(_freq) \
+	(37 + ((freq * 10) + ((freq % 5) == 2 ? 5 : 0) - 49400) / 5)
+
+	if (flags & IEEE80211_CHAN_GSM)
+		return map_gsm_freq(freq, flags);
+	if (flags & IEEE80211_CHAN_2GHZ) { /* 2GHz band */
+		if (freq == 2484)
+			return 14;
+		if (freq < 2484)
+			return ((int)freq - 2407) / 5;
+		else
+			return 15 + ((freq - 2512) / 20);
+	} else if (flags & IEEE80211_CHAN_5GHZ) { /* 5Ghz band */
+		if (freq <= 5000) {
+			/* XXX check regdomain? */
+			if (IS_FREQ_IN_PSB(freq))
+				return MAPPSB(freq);
+			return (freq - 4000) / 5;
+		} else
+			return (freq - 5000) / 5;
+	} else { /* either, guess */
+		if (freq == 2484)
+			return 14;
+		if (freq < 2484) {
+			if (907 <= freq && freq <= 922)
+				return map_gsm_freq(freq, flags);
+			return ((int)freq - 2407) / 5;
+		}
+		if (freq < 5000) {
+			if (IS_FREQ_IN_PSB(freq))
+				return MAPPSB(freq);
+			else if (freq > 4900)
+				return (freq - 4000) / 5;
+			else
+				return 15 + ((freq - 2512) / 20);
+		}
+		return (freq - 5000) / 5;
+	}
+#undef IS_FREQ_IN_PSB
+#undef MAPPSB
 }
