@@ -38,8 +38,6 @@ char *lines_to_string(char **lines);
 
 int remove_matching_strings(char **strings, const char *pattern);
 void free_string_array(char **strings);
-bool string_array_contains(char **strings, char *pattern);
-int string_array_length(char **strings);
 
 char **file_read_lines(FILE *fp);
 

@@ -111,16 +111,6 @@ remove_matching_strings(char **strings, const char *pattern)
 	return (0);
 }
 
-bool
-string_array_contains(char **strings, char *pattern)
-{
-	for (int i = 0; strings[i] != NULL; i++) {
-		if (strcmp(strings[i], pattern) == 0)
-			return true;
-	}
-	return (false);
-}
-
 char **
 file_read_lines(FILE *fp)
 {
@@ -204,17 +194,6 @@ lines_to_string(char **lines)
 		string = concatenated;
 	}
 	return (string);
-}
-
-int
-string_array_length(char **strings)
-{
-	int count = 0;
-
-	while (*strings++ != NULL)
-		count++;
-
-	return (count);
 }
 
 int
