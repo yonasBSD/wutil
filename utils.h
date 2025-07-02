@@ -93,7 +93,7 @@ enum connection_state get_interface_connection_state(char *interface_name);
 
 int enable_interface(const char *ifname);
 int disable_interface(const char *ifname);
-int disconnect_network_interface(char *interface_name);
+int disconnect_network_interface(const char *ifname);
 int restart_interface(char *interface_name);
 bool is_valid_interface(const char *ifname);
 

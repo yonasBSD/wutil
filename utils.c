@@ -34,9 +34,11 @@
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <net/route.h>
+#include <net80211/ieee80211.h>
 #include <net80211/ieee80211_freebsd.h>
 #include <net80211/ieee80211_ioctl.h>
 
+#include <err.h>
 #include <getopt.h>
 #include <ifaddrs.h>
 #include <lib80211/lib80211_ioctl.h>
@@ -73,6 +75,8 @@ static char *caps_to_str(int capinfo, char *capstr);
 
 static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
+
+static int set_ssid(int sockfd, const char *ifname, const char *ssid);
 
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
@@ -517,33 +521,53 @@ get_wifi_network_by_ssid(char *network_interface, char *ssid)
 	return (network);
 }
 
-int
-disconnect_network_interface(char *interface_name)
+static int
+set_ssid(int sockfd, const char *ifname, const char *ssid)
 {
-	char command[256];
+	uint8_t im_ssid[IEEE80211_NWID_LEN] = { 0 };
+	int len = ssid == NULL ? 0 : strlen(ssid);
 
-	guard_root_access();
-
-	snprintf(command, sizeof(command), "ifconfig %s down", interface_name);
-	if (system(command) != 0) {
-		fprintf(stderr, "failed to bring %s down\n", interface_name);
-		return (1);
+	if (len > IEEE80211_NWID_LEN) {
+		warn("SSID too long");
+		return (-1);
 	}
 
-	snprintf(command, sizeof(command), "ifconfig %s ssid 'none'",
-	    interface_name);
-	if (system(command) != 0) {
-		fprintf(stderr, "failed to clear SSID on %s\n", interface_name);
-		return (1);
+	if (len != 0)
+		memcpy(im_ssid, ssid, len);
+
+	return (lib80211_set80211(sockfd, ifname, IEEE80211_IOC_SSID, 0, len,
+	    (void *)im_ssid));
+}
+
+int
+disconnect_network_interface(const char *ifname)
+{
+	int ret = 0;
+	int sockfd = socket(AF_LOCAL, SOCK_DGRAM, 0);
+
+	if (sockfd < 0)
+		return (-1);
+
+	ret = modify_if_flags(sockfd, ifname, 0, IFF_UP);
+	if (ret != 0) {
+		warnx("failed to bring %s down\n", ifname);
+		goto cleanup;
 	}
 
-	snprintf(command, sizeof(command), "ifconfig %s up", interface_name);
-	if (system(command) != 0) {
-		fprintf(stderr, "failed to bring %s up\n", interface_name);
-		return (1);
+	ret = set_ssid(sockfd, ifname, NULL);
+	if (ret == -1) {
+		warnx("failed to clear SSID on %s\n", ifname);
 	}
 
-	return (0);
+	ret = modify_if_flags(sockfd, ifname, IFF_UP, 0);
+	if (ret != 0) {
+		warnx("failed to bring %s up\n", ifname);
+		goto cleanup;
+	}
+
+cleanup:
+	close(sockfd);
+	return (ret);
 }
 
 int
