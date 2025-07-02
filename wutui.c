@@ -26,6 +26,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/socket.h>
+
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -63,7 +65,7 @@ enum section {
 static enum section current_section = NETWORK_INTERFACES;
 
 static struct network_interface **interfaces = NULL;
-static struct wifi_network **networks = NULL;
+static struct wifi_network_list *networks = NULL;
 static size_t interfaces_count = 0, networks_count = 0;
 
 int
@@ -71,6 +73,13 @@ main(void)
 {
 	struct termios cooked, raw;
 	int return_status = 0;
+	int rt_sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
+	struct wifi_network *network;
+
+	if (rt_sockfd == -1) {
+		perror("socket(PF_ROUTE)");
+		return (1);
+	}
 
 	interfaces = get_network_interfaces();
 	if (interfaces == NULL)
@@ -78,17 +87,21 @@ main(void)
 
 	for (int i = 0; interfaces[i] != NULL; i++) {
 		if (strstr(interfaces[i]->name, "wlan") != NULL) {
-			networks = scan_network_interface(interfaces[i]->name);
-			if (networks == NULL) {
-				errx(1,
-				    "failed to get network interfaces on %s",
+			scan_and_wait(rt_sockfd, interfaces[i]->name);
+			networks = get_scan_results(rt_sockfd,
+			    interfaces[i]->name);
+
+			if (networks == NULL)
+				errx(1, "failed to get networks on %s",
 				    interfaces[i]->name);
-			}
+
+			break;
 		}
 		interfaces_count++;
 	}
+	close(rt_sockfd);
 
-	for (int i = 0; networks != NULL && networks[i] != NULL; i++)
+	STAILQ_FOREACH(network, networks, next)
 		networks_count++;
 
 	tty = open("/dev/tty", O_RDWR);
@@ -289,6 +302,8 @@ static void
 render_networks(void)
 {
 	int h_pad = (ws.ws_col - CONTENT_WIDTH) / 2;
+	struct wifi_network *network;
+	size_t i = 0;
 
 	if (h_pad < 0)
 		h_pad = 0;
@@ -301,14 +316,15 @@ render_networks(void)
 	dprintf(tty, "%*s%s%-20s%-20s%-20s%-15s%s\n", h_pad, "", FG_YELLOW,
 	    "SSID", "Channel", "Signal (dBm)", "Noise (dBm)", RESET);
 
-	for (size_t i = 0; i < networks_count; i++) {
+	STAILQ_FOREACH(network, networks, next) {
 		dprintf(tty, "%*s", h_pad, "");
 		if (i == selected_network && current_section == NETWORKS)
 			dprintf(tty, "%s%s", BG_GRAY, BOLD);
 
-		dprintf(tty, "%-20s%-20d%-20d%-15d%s\n", networks[i]->ssid,
-		    networks[i]->channel, networks[i]->signal_dbm,
-		    networks[i]->noise_dbm, RESET);
+		dprintf(tty, "%-20s%-20d%-20d%-15d%s\n", network->ssid,
+		    network->channel, network->signal_dbm, network->noise_dbm,
+		    RESET);
+		i++;
 	}
 	dprintf(tty, "\n");
 }
