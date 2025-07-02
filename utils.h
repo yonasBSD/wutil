@@ -86,10 +86,7 @@ struct network_configuration {
 
 char **get_network_interface_names(void);
 struct network_interface **get_network_interfaces(void);
-struct wifi_network **scan_network_interface(char *interface_name);
-char *retrieve_network_interface_connected_ssid(char *interface_name);
 void free_network_interface(struct network_interface *interface);
-void free_network_interfaces(struct network_interface **interfaces);
 enum connection_state get_interface_connection_state(char *interface_name);
 
 int enable_interface(const char *ifname);
@@ -98,12 +95,9 @@ int set_ssid(const char *ifname, const char *ssid);
 int restart_interface(char *interface_name);
 bool is_valid_interface(const char *ifname);
 
-struct wifi_network *get_wifi_network_by_ssid(char *network_interface,
-    char *ssid);
 int configure_wifi_network(struct wifi_network *network, const char *password);
 bool is_wifi_network_secured(struct wifi_network *network);
 void free_wifi_network(struct wifi_network *network);
-void free_wifi_networks(struct wifi_network **network);
 
 int connect_with_wpa(const char *ifname, const char *ssid);
 bool is_ssid_configured(char *ssid);

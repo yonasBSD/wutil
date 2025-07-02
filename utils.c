@@ -54,8 +54,6 @@
 
 static void guard_root_access(void);
 
-static struct wifi_network *extract_wifi_network(char *network_info);
-
 static int restart_networking(void);
 
 static int configure_ip(char *interface_name,
@@ -173,42 +171,6 @@ get_ssid(const char *ifname, char *ssid, int ssid_len)
 	return (ret);
 }
 
-char *
-retrieve_network_interface_connected_ssid(char *interface_name)
-{
-	FILE *fp;
-	char *ssid, **lines;
-	char command[256];
-
-	snprintf(command, sizeof(command), "ifconfig %s", interface_name);
-	fp = popen(command, "r");
-	if (fp == NULL) {
-		perror("popen failed");
-		return (NULL);
-	}
-
-	lines = file_read_lines(fp);
-	pclose(fp);
-	if (lines == NULL)
-		return (NULL);
-
-	ssid = NULL;
-	for (int i = 0; lines[i] != NULL; i++) {
-		char *ssid_index = strstr(lines[i], "ssid ");
-
-		if (ssid_index != NULL) {
-			char *ssid_start = ssid_index + strlen("ssid ");
-			char *ssid_end = strstr(lines[i], " channel");
-
-			ssid = strndup(ssid_start, ssid_end - ssid_start);
-			break;
-		}
-	}
-
-	free_string_array(lines);
-	return (ssid);
-}
-
 struct network_interface **
 get_network_interfaces(void)
 {
@@ -245,14 +207,6 @@ free_network_interface(struct network_interface *interface)
 {
 	free(interface->name);
 	free(interface);
-}
-
-void
-free_network_interfaces(struct network_interface **interfaces)
-{
-	for (int i = 0; interfaces[i] != NULL; i++)
-		free_network_interface(interfaces[i]);
-	free(interfaces);
 }
 
 static void
@@ -347,55 +301,6 @@ is_valid_interface(const char *ifname)
 	return (is_valid);
 }
 
-static struct wifi_network *
-extract_wifi_network(char *network_info)
-{
-	int signal, noise;
-	char beacon_interval[4], bssid[18], channel[5], capabilities[256];
-	char date_rate[5], ssid[256], sn[8];
-	struct wifi_network *network;
-
-	if (sscanf(network_info, "%255s %17s %4s %4s %7s %3s %[^\n]", ssid,
-		bssid, channel, date_rate, sn, beacon_interval,
-		capabilities) != 7)
-		return (NULL);
-	if (sscanf(sn, "%d:%d", &signal, &noise) != 2)
-		return (NULL);
-
-	network = malloc(sizeof(struct wifi_network));
-	if (network == NULL)
-		return (NULL);
-
-	network->ssid = strdup(ssid);
-	if (network->ssid == NULL) {
-		free(network);
-		return (NULL);
-	}
-
-	network->bssid = strdup(bssid);
-	if (network->bssid == NULL) {
-		free(network->ssid);
-		free(network);
-		return (NULL);
-	}
-
-	network->channel = atoi(channel);
-	network->data_rate = atoi(date_rate);
-	network->signal_dbm = signal;
-	network->noise_dbm = noise;
-	network->beacon_interval = atoi(beacon_interval);
-
-	network->capabilities = strdup(capabilities);
-	if (network->capabilities == NULL) {
-		free(network->bssid);
-		free(network->ssid);
-		free(network);
-		return (NULL);
-	}
-
-	return (network);
-}
-
 void
 free_wifi_network(struct wifi_network *network)
 {
@@ -408,96 +313,12 @@ free_wifi_network(struct wifi_network *network)
 }
 
 void
-free_wifi_networks(struct wifi_network **networks)
-{
-	for (int i = 0; networks[i] != NULL; i++)
-		free_wifi_network(networks[i]);
-	free(networks);
-}
-
-void
 free_wifi_networks_list(struct wifi_network_list *head)
 {
 	struct wifi_network *entry, *tmp;
 	STAILQ_FOREACH_SAFE(entry, head, next, tmp)
 		free(entry);
 	free(head);
-}
-
-struct wifi_network **
-scan_network_interface(char *interface_name)
-{
-	int line_count;
-	FILE *fp;
-	char *output, **lines;
-	struct wifi_network **wifi_networks;
-	char command[256];
-
-	snprintf(command, sizeof(command), "ifconfig %s scan", interface_name);
-	fp = popen(command, "r");
-	if (fp == NULL) {
-		perror("popen failed");
-		return (NULL);
-	}
-
-	lines = file_read_lines(fp);
-	pclose(fp);
-	if (lines == NULL)
-		return (NULL);
-	line_count = string_array_length(lines);
-	if (line_count == 0) {
-		free_string_array(lines);
-		return (NULL);
-	}
-
-	output = lines_to_string(lines);
-	if (strstr(output, "unable to get scan results"))
-		return (NULL);
-
-	wifi_networks = calloc(line_count, sizeof(struct wifi_network **));
-	for (int i = 1; lines[i] != NULL; i++) {
-		wifi_networks[i - 1] = extract_wifi_network(lines[i]);
-		if (wifi_networks[i - 1] == NULL) {
-			free_wifi_networks(wifi_networks);
-			return (NULL);
-		}
-	}
-	wifi_networks[line_count - 1] = NULL;
-
-	free(output);
-	free_string_array(lines);
-	return (wifi_networks);
-}
-
-struct wifi_network *
-get_wifi_network_by_ssid(char *network_interface, char *ssid)
-{
-	int count;
-	struct wifi_network *network, **networks;
-
-	if (ssid == NULL)
-		return (NULL);
-
-	networks = scan_network_interface(network_interface);
-	if (networks == NULL)
-		return (NULL);
-
-	count = 0;
-	while (networks[count] != NULL)
-		count++;
-
-	network = NULL;
-	for (int i = 0; networks[i] != NULL; i++) {
-		if (strcmp(networks[i]->ssid, ssid) == 0) {
-			network = networks[i];
-			networks[i] = networks[count - 1];
-			networks[count - 1] = NULL;
-			break;
-		}
-	}
-
-	free_wifi_networks(networks);
-	return (network);
 }
 
 static int
