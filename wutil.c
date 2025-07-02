@@ -71,7 +71,7 @@ static const struct command commands[] = {
 	{ NULL, NULL },
 };
 
-static char *parse_interface_arg(int argc, char **argv);
+static char *parse_interface_arg(int argc, char **argv, int max_argc);
 static void read_password(char *buffer, size_t size, const char *prompt_format,
     ...);
 
@@ -121,20 +121,20 @@ cmd_list(int argc, char **argv)
 }
 
 static char *
-parse_interface_arg(int argc, char **argv)
+parse_interface_arg(int argc, char **argv, int max_argc)
 {
 	if (argc < 3) {
 		fprintf(stderr, "<interface> not provided\n");
 		return (NULL);
 	}
 
-	if (argc > 3) {
-		fprintf(stderr, "bad value %s\n", argv[3]);
+	if (!is_valid_interface(argv[2])) {
+		fprintf(stderr, "unknown interface %s\n", argv[2]);
 		return (NULL);
 	}
 
-	if (!is_valid_interface(argv[2])) {
-		fprintf(stderr, "unknown interface %s\n", argv[2]);
+	if (argc > max_argc) {
+		fprintf(stderr, "bad value %s\n", argv[3]);
 		return (NULL);
 	}
 
@@ -145,7 +145,7 @@ static int
 cmd_show(int argc, char **argv)
 {
 	int ret = 0;
-	char *interface_name = parse_interface_arg(argc, argv);
+	char *interface_name = parse_interface_arg(argc, argv, 3);
 	struct ifconfig_handle *lifh;
 	struct {
 		regex_t *ignore;
@@ -173,7 +173,7 @@ cmd_show(int argc, char **argv)
 static int
 cmd_enable(int argc, char **argv)
 {
-	const char *interface_name = parse_interface_arg(argc, argv);
+	const char *interface_name = parse_interface_arg(argc, argv, 3);
 
 	if (interface_name == NULL)
 		return (1);
@@ -184,7 +184,7 @@ cmd_enable(int argc, char **argv)
 static int
 cmd_disable(int argc, char **argv)
 {
-	char *interface_name = parse_interface_arg(argc, argv);
+	char *interface_name = parse_interface_arg(argc, argv, 3);
 
 	if (interface_name == NULL)
 		return (1);
@@ -195,7 +195,7 @@ cmd_disable(int argc, char **argv)
 static int
 cmd_restart(int argc, char **argv)
 {
-	char *interface_name = parse_interface_arg(argc, argv);
+	char *interface_name = parse_interface_arg(argc, argv, 3);
 
 	if (interface_name == NULL)
 		return (1);
@@ -206,7 +206,7 @@ cmd_restart(int argc, char **argv)
 static int
 cmd_scan(int argc, char **argv)
 {
-	const char *interface_name = parse_interface_arg(argc, argv);
+	const char *interface_name = parse_interface_arg(argc, argv, 3);
 	struct wifi_network_list *networks;
 	struct wifi_network *network;
 
@@ -289,7 +289,7 @@ cmd_configure(int argc, char **argv)
 static int
 cmd_disconnect(int argc, char **argv)
 {
-	char *interface_name = parse_interface_arg(argc, argv);
+	char *interface_name = parse_interface_arg(argc, argv, 3);
 	struct network_interface *interface;
 
 	if (interface_name == NULL)
@@ -335,7 +335,7 @@ static int
 cmd_connect(int argc, char **argv)
 {
 	int status;
-	char *interface_name, *ssid;
+	char *ssid, *interface_name = parse_interface_arg(argc, argv, 4);
 	struct network_interface *interface;
 	struct wifi_network *network;
 
