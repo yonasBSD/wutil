@@ -26,6 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <err.h>
 #include <getopt.h>
 #include <libifconfig.h>
 #include <regex.h>
@@ -95,7 +96,7 @@ cmd_list(int argc, char **argv)
 	} data = { &regex, NULL };
 
 	if (argc > 2) {
-		fprintf(stderr, "bad value %s\n", argv[2]);
+		warnx("bad value %s", argv[2]);
 		return (1);
 	}
 
@@ -104,13 +105,13 @@ cmd_list(int argc, char **argv)
 
 	lifh = ifconfig_open();
 	if (lifh == NULL) {
-		fprintf(stderr, "Failed to open libifconfig handle.\n");
+		warnx("failed to open libifconfig handle");
 		return (1);
 	}
 
 	printf("%-10s %-12s %-20s\n", "NAME", "STATE", "CONNECTED SSID");
 	if (ifconfig_foreach_iface(lifh, print_interface, &data) != 0) {
-		fprintf(stderr, "Failed to get network interfaces.\n");
+		warnx("failed to get network interfaces");
 		ret = 1;
 	}
 
@@ -124,17 +125,17 @@ static char *
 parse_interface_arg(int argc, char **argv, int max_argc)
 {
 	if (argc < 3) {
-		fprintf(stderr, "<interface> not provided\n");
+		warnx("<interface> not provided");
 		return (NULL);
 	}
 
 	if (!is_valid_interface(argv[2])) {
-		fprintf(stderr, "unknown interface %s\n", argv[2]);
+		warnx("unknown interface %s", argv[2]);
 		return (NULL);
 	}
 
 	if (argc > max_argc) {
-		fprintf(stderr, "bad value %s\n", argv[3]);
+		warnx("bad value %s", argv[3]);
 		return (NULL);
 	}
 
@@ -157,12 +158,12 @@ cmd_show(int argc, char **argv)
 
 	lifh = ifconfig_open();
 	if (lifh == NULL) {
-		fprintf(stderr, "Failed to open libifconfig handle.\n");
+		warnx("failed to open libifconfig handle");
 		return (1);
 	}
 
 	if (ifconfig_foreach_iface(lifh, print_interface, &data) != 0) {
-		fprintf(stderr, "Failed to get network interfaces.\n");
+		warnx("failed to get network interfaces");
 		ret = 1;
 	}
 
@@ -248,13 +249,13 @@ cmd_configure(int argc, char **argv)
 	int ret = 0;
 
 	if (argc < 3) {
-		fprintf(stderr, "<interface> not provided\n");
+		warnx("<interface> not provided");
 		return (1);
 	}
 
 	interface_name = argv[2];
 	if (!is_valid_interface(interface_name)) {
-		fprintf(stderr, "unknown interface %s\n", interface_name);
+		warnx("unknown interface %s", interface_name);
 		return (1);
 	}
 
@@ -298,7 +299,7 @@ cmd_disconnect(int argc, char **argv)
 
 	interface = get_network_interface_by_name(interface_name);
 	if (interface->state != CONNECTED) {
-		fprintf(stderr, "%s is not connected\n", interface_name);
+		warnx("%s is not connected", interface_name);
 		return (1);
 	}
 	ret = set_ssid(interface->name, NULL);
@@ -347,7 +348,7 @@ cmd_connect(int argc, char **argv)
 		return (1);
 
 	if (argc < 4) {
-		fprintf(stderr, "<ssid> not provided\n");
+		warnx("<ssid> not provided");
 		return (1);
 	}
 	ssid = argv[3];
@@ -367,8 +368,7 @@ cmd_connect(int argc, char **argv)
 	}
 
 	if (network == NULL) {
-		fprintf(stderr, "network '%s' is unavailable on %s\n", ssid,
-		    ifname);
+		warnx("network '%s' is unavailable on %s", ssid, ifname);
 		return (1);
 	}
 
@@ -411,7 +411,7 @@ main(int argc, char **argv)
 			return (cmd->handler(argc, argv));
 	}
 
-	fprintf(stderr, "unsupported command '%s'\n", argv[1]);
+	warnx("unsupported command '%s'", argv[1]);
 	usage(argv[0]);
 
 	return (1);

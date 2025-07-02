@@ -280,7 +280,7 @@ static void
 guard_root_access(void)
 {
 	if (geteuid() != 0) {
-		fprintf(stderr, "insufficient permissions\n");
+		warnx("insufficient permissions");
 		exit(EXIT_FAILURE);
 	}
 }
@@ -550,18 +550,18 @@ set_ssid(const char *ifname, const char *ssid)
 
 	ret = modify_if_flags(sockfd, ifname, 0, IFF_UP);
 	if (ret != 0) {
-		warnx("failed to bring %s down\n", ifname);
+		warnx("failed to bring %s down", ifname);
 		goto cleanup;
 	}
 
 	ret = lib80211_set_ssid(sockfd, ifname, ssid);
 	if (ret == -1) {
-		warnx("failed to clear SSID on %s\n", ifname);
+		warnx("failed to clear SSID on %s", ifname);
 	}
 
 	ret = modify_if_flags(sockfd, ifname, IFF_UP, 0);
 	if (ret != 0) {
-		warnx("failed to bring %s up\n", ifname);
+		warnx("failed to bring %s up", ifname);
 		goto cleanup;
 	}
 
@@ -714,7 +714,7 @@ generate_network_configuration(int argc, char **argv)
 			} else if (strcasecmp(optarg, "manual") == 0) {
 				config->method = MANUAL;
 			} else {
-				fprintf(stderr, "invalid method: %s", optarg);
+				warnx("invalid method: %s", optarg);
 				free_network_configuration(config);
 				return (NULL);
 			}
@@ -722,8 +722,8 @@ generate_network_configuration(int argc, char **argv)
 		case 'i':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
-				fprintf(stderr,
-				    "use --method=manual for manually setting the IP\n");
+				warnx(
+				    "use --method=manual for manually setting the IP");
 				free_network_configuration(config);
 				return (NULL);
 			}
@@ -732,8 +732,8 @@ generate_network_configuration(int argc, char **argv)
 		case 'n':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
-				fprintf(stderr,
-				    "use --method=manual for manually setting the netmask\n");
+				warnx(
+				    "use --method=manual for manually setting the netmask");
 				free_network_configuration(config);
 				return (NULL);
 			}
@@ -742,8 +742,8 @@ generate_network_configuration(int argc, char **argv)
 		case 'g':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
-				fprintf(stderr,
-				    "use --method=manual for manually setting the gateway\n");
+				warnx(
+				    "use --method=manual for manually setting the gateway");
 				free_network_configuration(config);
 				return (NULL);
 			}
@@ -759,7 +759,7 @@ generate_network_configuration(int argc, char **argv)
 			config->search_domain = strdup(optarg);
 			break;
 		default:
-			fprintf(stderr, "unknown option '%s'\n",
+			warnx("unknown option '%s'",
 			    optarg == NULL ? "" : optarg);
 			free_network_configuration(config);
 			return (NULL);
@@ -768,8 +768,8 @@ generate_network_configuration(int argc, char **argv)
 
 	if (config->method == MANUAL) {
 		if (config->ip == NULL || config->netmask == NULL) {
-			fprintf(stderr,
-			    "provide both ip address and netmask for manual configuration\n");
+			warnx(
+			    "provide both ip address and netmask for manual configuration");
 			free_network_configuration(config);
 			return (NULL);
 		}

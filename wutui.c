@@ -126,7 +126,7 @@ main(void)
 		ready = poll(fds, 1, -1);
 
 		if (ready <= 0 && errno != EINTR) {
-			fprintf(stderr, "polling failed");
+			warnx("polling failed");
 			return_status = 1;
 			break;
 		}
