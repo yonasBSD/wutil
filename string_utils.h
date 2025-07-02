@@ -32,16 +32,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-int count_chars(char *string, const char *chars);
-char **split_string(char *string, const char *separators);
 char *lines_to_string(char **lines);
-
-int remove_matching_strings(char **strings, const char *pattern);
-void free_string_array(char **strings);
-
 char **file_read_lines(FILE *fp);
-
 char *strcatdup(char *s1, char *s2);
 int strncatf(char *dest, size_t dest_size, const char *format, ...);
+void free_string_array(char **strings);
 
 #endif

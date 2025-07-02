@@ -235,7 +235,7 @@ cmd_scan(int argc, char **argv)
 		    network->channel, network->capabilities);
 	}
 
-	free_wifi_networks_list(networks);
+	free_wifi_network_list(networks);
 	return (0);
 }
 
@@ -402,7 +402,7 @@ cmd_connect(int argc, char **argv)
 	printf(ret == 0 ? "connected to '%s'\n" : "failed to connect to '%s'\n",
 	    ssid);
 
-	free_wifi_networks_list(networks);
+	free_wifi_network_list(networks);
 
 	return (ret);
 }

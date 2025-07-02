@@ -76,6 +76,9 @@ static int freq_to_chan(uint16_t freq, uint16_t flags);
 
 static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
 
+static void append_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
+    void *udata);
+
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
 	[DISCONNECTED] = "Disconnected",
@@ -83,72 +86,6 @@ const char *connection_state_to_string[] = {
 	[DISABLED] = "Disabled",
 	[NA] = "N/A",
 };
-
-enum connection_state
-get_interface_connection_state(char *interface_name)
-{
-	enum connection_state state;
-	char command[256];
-	FILE *fp;
-	char *output, **lines;
-
-	snprintf(command, sizeof(command), "ifconfig %s", interface_name);
-	fp = popen(command, "r");
-	if (fp == NULL) {
-		perror("popen failed");
-		exit(1);
-	}
-
-	lines = file_read_lines(fp);
-	pclose(fp);
-	if (lines == NULL)
-		exit(1);
-
-	output = lines_to_string(lines);
-	free_string_array(lines);
-	if (lines == NULL)
-		exit(1);
-
-	state = strstr(output, "inet ")	     ? CONNECTED :
-	    strstr(output, "status: active") ? DISCONNECTED :
-					       UNPLUGGED;
-	free(output);
-	return (state);
-}
-
-char **
-get_network_interface_names(void)
-{
-	FILE *fp = popen("ifconfig -l", "r");
-	char **interface_names;
-	char buffer[256];
-	const char pattern[] =
-	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
-	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
-
-	if (fp == NULL) {
-		perror("popen `ifconfig -l` failed");
-		return (NULL);
-	}
-
-	if (fgets(buffer, sizeof(buffer), fp) == 0) {
-		pclose(fp);
-		return (NULL);
-	}
-	pclose(fp);
-
-	buffer[strcspn(buffer, "\n")] = '\0';
-	interface_names = split_string(buffer, " ");
-	if (interface_names == NULL)
-		return (NULL);
-
-	if (remove_matching_strings(interface_names, pattern) != 0) {
-		free_string_array(interface_names);
-		return (NULL);
-	}
-
-	return (interface_names);
-}
 
 int
 get_ssid(const char *ifname, char *ssid, int ssid_len)
@@ -171,35 +108,58 @@ get_ssid(const char *ifname, char *ssid, int ssid_len)
 	return (ret);
 }
 
-struct network_interface **
-get_network_interfaces(void)
+static void
+append_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 {
-	int interfaces_count = 0;
-	char **interface_names = get_network_interface_names();
-	struct network_interface **interfaces;
+	struct network_interface *nif;
+	struct network_interface_list *networks = udata;
 
-	while (interface_names[interfaces_count] != NULL)
-		interfaces_count++;
+	if (networks == NULL)
+		return;
 
-	interfaces = calloc(sizeof(struct network_interface *),
-	    interfaces_count + 1);
-	for (int i = 0; interface_names[i] != NULL; i++) {
-		interfaces[i] = malloc(sizeof(struct network_interface));
-		interfaces[i]->name = interface_names[i];
+	nif = calloc(1, sizeof(*nif));
+	if (nif == NULL)
+		return;
 
-		memset(interfaces[i]->connected_ssid, 0,
-		    IEEE80211_NWID_LEN + 1);
-		if (get_ssid(interfaces[i]->name, interfaces[i]->connected_ssid,
-			IEEE80211_NWID_LEN) != 0)
-			interfaces[i]->connected_ssid[0] = '\0';
-
-		interfaces[i]->state = get_interface_connection_state(
-		    interfaces[i]->name);
+	nif->name = strdup(ifa->ifa_name);
+	if (nif->name == NULL) {
+		free(nif);
+		return;
 	}
-	interfaces[interfaces_count] = NULL;
-	free(interface_names);
 
-	return (interfaces);
+	nif->state = get_connection_state(lifh, ifa);
+	if (get_ssid(ifa->ifa_name, nif->connected_ssid, IEEE80211_NWID_LEN) !=
+	    0)
+		nif->connected_ssid[0] = '\0';
+
+	STAILQ_INSERT_TAIL(networks, nif, next);
+}
+
+struct network_interface_list *
+get_interfaces(struct ifconfig_handle *lifh)
+{
+	struct network_interface_list *ifaces = malloc(sizeof(*ifaces));
+
+	if (ifaces == NULL)
+		return (NULL);
+
+	STAILQ_INIT(ifaces);
+
+	if (ifconfig_foreach_iface(lifh, append_interface, ifaces) != 0) {
+		free_network_interface_list(ifaces);
+		return (NULL);
+	}
+
+	return (ifaces);
+}
+
+void
+free_network_interface_list(struct network_interface_list *head)
+{
+	struct network_interface *entry, *tmp;
+	STAILQ_FOREACH_SAFE(entry, head, next, tmp)
+		free_network_interface(entry);
+	free(head);
 }
 
 void
@@ -313,7 +273,7 @@ free_wifi_network(struct wifi_network *network)
 }
 
 void
-free_wifi_networks_list(struct wifi_network_list *head)
+free_wifi_network_list(struct wifi_network_list *head)
 {
 	struct wifi_network *entry, *tmp;
 	STAILQ_FOREACH_SAFE(entry, head, next, tmp)
@@ -392,7 +352,7 @@ connect_with_wpa(const char *ifname, const char *ssid)
 }
 
 bool
-is_ssid_configured(char *ssid)
+is_ssid_configured(const char *ssid)
 {
 	bool is_configured;
 	char *wpa_supplicant_conf, **conf_lines;
@@ -936,7 +896,7 @@ get_scan_results(int rt_sockfd, const char *ifname)
 		entry = malloc(sizeof(struct wifi_network));
 		if (entry == NULL) {
 			perror("malloc failed");
-			free_wifi_networks_list(head);
+			free_wifi_network_list(head);
 			break;
 		}
 
@@ -944,7 +904,7 @@ get_scan_results(int rt_sockfd, const char *ifname)
 		if (entry->ssid == NULL) {
 			perror("calloc failed");
 			free(entry);
-			free_wifi_networks_list(head);
+			free_wifi_network_list(head);
 			break;
 		}
 		strncpy(entry->ssid, (char *)result + result->isr_ie_off,
@@ -955,7 +915,7 @@ get_scan_results(int rt_sockfd, const char *ifname)
 			perror("calloc failed");
 			free(entry->ssid);
 			free(entry);
-			free_wifi_networks_list(head);
+			free_wifi_network_list(head);
 			break;
 		}
 		ether_ntoa_r((const struct ether_addr *)result->isr_bssid,
@@ -981,7 +941,7 @@ get_scan_results(int rt_sockfd, const char *ifname)
 			free(entry->bssid);
 			free(entry->ssid);
 			free(entry);
-			free_wifi_networks_list(head);
+			free_wifi_network_list(head);
 			break;
 		}
 		if (caps_to_str(result->isr_capinfo, entry->capabilities) ==

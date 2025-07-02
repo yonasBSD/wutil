@@ -52,7 +52,10 @@ struct network_interface {
 	char *name;
 	char connected_ssid[IEEE80211_NWID_LEN + 1];
 	enum connection_state state;
+	STAILQ_ENTRY(network_interface) next;
 };
+
+STAILQ_HEAD(network_interface_list, network_interface);
 
 struct wifi_network {
 	char *ssid;
@@ -84,39 +87,40 @@ struct network_configuration {
 	char *search_domain;
 };
 
-char **get_network_interface_names(void);
-struct network_interface **get_network_interfaces(void);
+struct network_interface_list *get_interfaces(struct ifconfig_handle *lifh);
 void free_network_interface(struct network_interface *interface);
-enum connection_state get_interface_connection_state(char *interface_name);
+void free_network_interface_list(struct network_interface_list *head);
 
 int enable_interface(const char *ifname);
 int disable_interface(const char *ifname);
-int set_ssid(const char *ifname, const char *ssid);
 int restart_interface(char *interface_name);
 bool is_valid_interface(const char *ifname);
 
 int configure_wifi_network(struct wifi_network *network, const char *password);
-bool is_wifi_network_secured(struct wifi_network *network);
-void free_wifi_network(struct wifi_network *network);
-
 int connect_with_wpa(const char *ifname, const char *ssid);
-bool is_ssid_configured(char *ssid);
+
+bool is_ssid_configured(const char *ssid);
+bool is_wifi_network_secured(struct wifi_network *network);
 
 struct network_configuration *generate_network_configuration(int argc,
     char **argv);
 int configure_nic(char *interface_name, struct network_configuration *config);
 void free_network_configuration(struct network_configuration *configuration);
+
 void print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 void retrieve_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
-int get_ssid(const char *ifname, char *ssid, int ssid_len);
+
 int regcomp_ignored_ifaces(regex_t *re);
 
-void free_wifi_networks_list(struct wifi_network_list *);
+int set_ssid(const char *ifname, const char *ssid);
+int get_ssid(const char *ifname, char *ssid, int ssid_len);
 
 void scan_and_wait(int route_socket, const char *iface);
 struct wifi_network_list *get_scan_results(int route_socket,
     const char *ifname);
+void free_wifi_network(struct wifi_network *network);
+void free_wifi_network_list(struct wifi_network_list *);
 
 #endif /* !UTILS_H */

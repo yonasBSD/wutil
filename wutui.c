@@ -31,6 +31,7 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <libifconfig.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -64,36 +65,43 @@ enum section {
 };
 static enum section current_section = NETWORK_INTERFACES;
 
-static struct network_interface **interfaces = NULL;
+static struct network_interface_list *interfaces = NULL;
 static struct wifi_network_list *networks = NULL;
 static size_t interfaces_count = 0, networks_count = 0;
 
 int
 main(void)
 {
+	int rt_sockfd;
 	struct termios cooked, raw;
 	int return_status = 0;
-	int rt_sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
 	struct wifi_network *network;
+	struct network_interface *interface;
+	struct ifconfig_handle *lifh = ifconfig_open();
 
+	if (lifh == NULL)
+		errx(1, "failed to open libifconfig handle");
+
+	interfaces = get_interfaces(lifh);
+	ifconfig_close(lifh);
+
+	if (interfaces == NULL)
+		errx(1, "failed to get network interfaces");
+
+	rt_sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
 	if (rt_sockfd == -1) {
 		perror("socket(PF_ROUTE)");
 		return (1);
 	}
 
-	interfaces = get_network_interfaces();
-	if (interfaces == NULL)
-		errx(1, "failed to get network interfaces");
-
-	for (int i = 0; interfaces[i] != NULL; i++) {
-		if (strstr(interfaces[i]->name, "wlan") != NULL) {
-			scan_and_wait(rt_sockfd, interfaces[i]->name);
-			networks = get_scan_results(rt_sockfd,
-			    interfaces[i]->name);
+	STAILQ_FOREACH(interface, interfaces, next) {
+		if (strstr(interface->name, "wlan") != NULL) {
+			scan_and_wait(rt_sockfd, interface->name);
+			networks = get_scan_results(rt_sockfd, interface->name);
 
 			if (networks == NULL)
 				errx(1, "failed to get networks on %s",
-				    interfaces[i]->name);
+				    interface->name);
 
 			break;
 		}
@@ -178,6 +186,9 @@ main(void)
 	dprintf(tty, "%s%s", ALT_BUFFER_OFF, CURSOR_SHOW);
 
 	close(tty);
+
+	free_wifi_network_list(networks);
+	free_network_interface_list(interfaces);
 
 	return (return_status);
 }
@@ -270,6 +281,8 @@ static void
 render_network_interfaces(void)
 {
 	int h_pad = (ws.ws_col - CONTENT_WIDTH) / 2;
+	size_t i = 0;
+	struct network_interface *interface;
 
 	if (h_pad < 0)
 		h_pad = 0;
@@ -282,17 +295,17 @@ render_network_interfaces(void)
 	dprintf(tty, "%*s%s%-20s%-20s%-20s%s\n", h_pad, "", FG_YELLOW, "Name",
 	    "State", "Connected SSID", RESET);
 
-	for (size_t i = 0; i < interfaces_count; i++) {
-		const char *state, *ssid = interfaces[i]->connected_ssid;
+	STAILQ_FOREACH(interface, interfaces, next) {
+		const char *state, *ssid = interface->connected_ssid;
 
 		dprintf(tty, "%*s", h_pad, "");
 		if (i == selected_nic && current_section == NETWORK_INTERFACES)
 			dprintf(tty, "%s%s", BG_GRAY, BOLD);
 
-		state = connection_state_to_string[interfaces[i]->state];
+		state = connection_state_to_string[interface->state];
 
 		ssid = ssid != NULL ? ssid : "-";
-		dprintf(tty, "%-20s%-20s%-20s%s\n", interfaces[i]->name, state,
+		dprintf(tty, "%-20s%-20s%-20s%s\n", interface->name, state,
 		    ssid, RESET);
 	}
 	dprintf(tty, "\n");
