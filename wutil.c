@@ -89,18 +89,14 @@ cmd_list(int argc, char **argv)
 {
 	int ret = 0;
 	struct ifconfig_handle *lifh;
-	regex_t regex;
-	struct {
-		regex_t *ignore;
-		char *ifname;
-	} data = { &regex, NULL };
+	regex_t ignore;
 
 	if (argc > 2) {
 		warnx("bad value %s", argv[2]);
 		return (1);
 	}
 
-	if (regcomp_ignored_ifaces(data.ignore) != 0)
+	if (regcomp_ignored_ifaces(&ignore) != 0)
 		return (1);
 
 	lifh = ifconfig_open();
@@ -110,12 +106,12 @@ cmd_list(int argc, char **argv)
 	}
 
 	printf("%-10s %-12s %-20s\n", "NAME", "STATE", "CONNECTED SSID");
-	if (ifconfig_foreach_iface(lifh, print_interface, &data) != 0) {
+	if (ifconfig_foreach_iface(lifh, print_interface, &ignore) != 0) {
 		warnx("failed to get network interfaces");
 		ret = 1;
 	}
 
-	regfree(data.ignore);
+	regfree(&ignore);
 	ifconfig_close(lifh);
 
 	return (ret);
@@ -146,14 +142,11 @@ static int
 cmd_show(int argc, char **argv)
 {
 	int ret = 0;
-	char *interface_name = parse_interface_arg(argc, argv, 3);
 	struct ifconfig_handle *lifh;
-	struct {
-		regex_t *ignore;
-		char *ifname;
-	} data = { NULL, interface_name };
+	struct network_interface iface = { 0 };
 
-	if (interface_name == NULL)
+	iface.name = parse_interface_arg(argc, argv, 3);
+	if (iface.name == NULL)
 		return (1);
 
 	lifh = ifconfig_open();
@@ -162,12 +155,17 @@ cmd_show(int argc, char **argv)
 		return (1);
 	}
 
-	if (ifconfig_foreach_iface(lifh, print_interface, &data) != 0) {
+	ret = ifconfig_foreach_iface(lifh, retrieve_interface, &iface);
+	ifconfig_close(lifh);
+
+	if (ret != 0) {
 		warnx("failed to get network interfaces");
-		ret = 1;
+		return (ret);
 	}
 
-	ifconfig_close(lifh);
+	printf("%-10s %-12s %-20s\n", iface.name,
+	    connection_state_to_string[iface.state], iface.connected_ssid);
+
 	return (ret);
 }
 
@@ -290,23 +288,34 @@ cmd_configure(int argc, char **argv)
 static int
 cmd_disconnect(int argc, char **argv)
 {
-	char *interface_name = parse_interface_arg(argc, argv, 3);
-	struct network_interface *interface;
 	int ret = 0;
+	struct ifconfig_handle *lifh;
+	struct network_interface iface = { 0 };
 
-	if (interface_name == NULL)
+	iface.name = parse_interface_arg(argc, argv, 3);
+	if (iface.name == NULL)
 		return (1);
 
-	interface = get_network_interface_by_name(interface_name);
-	if (interface->state != CONNECTED) {
-		warnx("%s is not connected", interface_name);
+	lifh = ifconfig_open();
+	if (lifh == NULL) {
+		warnx("failed to open libifconfig handle");
 		return (1);
 	}
-	ret = set_ssid(interface->name, NULL);
 
-	free_network_interface(interface);
+	ret = ifconfig_foreach_iface(lifh, retrieve_interface, &iface);
+	ifconfig_close(lifh);
 
-	return (ret);
+	if (ret != 0) {
+		warnx("failed to get network interfaces");
+		return (ret);
+	}
+
+	if (iface.state != CONNECTED) {
+		warnx("%s is not connected", iface.name);
+		return (1);
+	}
+
+	return (set_ssid(iface.name, NULL));
 }
 
 static void

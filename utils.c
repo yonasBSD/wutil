@@ -118,34 +118,6 @@ get_interface_connection_state(char *interface_name)
 	return (state);
 }
 
-struct network_interface *
-get_network_interface_by_name(char *interface_name)
-{
-	int count;
-	struct network_interface *interface, **interfaces;
-
-	if (interface_name == NULL)
-		return (NULL);
-
-	interfaces = get_network_interfaces();
-	count = 0;
-	while (interfaces[count] != NULL)
-		count++;
-
-	interface = NULL;
-	for (int i = 0; interfaces[i] != NULL; i++) {
-		if (strcmp(interfaces[i]->name, interface_name) == 0) {
-			interface = interfaces[i];
-			interfaces[i] = interfaces[count - 1];
-			interfaces[count - 1] = NULL;
-			break;
-		}
-	}
-
-	free_network_interfaces(interfaces);
-	return (interface);
-}
-
 char **
 get_network_interface_names(void)
 {
@@ -184,8 +156,12 @@ int
 get_ssid(const char *ifname, char *ssid, int ssid_len)
 {
 	int ret;
-	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	int sockfd;
 
+	if (ssid == NULL || ssid_len < IEEE80211_NWID_LEN)
+		return (-1);
+
+	sockfd = socket(AF_LOCAL, SOCK_DGRAM, 0);
 	if (sockfd < 0)
 		return (-1);
 
@@ -248,9 +224,13 @@ get_network_interfaces(void)
 	for (int i = 0; interface_names[i] != NULL; i++) {
 		interfaces[i] = malloc(sizeof(struct network_interface));
 		interfaces[i]->name = interface_names[i];
-		interfaces[i]->connected_ssid =
-		    retrieve_network_interface_connected_ssid(
-			interfaces[i]->name);
+
+		memset(interfaces[i]->connected_ssid, 0,
+		    IEEE80211_NWID_LEN + 1);
+		if (get_ssid(interfaces[i]->name, interfaces[i]->connected_ssid,
+			IEEE80211_NWID_LEN) != 0)
+			interfaces[i]->connected_ssid[0] = '\0';
+
 		interfaces[i]->state = get_interface_connection_state(
 		    interfaces[i]->name);
 	}
@@ -264,7 +244,6 @@ void
 free_network_interface(struct network_interface *interface)
 {
 	free(interface->name);
-	free(interface->connected_ssid);
 	free(interface);
 }
 
@@ -916,27 +895,37 @@ get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
 void
 print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 {
-	struct {
-		regex_t *ignore;
-		char *ifname;
-	} *data = udata;
+	regex_t *ignore = udata;
 	enum connection_state state;
 	char ssid[IEEE80211_NWID_LEN + 1] = { 0 };
 
-	if (data != NULL && data->ignore != NULL &&
-	    regexec(data->ignore, ifa->ifa_name, 0, NULL, 0) == 0)
-		return;
-
-	if (data != NULL && data->ifname != NULL &&
-	    strcmp(ifa->ifa_name, data->ifname) != 0)
+	if (ignore != NULL && regexec(ignore, ifa->ifa_name, 0, NULL, 0) == 0)
 		return;
 
 	state = get_connection_state(lifh, ifa);
-	if (get_ssid(ifa->ifa_name, ssid, sizeof(ssid)) != 0)
+	if (get_ssid(ifa->ifa_name, ssid, IEEE80211_NWID_LEN) != 0)
 		ssid[0] = '\0';
 
 	printf("%-10s %-12s %-20s\n", ifa->ifa_name,
 	    connection_state_to_string[state], ssid);
+}
+
+void
+retrieve_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
+    void *udata)
+{
+	struct network_interface *iface = udata;
+
+	if (iface == NULL || iface->name == NULL ||
+	    strcmp(ifa->ifa_name, iface->name) != 0)
+		return;
+
+	iface->state = get_connection_state(lifh, ifa);
+
+	memset(iface->connected_ssid, 0, IEEE80211_NWID_LEN + 1);
+	if (get_ssid(ifa->ifa_name, iface->connected_ssid,
+		IEEE80211_NWID_LEN) != 0)
+		iface->connected_ssid[0] = '\0';
 }
 
 int
