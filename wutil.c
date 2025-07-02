@@ -214,7 +214,7 @@ cmd_scan(int argc, char **argv)
 		return (1);
 
 	int rt_sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
-	if (rt_sockfd < 0) {
+	if (rt_sockfd == -1) {
 		perror("socket(PF_ROUTE)");
 		return (1);
 	}
@@ -291,6 +291,7 @@ cmd_disconnect(int argc, char **argv)
 {
 	char *interface_name = parse_interface_arg(argc, argv, 3);
 	struct network_interface *interface;
+	int ret = 0;
 
 	if (interface_name == NULL)
 		return (1);
@@ -300,8 +301,11 @@ cmd_disconnect(int argc, char **argv)
 		fprintf(stderr, "%s is not connected\n", interface_name);
 		return (1);
 	}
+	ret = set_ssid(interface->name, NULL);
 
-	return (disconnect_network_interface(interface->name));
+	free_network_interface(interface);
+
+	return (ret);
 }
 
 static void
@@ -334,33 +338,37 @@ read_password(char *buffer, size_t size, const char *prompt_format, ...)
 static int
 cmd_connect(int argc, char **argv)
 {
-	int status;
-	char *ssid, *interface_name = parse_interface_arg(argc, argv, 4);
-	struct network_interface *interface;
-	struct wifi_network *network;
+	int ret, rt_sockfd;
+	struct wifi_network_list *networks;
+	struct wifi_network *network = NULL;
+	char *ssid, *ifname = parse_interface_arg(argc, argv, 4);
 
-	if (argc < 3) {
-		fprintf(stderr, "<interface> not provided\n");
+	if (ifname == NULL)
 		return (1);
-	}
-
-	interface_name = argv[2];
-	interface = get_network_interface_by_name(interface_name);
-	if (interface == NULL) {
-		fprintf(stderr, "unavailable interface %s\n", interface_name);
-		return (1);
-	}
 
 	if (argc < 4) {
 		fprintf(stderr, "<ssid> not provided\n");
 		return (1);
 	}
-
 	ssid = argv[3];
-	network = get_wifi_network_by_ssid(interface_name, ssid);
+
+	rt_sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
+	if (rt_sockfd == -1) {
+		perror("socket(PF_ROUTE)");
+		return (1);
+	}
+	scan_and_wait(rt_sockfd, ifname);
+	networks = get_scan_results(rt_sockfd, ifname);
+	close(rt_sockfd);
+
+	STAILQ_FOREACH(network, networks, next) {
+		if (strcmp(network->ssid, ssid) == 0)
+			break;
+	}
+
 	if (network == NULL) {
 		fprintf(stderr, "network '%s' is unavailable on %s\n", ssid,
-		    interface_name);
+		    ifname);
 		return (1);
 	}
 
@@ -380,14 +388,14 @@ cmd_connect(int argc, char **argv)
 			return (1);
 		}
 	}
-	free_wifi_network(network);
 
-	status = connect_to_ssid(interface_name, ssid);
-	printf(status == 0 ? "connected to '%s'\n" :
-			     "failed to connect to '%s'\n",
+	ret = connect_with_wpa(ifname, ssid);
+	printf(ret == 0 ? "connected to '%s'\n" : "failed to connect to '%s'\n",
 	    ssid);
 
-	return (status);
+	free_wifi_networks_list(networks);
+
+	return (ret);
 }
 
 int

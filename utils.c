@@ -76,7 +76,7 @@ static char *caps_to_str(int capinfo, char *capstr);
 static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
 
-static int set_ssid(int sockfd, const char *ifname, const char *ssid);
+static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
 
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
@@ -522,7 +522,7 @@ get_wifi_network_by_ssid(char *network_interface, char *ssid)
 }
 
 static int
-set_ssid(int sockfd, const char *ifname, const char *ssid)
+lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid)
 {
 	uint8_t im_ssid[IEEE80211_NWID_LEN] = { 0 };
 	int len = ssid == NULL ? 0 : strlen(ssid);
@@ -540,7 +540,7 @@ set_ssid(int sockfd, const char *ifname, const char *ssid)
 }
 
 int
-disconnect_network_interface(const char *ifname)
+set_ssid(const char *ifname, const char *ssid)
 {
 	int ret = 0;
 	int sockfd = socket(AF_LOCAL, SOCK_DGRAM, 0);
@@ -554,7 +554,7 @@ disconnect_network_interface(const char *ifname)
 		goto cleanup;
 	}
 
-	ret = set_ssid(sockfd, ifname, NULL);
+	ret = lib80211_set_ssid(sockfd, ifname, ssid);
 	if (ret == -1) {
 		warnx("failed to clear SSID on %s\n", ifname);
 	}
@@ -571,23 +571,23 @@ cleanup:
 }
 
 int
-connect_to_ssid(char *network_interface, char *ssid)
+connect_with_wpa(const char *ifname, const char *ssid)
 {
+	int ret = 0;
 	char command[256];
 
 	guard_root_access();
 
-	if (system("killall wpa_supplicant > /dev/null 2>&1") != 0)
+	ret = system("killall wpa_supplicant > /dev/null 2>&1");
+	if (ret != 0)
 		return (1);
 
-	snprintf(command, sizeof(command),
-	    "ifconfig %s ssid '%s' > /dev/null 2>&1", network_interface, ssid);
-	if (system(command) != 0)
+	if (set_ssid(ifname, ssid) != 0)
 		return (1);
 
 	snprintf(command, sizeof(command),
 	    "wpa_supplicant -B -i %s -c /etc/wpa_supplicant.conf > /dev/null 2>&1",
-	    network_interface);
+	    ifname);
 	return (system(command));
 }
 

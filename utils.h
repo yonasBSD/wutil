@@ -93,7 +93,7 @@ enum connection_state get_interface_connection_state(char *interface_name);
 
 int enable_interface(const char *ifname);
 int disable_interface(const char *ifname);
-int disconnect_network_interface(const char *ifname);
+int set_ssid(const char *ifname, const char *ssid);
 int restart_interface(char *interface_name);
 bool is_valid_interface(const char *ifname);
 
@@ -104,7 +104,7 @@ bool is_wifi_network_secured(struct wifi_network *network);
 void free_wifi_network(struct wifi_network *network);
 void free_wifi_networks(struct wifi_network **network);
 
-int connect_to_ssid(char *network_interface, char *ssid);
+int connect_with_wpa(const char *ifname, const char *ssid);
 bool is_ssid_configured(char *ssid);
 
 struct network_configuration *generate_network_configuration(int argc,
