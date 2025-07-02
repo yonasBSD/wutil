@@ -677,10 +677,9 @@ generate_network_configuration(int argc, char **argv)
 		{ NULL, 0, NULL, 0 },
 	};
 
-	config = malloc(sizeof(struct network_configuration));
+	config = calloc(1, sizeof(struct network_configuration));
 	if (config == NULL)
 		return (NULL);
-	memset(config, 0, sizeof(struct network_configuration));
 
 	while ((opt = getopt_long(argc, argv, "m:i:n:g:d:s:r:", options,
 		    NULL)) != -1) {

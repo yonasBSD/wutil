@@ -245,6 +245,7 @@ cmd_configure(int argc, char **argv)
 {
 	char *interface_name;
 	struct network_configuration *config;
+	int ret = 0;
 
 	if (argc < 3) {
 		fprintf(stderr, "<interface> not provided\n");
@@ -279,7 +280,10 @@ cmd_configure(int argc, char **argv)
 	if (config->search_domain)
 		printf("search domain: %s\n", config->search_domain);
 
-	return (configure_nic(interface_name, config));
+	ret = configure_nic(interface_name, config);
+	free_network_configuration(config);
+
+	return (ret);
 }
 
 static int
