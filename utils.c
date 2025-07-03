@@ -37,7 +37,13 @@
 #include <net80211/ieee80211.h>
 #include <net80211/ieee80211_freebsd.h>
 #include <net80211/ieee80211_ioctl.h>
+#include <netinet/in.h>
+#include <netlink/netlink.h>
+#include <netlink/netlink_route.h>
+#include <netlink/netlink_snl.h>
+#include <netlink/netlink_snl_route.h>
 
+#include <arpa/inet.h>
 #include <err.h>
 #include <getopt.h>
 #include <ifaddrs.h>
@@ -56,7 +62,7 @@ static void guard_root_access(void);
 
 static int restart_networking(void);
 
-static int configure_ip(char *interface_name,
+static int configure_ip(const char *ifname,
     struct network_configuration *config);
 static int configure_resolvd(struct network_configuration *config);
 
@@ -78,6 +84,11 @@ static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
 
 static void append_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
+
+static int prefixlen(const char *netmask);
+
+static int set_inet(struct snl_state *ss, uint32_t ifindex, const char *inet,
+    uint8_t prefixlen, struct snl_errmsg_data *e);
 
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
@@ -548,35 +559,104 @@ restart_networking(void)
 	return (system("service routing restart"));
 }
 
-/* TODO: properly do it */
 static int
-configure_ip(char *interface_name, struct network_configuration *config)
+set_inet(struct snl_state *ss, uint32_t ifindex, const char *inet,
+    uint8_t prefixlen, struct snl_errmsg_data *e)
 {
-	int status_code;
-	char ip_rc[256] = "sysrc ";
+	struct nlmsghdr *hdr;
+	struct ifaddrmsg *ifahdr;
+	struct in_addr addr;
+	struct snl_writer nw;
 
-	strncatf(ip_rc, sizeof(ip_rc), "ifconfig_%s=\"%s", interface_name,
-	    strstr(interface_name, "wlan") ? "WPA " : "");
-
-	if (config->method == MANUAL)
-		strncatf(ip_rc, sizeof(ip_rc), "inet %s netmask %s\"",
-		    config->ip, config->netmask);
-	else
-		strncat(ip_rc, "DHCP\"", sizeof(ip_rc) - strlen(ip_rc) - 1);
-
-	status_code = system(ip_rc);
-	if (status_code != 0)
-		return (status_code);
-
-	if (config->method == MANUAL) {
-		char gateway_rc[256];
-
-		snprintf(gateway_rc, sizeof(gateway_rc),
-		    "sysrc defaultrouter=\"%s\"", config->gateway);
-		status_code = system(gateway_rc);
+	snl_init_writer(ss, &nw);
+	hdr = snl_create_msg_request(&nw, RTM_NEWADDR);
+	if (hdr == NULL) {
+		warnx("failed to create nlmsghdr");
+		return (1);
 	}
 
-	return (status_code);
+	ifahdr = snl_reserve_msg_object(&nw, struct ifaddrmsg);
+	if (ifahdr == NULL) {
+		warnx("failed to init snl_state");
+		return (1);
+	}
+
+	ifahdr->ifa_family = AF_INET;
+	ifahdr->ifa_prefixlen = prefixlen;
+	ifahdr->ifa_index = ifindex;
+
+	if (inet_pton(AF_INET, inet, &addr) != 1) {
+		warnx("unparseable inet: %s", inet);
+		return (1);
+	}
+
+	snl_add_msg_attr_ip4(&nw, IFA_LOCAL, &addr);
+
+	if ((hdr = snl_finalize_msg(&nw)) == NULL) {
+		warnx("failed to finalize snl message");
+		return (1);
+	}
+
+	if (!snl_send_message(ss, hdr)) {
+		warnx("failed to send snl message");
+		return (1);
+	}
+
+	snl_read_reply_code(ss, hdr->nlmsg_seq, e);
+
+	return (e->error);
+}
+
+static int
+prefixlen(const char *netmask)
+{
+	uint32_t addr;
+	uint32_t mask = UINT32_MAX;
+
+	if (inet_pton(AF_INET, netmask, &addr) != 1)
+		return (-1);
+
+	addr = ntohl(addr);
+	for (int plen = 32; plen >= 0; plen--) {
+		if (addr == mask)
+			return (plen);
+		mask <<= 1;
+	}
+
+	return (-1);
+}
+
+static int
+configure_ip(const char *ifname, struct network_configuration *config)
+{
+	int plen = prefixlen(config->netmask);
+	uint32_t ifindex = if_nametoindex(ifname);
+	struct snl_state ss;
+	struct snl_errmsg_data e = { 0 };
+
+	if (plen == -1) {
+		warnx("invalid netmask: %s", config->netmask);
+		return (1);
+	}
+
+	if (!snl_init(&ss, NETLINK_ROUTE)) {
+		warnx("failed to init snl_state");
+		return (1);
+	}
+
+	if (set_inet(&ss, ifindex, config->ip, plen, &e) != 0) {
+		warnx("failed to set ip/netmask");
+		goto cleanup;
+	}
+
+	/* TODO: configure gateway */
+
+cleanup:
+	if (e.error_str != NULL)
+		warnx("snl_error: %s", e.error_str);
+
+	snl_free(&ss);
+	return (e.error);
 }
 
 static int
@@ -606,22 +686,21 @@ configure_resolvd(struct network_configuration *config)
 int
 configure_nic(char *interface_name, struct network_configuration *config)
 {
-	int status_code;
+	int ret;
 
-	guard_root_access();
-
-	if (config->method != UNCHANGED &&
-	    (status_code = configure_ip(interface_name, config)) != 0)
-		return (status_code);
+	if (config->method == MANUAL &&
+	    (ret = configure_ip(interface_name, config)) != 0)
+		return (ret);
+	/* TODO: handle other ip config methods */
 
 	if (config->dns1 != NULL || config->dns2 != NULL ||
 	    config->search_domain != NULL) {
 		printf("configuring resolvd...\n");
-		status_code = configure_resolvd(config);
+		ret = configure_resolvd(config);
 	}
 
 	restart_networking();
-	return (status_code);
+	return (ret);
 }
 
 static void
