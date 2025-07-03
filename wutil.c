@@ -243,9 +243,7 @@ static int
 cmd_configure(int argc, char **argv)
 {
 	char *interface_name;
-	struct network_configuration *config;
-	int ret = 0;
-
+	struct network_configuration config = { 0 };
 	if (argc < 3) {
 		warnx("<interface> not provided");
 		return (1);
@@ -257,30 +255,10 @@ cmd_configure(int argc, char **argv)
 		return (1);
 	}
 
-	config = parse_network_config(argc - 2, argv + 2);
-	if (config == NULL)
+	if (parse_network_config(argc - 2, argv + 2, &config) != 0)
 		return (1);
 
-	printf("applying the following changes:\n");
-	printf("interface: %s\n", interface_name);
-	if (config->method != UNCHANGED)
-		printf("method: %s\n",
-		    config->method == DHCP ? "dhcp" : "manual");
-	if (config->ip)
-		printf("IP: %s/%d\n", config->ip, config->prefix_len);
-	if (config->gateway)
-		printf("gateway: %s\n", config->gateway);
-	if (config->dns1)
-		printf("DNS1: %s\n", config->dns1);
-	if (config->dns2)
-		printf("DNS2: %s\n", config->dns2);
-	if (config->search_domain)
-		printf("search domain: %s\n", config->search_domain);
-
-	ret = configure_nic(interface_name, config);
-	free_network_configuration(config);
-
-	return (ret);
+	return (configure_nic(interface_name, &config));
 }
 
 static int

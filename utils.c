@@ -237,26 +237,11 @@ is_valid_interface(const char *ifname)
 	return (is_valid);
 }
 
-void
-free_network_configuration(struct network_configuration *configuration)
-{
-	if (configuration == NULL)
-		return;
-
-	free(configuration->ip);
-	free(configuration->gateway);
-	free(configuration->dns1);
-	free(configuration->dns2);
-	free(configuration->search_domain);
-
-	free(configuration);
-}
-
-struct network_configuration *
-parse_network_config(int argc, char **argv)
+int
+parse_network_config(int argc, char **argv,
+    struct network_configuration *config)
 {
 	int opt;
-	struct network_configuration *config;
 	struct option options[] = {
 		{ "method", required_argument, NULL, 'm' },
 		{ "ip", required_argument, NULL, 'i' },
@@ -270,14 +255,13 @@ parse_network_config(int argc, char **argv)
 
 	if (argc == 1) {
 		warnx("no options provided");
-		return (NULL);
+		return (1);
 	}
 
-	config = calloc(1, sizeof(struct network_configuration));
 	if (config == NULL)
-		return (NULL);
-	config->prefix_len = -1;
+		return (1);
 
+	config->prefix_len = -1;
 	while ((opt = getopt_long(argc, argv, "m:i:n:g:d:s:r:", options,
 		    NULL)) != -1) {
 		switch (opt) {
@@ -288,55 +272,55 @@ parse_network_config(int argc, char **argv)
 				config->method = MANUAL;
 			} else {
 				warnx("invalid method: %s", optarg);
-				goto fail;
+				return (1);
 			}
 			break;
 		case 'i':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
 				warnx("-i <ip> requires --method=manual");
-				goto fail;
+				return (1);
 			}
-			config->ip = strdup(optarg);
+			config->ip = optarg;
 			break;
 		case 'n':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
 				warnx("-n <netmask> requires --method=manual");
-				goto fail;
+				return (1);
 			}
 			config->prefix_len = prefixlen(optarg);
 			if (config->prefix_len == -1) {
 				warnx("invalid gateway: %s", optarg);
-				goto fail;
+				return (1);
 			}
 			break;
 		case 'g':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
 				warnx("-g <gateway> requires --method=manual");
-				goto fail;
+				return (1);
 			}
-			config->gateway = strdup(optarg);
+			config->gateway = optarg;
 			break;
 		case 'd':
-			config->dns1 = strdup(optarg);
+			config->dns1 = optarg;
 			break;
 		case 's':
-			config->dns2 = strdup(optarg);
+			config->dns2 = optarg;
 			break;
 		case 'r':
-			config->search_domain = strdup(optarg);
+			config->search_domain = optarg;
 			break;
 		case '?':
 		default:
-			goto fail;
+			return (1);
 		}
 	}
 
 	if (optind < argc) {
 		warnx("unexpected argument: %s", argv[optind]);
-		goto fail;
+		return (1);
 	}
 
 	if (config->method == MANUAL) {
@@ -347,16 +331,11 @@ parse_network_config(int argc, char **argv)
 		if ((has_ip && !has_nm) || (!has_ip && has_nm) ||
 		    (!has_nm && !has_gw)) {
 			warnx("provide both -i and -n or -g");
-			free_network_configuration(config);
-			return (NULL);
+			return (1);
 		}
 	}
 
-	return (config);
-
-fail:
-	free_network_configuration(config);
-	return (NULL);
+	return (0);
 }
 
 static int

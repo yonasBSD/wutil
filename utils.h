@@ -102,9 +102,9 @@ int connect_with_wpa(const char *ifname, const char *ssid);
 bool is_ssid_configured(const char *ssid);
 bool is_wifi_network_secured(struct wifi_network *network);
 
-struct network_configuration *parse_network_config(int argc, char **argv);
+int parse_network_config(int argc, char **argv,
+    struct network_configuration *config);
 int configure_nic(char *interface_name, struct network_configuration *config);
-void free_network_configuration(struct network_configuration *configuration);
 
 void print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
