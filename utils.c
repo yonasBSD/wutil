@@ -340,8 +340,13 @@ parse_network_config(int argc, char **argv)
 	}
 
 	if (config->method == MANUAL) {
-		if (config->ip == NULL || config->prefix_len == -1) {
-			warnx("provide -i and -n for --method=manual");
+		bool has_ip = config->ip != NULL;
+		bool has_nm = config->prefix_len != -1;
+		bool has_gw = config->gateway != NULL;
+
+		if ((has_ip && !has_nm) || (!has_ip && has_nm) ||
+		    (!has_nm && !has_gw)) {
+			warnx("provide both -i and -n or -g");
 			free_network_configuration(config);
 			return (NULL);
 		}
@@ -490,7 +495,8 @@ configure_ip_manually(const char *ifname, struct network_configuration *config)
 		return (1);
 	}
 
-	if (set_inet(&ss, ifindex, config->ip, config->prefix_len, &e) != 0) {
+	if (config->ip != NULL &&
+	    set_inet(&ss, ifindex, config->ip, config->prefix_len, &e) != 0) {
 		warnx("failed to set ip/netmask");
 		goto cleanup;
 	}
