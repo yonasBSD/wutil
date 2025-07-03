@@ -53,8 +53,6 @@
 
 #include "utils.h"
 
-static int restart_networking(void);
-
 static int configure_ip(const char *ifname,
     struct network_configuration *config);
 static int configure_ip_manually(const char *ifname,
@@ -357,16 +355,6 @@ fail:
 }
 
 static int
-restart_networking(void)
-{
-	int status_code = system("service netif restart");
-
-	if (status_code != 0)
-		return (status_code);
-	return (system("service routing restart"));
-}
-
-static int
 set_inet(struct snl_state *ss, uint32_t ifindex, const char *inet,
     uint8_t prefixlen, struct snl_errmsg_data *e)
 {
@@ -507,7 +495,8 @@ configure_ip_manually(const char *ifname, struct network_configuration *config)
 		goto cleanup;
 	}
 
-	if (set_default_gateway(&ss, ifindex, config->gateway, &e) != 0) {
+	if (config->gateway != NULL &&
+	    set_default_gateway(&ss, ifindex, config->gateway, &e) != 0) {
 		warnx("failed to set gateway");
 		goto cleanup;
 	}
@@ -575,7 +564,6 @@ configure_nic(char *ifname, struct network_configuration *config)
 		ret = configure_resolvd(config);
 	}
 
-	restart_networking();
 	return (ret);
 }
 
