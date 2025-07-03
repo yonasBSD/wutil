@@ -89,6 +89,8 @@ static int prefixlen(const char *netmask);
 
 static int set_inet(struct snl_state *ss, uint32_t ifindex, const char *inet,
     uint8_t prefixlen, struct snl_errmsg_data *e);
+static int set_default_gateway(struct snl_state *ss, uint32_t oif,
+    const char *gateway, struct snl_errmsg_data *e);
 
 const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
@@ -608,6 +610,63 @@ set_inet(struct snl_state *ss, uint32_t ifindex, const char *inet,
 }
 
 static int
+set_default_gateway(struct snl_state *ss, uint32_t oif, const char *gateway,
+    struct snl_errmsg_data *e)
+{
+	struct nlmsghdr *hdr;
+	struct rtmsg *rt_hdr;
+	struct in_addr gw, dest = { 0 };
+	struct snl_writer nw;
+
+	snl_init_writer(ss, &nw);
+	hdr = snl_create_msg_request(&nw, RTM_NEWROUTE);
+	if (hdr == NULL) {
+		warnx("failed to create nlmsghdr");
+		return (1);
+	}
+
+	hdr->nlmsg_flags |= NLM_F_CREATE | NLM_F_REPLACE;
+
+	rt_hdr = snl_reserve_msg_object(&nw, struct rtmsg);
+	if (rt_hdr == NULL) {
+		warnx("failed to init snl_state");
+		return (1);
+	}
+
+	rt_hdr->rtm_family = AF_INET;
+	rt_hdr->rtm_dst_len = 0;
+	rt_hdr->rtm_src_len = 0;
+	rt_hdr->rtm_table = RT_TABLE_MAIN;
+	rt_hdr->rtm_protocol = RTPROT_STATIC;
+	rt_hdr->rtm_scope = RT_SCOPE_UNIVERSE;
+	rt_hdr->rtm_type = RTN_UNICAST;
+	rt_hdr->rtm_flags = 0;
+
+	if (inet_pton(AF_INET, gateway, &gw) != 1) {
+		warnx("unparseable inet: %s", gateway);
+		return (1);
+	}
+
+	snl_add_msg_attr_ip4(&nw, RTA_GATEWAY, &gw);
+	snl_add_msg_attr_ip4(&nw, RTA_DST, &dest);
+	snl_add_msg_attr_u32(&nw, RTA_OIF, oif);
+
+	if ((hdr = snl_finalize_msg(&nw)) == NULL) {
+		warnx("failed to finalize snl message");
+		return (1);
+	}
+
+	if (!snl_send_message(ss, hdr)) {
+		warnx("failed to send snl message");
+		return (1);
+	}
+
+	snl_read_reply_code(ss, hdr->nlmsg_seq, e);
+
+	return (e->error);
+}
+
+static int
 prefixlen(const char *netmask)
 {
 	uint32_t addr;
@@ -649,7 +708,10 @@ configure_ip(const char *ifname, struct network_configuration *config)
 		goto cleanup;
 	}
 
-	/* TODO: configure gateway */
+	if (set_default_gateway(&ss, ifindex, config->gateway, &e) != 0) {
+		warnx("failed to set gateway");
+		goto cleanup;
+	}
 
 cleanup:
 	if (e.error_str != NULL)
