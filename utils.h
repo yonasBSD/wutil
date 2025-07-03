@@ -80,7 +80,7 @@ enum ip_configuration {
 struct network_configuration {
 	enum ip_configuration method;
 	char *ip;
-	char *netmask;
+	int prefix_len;
 	char *gateway;
 	char *dns1;
 	char *dns2;
@@ -102,8 +102,7 @@ int connect_with_wpa(const char *ifname, const char *ssid);
 bool is_ssid_configured(const char *ssid);
 bool is_wifi_network_secured(struct wifi_network *network);
 
-struct network_configuration *generate_network_configuration(int argc,
-    char **argv);
+struct network_configuration *parse_network_config(int argc, char **argv);
 int configure_nic(char *interface_name, struct network_configuration *config);
 void free_network_configuration(struct network_configuration *configuration);
 

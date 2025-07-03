@@ -257,7 +257,7 @@ cmd_configure(int argc, char **argv)
 		return (1);
 	}
 
-	config = generate_network_configuration(argc - 2, argv + 2);
+	config = parse_network_config(argc - 2, argv + 2);
 	if (config == NULL)
 		return (1);
 
@@ -267,9 +267,7 @@ cmd_configure(int argc, char **argv)
 		printf("method: %s\n",
 		    config->method == DHCP ? "dhcp" : "manual");
 	if (config->ip)
-		printf("IP: %s\n", config->ip);
-	if (config->netmask)
-		printf("netmask: %s\n", config->netmask);
+		printf("IP: %s/%d\n", config->ip, config->prefix_len);
 	if (config->gateway)
 		printf("gateway: %s\n", config->gateway);
 	if (config->dns1)

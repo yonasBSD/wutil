@@ -246,7 +246,6 @@ free_network_configuration(struct network_configuration *configuration)
 		return;
 
 	free(configuration->ip);
-	free(configuration->netmask);
 	free(configuration->gateway);
 	free(configuration->dns1);
 	free(configuration->dns2);
@@ -256,7 +255,7 @@ free_network_configuration(struct network_configuration *configuration)
 }
 
 struct network_configuration *
-generate_network_configuration(int argc, char **argv)
+parse_network_config(int argc, char **argv)
 {
 	int opt;
 	struct network_configuration *config;
@@ -271,9 +270,15 @@ generate_network_configuration(int argc, char **argv)
 		{ NULL, 0, NULL, 0 },
 	};
 
+	if (argc == 1) {
+		warnx("no options provided");
+		return (NULL);
+	}
+
 	config = calloc(1, sizeof(struct network_configuration));
 	if (config == NULL)
 		return (NULL);
+	config->prefix_len = -1;
 
 	while ((opt = getopt_long(argc, argv, "m:i:n:g:d:s:r:", options,
 		    NULL)) != -1) {
@@ -285,37 +290,34 @@ generate_network_configuration(int argc, char **argv)
 				config->method = MANUAL;
 			} else {
 				warnx("invalid method: %s", optarg);
-				free_network_configuration(config);
-				return (NULL);
+				goto fail;
 			}
 			break;
 		case 'i':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
-				warnx(
-				    "use --method=manual for manually setting the IP");
-				free_network_configuration(config);
-				return (NULL);
+				warnx("-i <ip> requires --method=manual");
+				goto fail;
 			}
 			config->ip = strdup(optarg);
 			break;
 		case 'n':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
-				warnx(
-				    "use --method=manual for manually setting the netmask");
-				free_network_configuration(config);
-				return (NULL);
+				warnx("-n <netmask> requires --method=manual");
+				goto fail;
 			}
-			config->netmask = strdup(optarg);
+			config->prefix_len = prefixlen(optarg);
+			if (config->prefix_len == -1) {
+				warnx("invalid gateway: %s", optarg);
+				goto fail;
+			}
 			break;
 		case 'g':
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
-				warnx(
-				    "use --method=manual for manually setting the gateway");
-				free_network_configuration(config);
-				return (NULL);
+				warnx("-g <gateway> requires --method=manual");
+				goto fail;
 			}
 			config->gateway = strdup(optarg);
 			break;
@@ -328,24 +330,30 @@ generate_network_configuration(int argc, char **argv)
 		case 'r':
 			config->search_domain = strdup(optarg);
 			break;
+		case '?':
 		default:
-			warnx("unknown option '%s'",
-			    optarg == NULL ? "" : optarg);
-			free_network_configuration(config);
-			return (NULL);
+			goto fail;
 		}
 	}
 
+	if (optind < argc) {
+		warnx("unexpected argument: %s", argv[optind]);
+		goto fail;
+	}
+
 	if (config->method == MANUAL) {
-		if (config->ip == NULL || config->netmask == NULL) {
-			warnx(
-			    "provide both ip address and netmask for manual configuration");
+		if (config->ip == NULL || config->prefix_len == -1) {
+			warnx("provide -i and -n for --method=manual");
 			free_network_configuration(config);
 			return (NULL);
 		}
 	}
 
 	return (config);
+
+fail:
+	free_network_configuration(config);
+	return (NULL);
 }
 
 static int
@@ -485,22 +493,16 @@ prefixlen(const char *netmask)
 static int
 configure_ip_manually(const char *ifname, struct network_configuration *config)
 {
-	int plen = prefixlen(config->netmask);
 	uint32_t ifindex = if_nametoindex(ifname);
 	struct snl_state ss;
 	struct snl_errmsg_data e = { 0 };
-
-	if (plen == -1) {
-		warnx("invalid netmask: %s", config->netmask);
-		return (1);
-	}
 
 	if (!snl_init(&ss, NETLINK_ROUTE)) {
 		warnx("failed to init snl_state");
 		return (1);
 	}
 
-	if (set_inet(&ss, ifindex, config->ip, plen, &e) != 0) {
+	if (set_inet(&ss, ifindex, config->ip, config->prefix_len, &e) != 0) {
 		warnx("failed to set ip/netmask");
 		goto cleanup;
 	}
