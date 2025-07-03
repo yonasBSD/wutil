@@ -64,6 +64,9 @@ static int restart_networking(void);
 
 static int configure_ip(const char *ifname,
     struct network_configuration *config);
+static int configure_ip_manually(const char *ifname,
+    struct network_configuration *config);
+
 static int configure_resolvd(struct network_configuration *config);
 
 static int modify_if_flags(int sockfd, const char *ifname, int set_flag,
@@ -686,7 +689,7 @@ prefixlen(const char *netmask)
 }
 
 static int
-configure_ip(const char *ifname, struct network_configuration *config)
+configure_ip_manually(const char *ifname, struct network_configuration *config)
 {
 	int plen = prefixlen(config->netmask);
 	uint32_t ifindex = if_nametoindex(ifname);
@@ -745,15 +748,30 @@ configure_resolvd(struct network_configuration *config)
 	return (0);
 }
 
-int
-configure_nic(char *interface_name, struct network_configuration *config)
+static int
+configure_ip(const char *ifname, struct network_configuration *config)
 {
-	int ret;
+	int ret = 0;
 
-	if (config->method == MANUAL &&
-	    (ret = configure_ip(interface_name, config)) != 0)
+	if (config->method == MANUAL) {
+		ret = configure_ip_manually(ifname, config);
+	} else if (config->method == DHCP) { /* TODO: remove call to dhclient */
+		char command[256];
+		snprintf(command, sizeof(command), "dhclient %s", ifname);
+		ret = system(command);
+	}
+
+	return (ret);
+}
+
+int
+configure_nic(char *ifname, struct network_configuration *config)
+{
+	int ret = 0;
+
+	if (config->method != UNCHANGED &&
+	    (ret = configure_ip(ifname, config)) != 0)
 		return (ret);
-	/* TODO: handle other ip config methods */
 
 	if (config->dns1 != NULL || config->dns2 != NULL ||
 	    config->search_domain != NULL) {
