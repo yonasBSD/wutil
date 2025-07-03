@@ -71,6 +71,7 @@ static void append_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
 
 static int prefixlen(const char *netmask);
 
+static bool is_valid_inet(const char *inet);
 static int set_inet(struct snl_state *ss, uint32_t ifindex, const char *inet,
     uint8_t prefixlen, struct snl_errmsg_data *e);
 static int set_default_gateway(struct snl_state *ss, uint32_t oif,
@@ -237,6 +238,14 @@ is_valid_interface(const char *ifname)
 	return (is_valid);
 }
 
+static bool
+is_valid_inet(const char *inet)
+{
+	struct in_addr addr;
+
+	return (inet != NULL && inet_pton(AF_INET, inet, &addr) == 1);
+}
+
 int
 parse_network_config(int argc, char **argv,
     struct network_configuration *config)
@@ -281,6 +290,10 @@ parse_network_config(int argc, char **argv,
 				warnx("-i <ip> requires --method=manual");
 				return (1);
 			}
+			if (!is_valid_inet(optarg)) {
+				warnx("invalid inet: %s", optarg);
+				return (1);
+			}
 			config->ip = optarg;
 			break;
 		case 'n':
@@ -299,6 +312,10 @@ parse_network_config(int argc, char **argv,
 			if (config->method == UNCHANGED ||
 			    config->method != MANUAL) {
 				warnx("-g <gateway> requires --method=manual");
+				return (1);
+			}
+			if (!is_valid_inet(optarg)) {
+				warnx("invalid gateway: %s", optarg);
 				return (1);
 			}
 			config->gateway = optarg;
