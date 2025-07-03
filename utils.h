@@ -123,4 +123,9 @@ struct wifi_network_list *get_scan_results(int route_socket,
 void free_wifi_network(struct wifi_network *network);
 void free_wifi_network_list(struct wifi_network_list *);
 
+int modify_if_flags(int sockfd, const char *ifname, int set_flag,
+    int clear_flag);
+
+void guard_root_access(void);
+
 #endif /* !UTILS_H */
