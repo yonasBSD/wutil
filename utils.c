@@ -30,6 +30,7 @@
 #include <sys/event.h>
 #include <sys/ioccom.h>
 #include <sys/sockio.h>
+#include <sys/wait.h>
 
 #include <net/ethernet.h>
 #include <net/if.h>
@@ -55,7 +56,8 @@
 
 static int configure_ip(const char *ifname,
     struct network_configuration *config);
-static int configure_ip_manually(const char *ifname,
+static int configure_ip_dhcp(const char *ifname);
+static int configure_ip_manual(const char *ifname,
     struct network_configuration *config);
 
 static int configure_resolvd(struct network_configuration *config);
@@ -490,7 +492,7 @@ prefixlen(const char *netmask)
 }
 
 static int
-configure_ip_manually(const char *ifname, struct network_configuration *config)
+configure_ip_manual(const char *ifname, struct network_configuration *config)
 {
 	uint32_t ifindex = if_nametoindex(ifname);
 	struct snl_state ss;
@@ -546,19 +548,38 @@ configure_resolvd(struct network_configuration *config)
 }
 
 static int
-configure_ip(const char *ifname, struct network_configuration *config)
+configure_ip_dhcp(const char *ifname)
 {
-	int ret = 0;
+	pid_t pid = fork();
+	int status;
 
-	if (config->method == MANUAL) {
-		ret = configure_ip_manually(ifname, config);
-	} else if (config->method == DHCP) { /* TODO: remove call to dhclient */
-		char command[256];
-		snprintf(command, sizeof(command), "dhclient %s", ifname);
-		ret = system(command);
+	if (pid == -1) {
+		warn("fork failed");
+		return (-1);
+	} else if (pid == 0) {
+		execl("/sbin/dhclient", "dhclient", ifname, NULL);
+		err(1, "exec");
 	}
 
-	return (ret);
+	if (waitpid(pid, &status, 0) == -1) {
+		warn("waitpid");
+		return (1);
+	}
+
+	if (!WIFEXITED(status)) {
+		warnx("dhclient did not terminate normally");
+		return (1);
+	}
+
+	return (WEXITSTATUS(status));
+}
+
+static int
+configure_ip(const char *ifname, struct network_configuration *config)
+{
+	return (config->method == MANUAL ? configure_ip_manual(ifname, config) :
+		config->method == DHCP	 ? configure_ip_dhcp(ifname) :
+					   0);
 }
 
 int
@@ -566,9 +587,10 @@ configure_nic(char *ifname, struct network_configuration *config)
 {
 	int ret = 0;
 
-	if (config->method != UNCHANGED &&
-	    (ret = configure_ip(ifname, config)) != 0)
+	if ((ret = configure_ip(ifname, config)) != 0) {
+		warnx("failed to configure IP");
 		return (ret);
+	}
 
 	if (config->dns1 != NULL || config->dns2 != NULL ||
 	    config->search_domain != NULL) {
