@@ -179,7 +179,7 @@ int
 enable_interface(const char *ifname)
 {
 	int ret = 0;
-	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	int sockfd = socket(AF_LOCAL, SOCK_DGRAM, 0);
 
 	if (sockfd < 0)
 		return (-1);
@@ -195,7 +195,7 @@ int
 disable_interface(const char *ifname)
 {
 	int ret = 0;
-	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	int sockfd = socket(AF_LOCAL, SOCK_DGRAM, 0);
 
 	if (sockfd < 0)
 		return (-1);
