@@ -93,7 +93,7 @@ void free_network_interface_list(struct network_interface_list *head);
 
 int enable_interface(const char *ifname);
 int disable_interface(const char *ifname);
-int restart_interface(char *interface_name);
+int restart_interface(const char *ifname);
 bool is_valid_interface(const char *ifname);
 
 int configure_wifi_network(struct wifi_network *network, const char *password);

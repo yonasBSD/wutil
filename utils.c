@@ -169,12 +169,15 @@ modify_if_flags(int sockfd, const char *ifname, int set_flag, int clear_flag)
 	ifr.ifr_flags |= set_flag;
 	ifr.ifr_flags &= ~clear_flag;
 
-	if (ioctl(sockfd, SIOCSIFFLAGS, &ifr) == -1)
+	if (ioctl(sockfd, SIOCSIFFLAGS, &ifr) == -1) {
 		perror("ioctl SIOCSIFFLAGS failed");
+		return (-1);
+	}
 
 	return (0);
 }
 
+/* TODO: consider removing (enable|disable|restart)_interface */
 int
 enable_interface(const char *ifname)
 {
@@ -208,15 +211,22 @@ disable_interface(const char *ifname)
 }
 
 int
-restart_interface(char *interface_name)
+restart_interface(const char *ifname)
 {
-	char command[256];
+	int ret = 0;
+	int sockfd = socket(AF_LOCAL, SOCK_DGRAM, 0);
 
-	guard_root_access();
+	if (sockfd < 0)
+		return (-1);
 
-	snprintf(command, sizeof(command),
-	    "service netif restart %s > /dev/null 2>&1", interface_name);
-	return (system(command));
+	ret = modify_if_flags(sockfd, ifname, 0, IFF_UP);
+
+	if (ret == 0)
+		ret = modify_if_flags(sockfd, ifname, IFF_UP, 0);
+
+	close(sockfd);
+
+	return (ret);
 }
 
 bool
