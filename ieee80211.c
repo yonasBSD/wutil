@@ -18,7 +18,6 @@
 #include <ucl.h>
 #include <unistd.h>
 
-#include "string_utils.h"
 #include "utils.h"
 
 static char *caps_to_str(int capinfo, char *capstr);

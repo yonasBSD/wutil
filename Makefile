@@ -1,7 +1,7 @@
 PROGS=	wutil wutui
 
-SRCS.wutil=	wutil.c usage.c string_utils.c utils.c ieee80211.c
-SRCS.wutui=	wutui.c string_utils.c utils.c ieee80211.c
+SRCS.wutil=	wutil.c usage.c utils.c ieee80211.c
+SRCS.wutui=	wutui.c utils.c ieee80211.c
 
 LDADD=	-lifconfig -l80211 -lucl
 
