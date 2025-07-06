@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ucl.h>
 #include <unistd.h>
 
 #include "string_utils.h"
@@ -377,20 +378,37 @@ connect_with_wpa(const char *ifname, const char *ssid)
 bool
 is_ssid_configured(const char *ssid)
 {
-	bool is_configured;
-	char *wpa_supplicant_conf, **conf_lines;
-	FILE *conf_file = fopen("/etc/wpa_supplicant.conf", "r");
+	bool is_configured = false;
+	ucl_object_t *config = NULL;
+	struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
 
-	if (conf_file == NULL)
-		return (false);
+	if (parser == NULL) {
+		warn("ucl_parser_new(UCL_PARSER_DEFAULT)");
+		return (is_configured);
+	}
 
-	conf_lines = file_read_lines(conf_file);
-	wpa_supplicant_conf = lines_to_string(conf_lines);
-	free_string_array(conf_lines);
+	if (!ucl_parser_add_file(parser, "/etc/wpa_supplicant.conf")) {
+		warnx("%s", ucl_parser_get_error(parser));
+		ucl_parser_free(parser);
+		return (is_configured);
+	}
 
-	is_configured = strstr(wpa_supplicant_conf, ssid);
+	config = ucl_parser_get_object(parser);
+	const ucl_object_t *networks = ucl_object_lookup(config, "network");
+	for (const ucl_object_t *network = networks; network != NULL;
+	    network = network->next) {
+		const ucl_object_t *nssid = ucl_object_lookup(network, "ssid");
 
-	free(wpa_supplicant_conf);
+		if (nssid != NULL &&
+		    strcmp(ssid, ucl_object_tostring(nssid)) == 0) {
+			is_configured = true;
+			break;
+		}
+	}
+
+	ucl_object_unref(config);
+	ucl_parser_free(parser);
+
 	return (is_configured);
 }
 
