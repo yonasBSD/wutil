@@ -840,3 +840,11 @@ free_scan_results(struct scan_results *head)
 	}
 	free(head);
 }
+
+char *
+wpa_ctrl_default_path(const char *ifname)
+{
+	static char path[128];
+	snprintf(path, sizeof(path), "/var/run/wpa_supplicant/%s", ifname);
+	return (path);
+}

@@ -152,6 +152,7 @@ void guard_root_access(void);
 struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
 void free_known_networks(struct known_networks *nws);
 
+char *wpa_ctrl_default_path(const char *ifname);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
 void free_scan_results(struct scan_results *head);
 

@@ -39,6 +39,7 @@
 
 #include "usage.h"
 #include "utils.h"
+#include "wpa_ctrl.h"
 
 typedef int (*cmd_handler_f)(int argc, char **argv);
 
@@ -265,33 +266,32 @@ static int
 cmd_disconnect(int argc, char **argv)
 {
 	int ret = 0;
-	struct ifconfig_handle *lifh;
-	struct network_interface iface = { 0 };
+	char reply[4096];
+	size_t reply_len = sizeof(reply);
+	const char *wpa_ctrl_path;
+	struct wpa_ctrl *ctrl;
+	const char *ifname = parse_interface_arg(argc, argv, 3);
 
-	iface.name = parse_interface_arg(argc, argv, 3);
-	if (iface.name == NULL)
+	if (ifname == NULL)
 		return (1);
 
-	lifh = ifconfig_open();
-	if (lifh == NULL) {
-		warnx("failed to open libifconfig handle");
-		return (1);
-	}
-
-	ret = ifconfig_foreach_iface(lifh, retrieve_interface, &iface);
-	ifconfig_close(lifh);
-
-	if (ret != 0) {
-		warnx("failed to get network interfaces");
-		return (ret);
-	}
-
-	if (iface.state != CONNECTED) {
-		warnx("%s is not connected", iface.name);
+	wpa_ctrl_path = wpa_ctrl_default_path(ifname);
+	ctrl = wpa_ctrl_open(wpa_ctrl_path);
+	if (ctrl == NULL) {
+		warn("failed to open wpa_supplicant ctrl_interface, %s",
+		    wpa_ctrl_path);
 		return (1);
 	}
 
-	return (set_ssid(iface.name, NULL));
+	if (wpa_ctrl_request(ctrl, "DISCONNECT", strlen("DISCONNECT"), reply,
+		&reply_len, NULL) != 0) {
+		warnx("failed to disconnect");
+		ret = 1;
+	}
+
+	wpa_ctrl_close(ctrl);
+
+	return (ret);
 }
 
 static void
