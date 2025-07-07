@@ -99,6 +99,16 @@ struct known_network {
 
 STAILQ_HEAD(known_networks, known_network);
 
+struct scan_result {
+	int freq, signal;
+	struct ether_addr bssid;
+	char ssid[IEEE80211_NWID_LEN + 1];
+	char *flags;
+	STAILQ_ENTRY(scan_result) next;
+};
+
+STAILQ_HEAD(scan_results, scan_result);
+
 struct network_interface_list *get_interfaces(struct ifconfig_handle *lifh);
 void free_network_interface(struct network_interface *interface);
 void free_network_interface_list(struct network_interface_list *head);
@@ -129,7 +139,7 @@ int set_ssid(const char *ifname, const char *ssid);
 int get_ssid(const char *ifname, char *ssid, int ssid_len);
 
 void scan_and_wait(int route_socket, const char *iface);
-struct wifi_network_list *get_scan_results(int route_socket,
+struct wifi_network_list *get_scan_results_ioctl(int route_socket,
     const char *ifname);
 void free_wifi_network(struct wifi_network *network);
 void free_wifi_network_list(struct wifi_network_list *);
@@ -141,5 +151,8 @@ void guard_root_access(void);
 
 struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
 void free_known_networks(struct known_networks *nws);
+
+struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
+void free_scan_results(struct scan_results *head);
 
 #endif /* !UTILS_H */

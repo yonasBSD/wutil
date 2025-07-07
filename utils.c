@@ -765,3 +765,78 @@ free_known_networks(struct known_networks *nws)
 		free(nw);
 	free(nws);
 }
+
+struct scan_results *
+get_scan_results(struct wpa_ctrl *ctrl)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply);
+	struct scan_results *srs;
+
+	if (wpa_ctrl_request(ctrl, "SCAN_RESULTS", strlen("SCAN_RESULTS"),
+		reply, &reply_len, NULL) != 0)
+		return (NULL);
+
+	srs = malloc(sizeof(*srs));
+	if (srs == NULL) {
+		warn("malloc");
+		return (NULL);
+	}
+
+	STAILQ_INIT(srs);
+
+	reply[reply_len] = '\0';
+
+	for (char *brkn,
+	    *line = (strtok_r(reply, "\n", &brkn), strtok_r(NULL, "\n", &brkn));
+	    line != NULL; line = strtok_r(NULL, "\n", &brkn)) {
+		char *brkt;
+		/* bssid / frequency / signal level / flags / ssid */
+		char *bssid = strtok_r(line, "\t", &brkt);
+		char *freq_str = strtok_r(NULL, "\t", &brkt);
+		int freq = freq_str != NULL ? strtol(freq_str, NULL, 10) : 0;
+		char *signal_str = strtok_r(NULL, "\t", &brkt);
+		int signal = signal_str != NULL ? strtol(signal_str, NULL, 10) :
+						  0;
+		char *flags = strtok_r(NULL, "\t", &brkt);
+		char *ssid = strtok_r(NULL, "\t", &brkt);
+		struct scan_result *sr = calloc(1, sizeof(*sr));
+
+		if (sr == NULL) {
+			warn("calloc");
+			free_scan_results(srs);
+			return (NULL);
+		}
+
+		sr->freq = freq;
+		sr->signal = signal;
+
+		if (ssid != NULL)
+			strlcpy(sr->ssid, ssid, sizeof(sr->ssid));
+
+		if (bssid != NULL && ether_aton_r(bssid, &sr->bssid) == NULL)
+			sr->bssid = (struct ether_addr) { 0 };
+
+		if (flags != NULL && (sr->flags = strdup(flags)) == NULL) {
+			warn("strdup");
+			free(sr);
+			free_scan_results(srs);
+			return (NULL);
+		}
+
+		STAILQ_INSERT_TAIL(srs, sr, next);
+	}
+
+	return (srs);
+}
+
+void
+free_scan_results(struct scan_results *head)
+{
+	struct scan_result *entry, *tmp;
+	STAILQ_FOREACH_SAFE(entry, head, next, tmp) {
+		free(entry->flags);
+		free(entry);
+	}
+	free(head);
+}

@@ -218,7 +218,7 @@ cmd_scan(int argc, char **argv)
 		return (1);
 	}
 	scan_and_wait(rt_sockfd, interface_name);
-	networks = get_scan_results(rt_sockfd, interface_name);
+	networks = get_scan_results_ioctl(rt_sockfd, interface_name);
 	close(rt_sockfd);
 
 	if (networks == NULL)
@@ -344,7 +344,7 @@ cmd_connect(int argc, char **argv)
 		return (1);
 	}
 	scan_and_wait(rt_sockfd, ifname);
-	networks = get_scan_results(rt_sockfd, ifname);
+	networks = get_scan_results_ioctl(rt_sockfd, ifname);
 	close(rt_sockfd);
 
 	STAILQ_FOREACH(network, networks, next) {

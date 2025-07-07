@@ -85,7 +85,7 @@ scan_and_wait(int rt_sockfd, const char *ifname)
 }
 
 struct wifi_network_list *
-get_scan_results(int rt_sockfd, const char *ifname)
+get_scan_results_ioctl(int rt_sockfd, const char *ifname)
 {
 	int len;
 	char buf[24 * 1024];
