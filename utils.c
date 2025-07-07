@@ -968,3 +968,34 @@ configure_ess(struct wpa_ctrl *ctrl, int nwid)
 
 	return (0);
 }
+
+int
+update_config(struct wpa_ctrl *ctrl)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_request(ctrl, "SET update_config 1",
+		sizeof("SET update_config 1") - 1, reply, &reply_len,
+		NULL) != 0)
+		return (1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to set update_config=1");
+		return (1);
+	}
+
+	reply_len = sizeof(reply) - 1;
+	if (wpa_ctrl_request(ctrl, "SAVE_CONFIG", sizeof("SAVE_CONFIG") - 1,
+		reply, &reply_len, NULL) != 0)
+		return (1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to save config");
+		return (1);
+	}
+
+	return (0);
+}

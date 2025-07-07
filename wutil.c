@@ -31,7 +31,6 @@
 #include <libifconfig.h>
 #include <readpassphrase.h>
 #include <regex.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -382,8 +381,11 @@ cmd_connect(int argc, char **argv)
 		}
 	}
 
-	if ((ret = select_network(ctrl, nwid)) != 0)
+	if ((ret = select_network(ctrl, nwid)) != 0) {
 		warnx("failed to select network");
+	} else {
+		ret = update_config(ctrl);
+	}
 
 cleanup:
 	free_scan_results(srs);

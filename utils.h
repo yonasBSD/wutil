@@ -163,5 +163,6 @@ int configure_psk(struct wpa_ctrl *ctrl, int, const char *psk);
 int configure_ess(struct wpa_ctrl *ctrl, int nwid);
 /* use nwid = -1 to select any network */
 int select_network(struct wpa_ctrl *ctrl, int nwid);
+int update_config(struct wpa_ctrl *ctrl);
 
 #endif /* !UTILS_H */
