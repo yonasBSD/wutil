@@ -866,6 +866,7 @@ add_network(struct wpa_ctrl *ctrl, struct scan_result *sr)
 	char reply[4096], req[64];
 	size_t reply_len = sizeof(reply) - 1;
 	int nwid = -1;
+	char *nl;
 	const char *errstr;
 
 	if (wpa_ctrl_request(ctrl, "ADD_NETWORK", sizeof("ADD_NETWORK") - 1,
@@ -873,6 +874,9 @@ add_network(struct wpa_ctrl *ctrl, struct scan_result *sr)
 		return (-1);
 
 	reply[reply_len] = '\0';
+	nl = strchr(reply, '\n');
+	if (nl != NULL)
+		*nl = '\0';
 	nwid = strtonum(reply, 0, INT_MAX, &errstr);
 
 	if (errstr != NULL) {
