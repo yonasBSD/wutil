@@ -701,7 +701,7 @@ get_known_networks(struct wpa_ctrl *ctrl)
 {
 	char reply[4096];
 	size_t reply_len = sizeof(reply);
-	struct known_networks *nws;
+	struct known_networks *nws = NULL;
 
 	if (wpa_ctrl_request(ctrl, "LIST_NETWORKS", strlen("LIST_NETWORKS"),
 		reply, &reply_len, NULL) != 0)
@@ -777,7 +777,7 @@ get_scan_results(struct wpa_ctrl *ctrl)
 {
 	char reply[4096];
 	size_t reply_len = sizeof(reply);
-	struct scan_results *srs;
+	struct scan_results *srs = NULL;
 
 	if (wpa_ctrl_request(ctrl, "SCAN_RESULTS", strlen("SCAN_RESULTS"),
 		reply, &reply_len, NULL) != 0)

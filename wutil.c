@@ -205,7 +205,7 @@ static int
 cmd_scan(int argc, char **argv)
 {
 	const char *ifname = parse_interface_arg(argc, argv, 3);
-	struct scan_results *srs;
+	struct scan_results *srs = NULL;
 	struct scan_result *sr, *sr_tmp;
 	struct wpa_ctrl *ctrl;
 
@@ -302,9 +302,9 @@ cmd_connect(int argc, char **argv)
 {
 	int ret = 0;
 	int nwid = -1;
-	struct scan_results *srs;
+	struct scan_results *srs = NULL;
 	struct scan_result *sr, *sr_tmp;
-	struct known_networks *nws;
+	struct known_networks *nws = NULL;
 	struct known_network *nw, *nw_tmp;
 	struct wpa_ctrl *ctrl;
 	char *ssid, *ifname = parse_interface_arg(argc, argv, 4);
