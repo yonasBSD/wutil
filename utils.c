@@ -848,3 +848,23 @@ wpa_ctrl_default_path(const char *ifname)
 	snprintf(path, sizeof(path), "/var/run/wpa_supplicant/%s", ifname);
 	return (path);
 }
+
+int
+select_network(struct wpa_ctrl *ctrl, int nwid)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply) - 1;
+	char req[32] = "SELECT_NETWORK any";
+
+	if (nwid != -1)
+		snprintf(req, sizeof(req), "SELECT_NETWORK %d", nwid);
+
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
+	    0)
+		return (1);
+
+	reply[reply_len] = '\0';
+
+	return (strncmp(reply, "OK", sizeof("OK") - 1) != 0);
+}
+
