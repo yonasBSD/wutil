@@ -119,7 +119,6 @@ int restart_interface(const char *ifname);
 bool is_valid_interface(const char *ifname);
 
 int configure_wifi_network(struct wifi_network *network, const char *password);
-int connect_with_wpa(const char *ifname, const char *ssid);
 
 bool is_ssid_configured(const char *ssid);
 bool is_wifi_network_secured(struct wifi_network *network);

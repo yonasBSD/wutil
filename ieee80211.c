@@ -353,27 +353,6 @@ cleanup:
 	return (ret);
 }
 
-int
-connect_with_wpa(const char *ifname, const char *ssid)
-{
-	int ret = 0;
-	char command[256];
-
-	guard_root_access();
-
-	ret = system("killall wpa_supplicant > /dev/null 2>&1");
-	if (ret != 0)
-		return (1);
-
-	if (set_ssid(ifname, ssid) != 0)
-		return (1);
-
-	snprintf(command, sizeof(command),
-	    "wpa_supplicant -B -i %s -c /etc/wpa_supplicant.conf > /dev/null 2>&1",
-	    ifname);
-	return (system(command));
-}
-
 bool
 is_ssid_configured(const char *ssid)
 {
