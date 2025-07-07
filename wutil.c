@@ -204,37 +204,42 @@ cmd_restart(int argc, char **argv)
 static int
 cmd_scan(int argc, char **argv)
 {
-	const char *interface_name = parse_interface_arg(argc, argv, 3);
-	struct wifi_network_list *networks;
-	struct wifi_network *network;
+	const char *ifname = parse_interface_arg(argc, argv, 3);
+	struct scan_results *srs;
+	struct scan_result *sr, *sr_tmp;
+	struct wpa_ctrl *ctrl;
 
-	if (interface_name == NULL)
+	if (ifname == NULL)
 		return (1);
 
-	int rt_sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
-	if (rt_sockfd == -1) {
-		perror("socket(PF_ROUTE)");
+	ctrl = wpa_ctrl_open(wpa_ctrl_default_path(ifname));
+	if (ctrl == NULL) {
+		warn("failed to open wpa_ctrl interface");
 		return (1);
 	}
-	scan_and_wait_ioctl(rt_sockfd, interface_name);
-	networks = get_scan_results_ioctl(rt_sockfd, interface_name);
-	close(rt_sockfd);
 
-	if (networks == NULL)
+	if (scan_and_wait_wpa(ctrl) != 0) {
+		warnx("scan failed");
 		return (1);
+	}
 
-	printf("%-20.20s %-9.9s %6s %s\n", "SSID", "SIGNAL", "CHANNEL",
+	if ((srs = get_scan_results(ctrl)) == NULL) {
+		warnx("failed to retrieve scan results");
+		return (1);
+	}
+
+	printf("%-20.20s %-9.9s %6s %s\n", "SSID", "SIGNAL", "FREQUENCY",
 	    "CAPABILITIES");
-	STAILQ_FOREACH(network, networks, next) {
+	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
 		char signal_str[9];
 
-		snprintf(signal_str, sizeof(signal_str), "%d dBm",
-		    network->signal_dbm);
-		printf("%-20.20s %-9s %6d  %s\n", network->ssid, signal_str,
-		    network->channel, network->capabilities);
+		snprintf(signal_str, sizeof(signal_str), "%d dBm", sr->signal);
+		printf("%-20.20s %-9s %6d  %s\n", sr->ssid, signal_str,
+		    sr->freq, sr->flags);
 	}
 
-	free_wifi_network_list(networks);
+	free_scan_results(srs);
+
 	return (0);
 }
 
@@ -313,7 +318,7 @@ cmd_connect(int argc, char **argv)
 	}
 	ssid = argv[3];
 
-	ctrl = wpa_ctrl_open(wpa_ctrl_default_path(argv[1]));
+	ctrl = wpa_ctrl_open(wpa_ctrl_default_path(ifname));
 	if (ctrl == NULL) {
 		warn("failed to open wpa_ctrl interface");
 		return (1);
