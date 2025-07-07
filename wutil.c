@@ -218,7 +218,7 @@ cmd_scan(int argc, char **argv)
 		perror("socket(PF_ROUTE)");
 		return (1);
 	}
-	scan_and_wait(rt_sockfd, interface_name);
+	scan_and_wait_ioctl(rt_sockfd, interface_name);
 	networks = get_scan_results_ioctl(rt_sockfd, interface_name);
 	close(rt_sockfd);
 
@@ -343,7 +343,7 @@ cmd_connect(int argc, char **argv)
 		perror("socket(PF_ROUTE)");
 		return (1);
 	}
-	scan_and_wait(rt_sockfd, ifname);
+	scan_and_wait_ioctl(rt_sockfd, ifname);
 	networks = get_scan_results_ioctl(rt_sockfd, ifname);
 	close(rt_sockfd);
 

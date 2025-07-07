@@ -138,7 +138,7 @@ int regcomp_ignored_ifaces(regex_t *re);
 int set_ssid(const char *ifname, const char *ssid);
 int get_ssid(const char *ifname, char *ssid, int ssid_len);
 
-void scan_and_wait(int route_socket, const char *iface);
+void scan_and_wait_ioctl(int route_socket, const char *iface);
 struct wifi_network_list *get_scan_results_ioctl(int route_socket,
     const char *ifname);
 void free_wifi_network(struct wifi_network *network);
@@ -153,7 +153,10 @@ struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
 void free_known_networks(struct known_networks *nws);
 
 char *wpa_ctrl_default_path(const char *ifname);
+int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
 void free_scan_results(struct scan_results *head);
+int scan_and_wait_wpa(struct wpa_ctrl *ctrl);
+
 
 #endif /* !UTILS_H */

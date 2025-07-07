@@ -96,7 +96,7 @@ main(void)
 
 	STAILQ_FOREACH(interface, interfaces, next) {
 		if (strstr(interface->name, "wlan") != NULL) {
-			scan_and_wait(rt_sockfd, interface->name);
+			scan_and_wait_ioctl(rt_sockfd, interface->name);
 			networks = get_scan_results_ioctl(rt_sockfd,
 			    interface->name);
 

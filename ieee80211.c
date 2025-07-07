@@ -26,7 +26,7 @@ static int freq_to_chan(uint16_t freq, uint16_t flags);
 static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
 
 void
-scan_and_wait(int rt_sockfd, const char *ifname)
+scan_and_wait_ioctl(int rt_sockfd, const char *ifname)
 {
 	struct ieee80211_scan_req req = { 0 };
 	int kq;
@@ -467,4 +467,104 @@ is_wifi_network_secured(struct wifi_network *network)
 	    strstr(network->capabilities, "WPA"))
 		return (true);
 	return (false);
+}
+
+int
+wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout)
+{
+	char buf[4096];
+	struct kevent event;
+	int kq = kqueue();
+	int ret = 0;
+
+	if (kq == -1) {
+		warn("kqueue() failed");
+		return (1);
+	}
+
+	EV_SET(&event, wpa_fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+	if (kevent(kq, &event, 1, NULL, 0, NULL) == -1) {
+		warn("kevent register");
+		close(kq);
+		return (1);
+	}
+
+	for (;;) {
+		struct kevent tevent;
+		int len;
+
+		ret = kevent(kq, NULL, 0, &tevent, 1, timeout);
+		if (ret == -1) {
+			warn("kevent wait");
+			break;
+		} else if (ret == 0) {
+			warnx("timeout waiting for %s", wpa_event);
+			ret = 1;
+			break;
+		}
+
+		if (tevent.flags & EV_ERROR) {
+			warnx("kevent error: %s", strerror(tevent.data));
+			ret = 1;
+			break;
+		}
+
+		len = recv(wpa_fd, buf, sizeof(buf) - 1, 0);
+		if (len == -1) {
+			warn("recv(wpa_fd)");
+			ret = 1;
+			break;
+		} else if (len == 0) {
+			warnx("wpa ctrl_interface socket closed");
+			ret = 1;
+			break;
+		}
+
+		buf[len] = '\0';
+		if (strstr(buf, wpa_event) != NULL) {
+			ret = 0;
+			break;
+		}
+	}
+
+	close(kq);
+	return (ret);
+}
+
+int
+scan_and_wait_wpa(struct wpa_ctrl *ctrl)
+{
+	char buf[4096];
+	size_t len = sizeof(buf) - 1;
+	int wpa_fd = wpa_ctrl_get_fd(ctrl);
+	int ret = 0;
+	struct timespec timeout = { .tv_sec = 5, .tv_nsec = 0 };
+
+	if (wpa_ctrl_request(ctrl, "SCAN", sizeof("SCAN") - 1, buf, &len,
+		NULL) != 0) {
+		warnx("failed to request wpa_ctrl SCAN");
+		return (1);
+	}
+	buf[len] = '\0';
+
+	if (strncmp(buf, "OK", sizeof("OK") - 1) != 0) {
+		warnx("failed to initiate scan");
+		return (1);
+	}
+
+	if (wpa_fd == -1) {
+		warnx("invalid wpa_ctrl socket");
+		return (1);
+	}
+
+	if (wpa_ctrl_attach(ctrl) != 0) {
+		warnx("failed to register to wpa_ctrl event monitor");
+		return (1);
+	}
+
+	ret = wpa_ctrl_wait(wpa_fd, WPA_EVENT_SCAN_RESULTS, &timeout);
+
+	wpa_ctrl_detach(ctrl);
+
+	return (ret);
 }
