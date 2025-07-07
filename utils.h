@@ -159,6 +159,8 @@ void free_scan_results(struct scan_results *head);
 int scan_and_wait_wpa(struct wpa_ctrl *ctrl);
 
 int add_network(struct wpa_ctrl *ctrl, struct scan_result *sr);
+int configure_psk(struct wpa_ctrl *ctrl, int, const char *psk);
+int configure_ess(struct wpa_ctrl *ctrl, int nwid);
 /* use nwid = -1 to select any network */
 int select_network(struct wpa_ctrl *ctrl, int nwid);
 

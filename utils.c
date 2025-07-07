@@ -47,6 +47,7 @@
 #include <lib80211/lib80211_ioctl.h>
 #include <libifconfig.h>
 #include <regex.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -910,3 +911,50 @@ select_network(struct wpa_ctrl *ctrl, int nwid)
 	return (strncmp(reply, "OK", sizeof("OK") - 1) != 0);
 }
 
+int
+configure_psk(struct wpa_ctrl *ctrl, int nwid, const char *psk)
+{
+	char reply[4096], req[128];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if ((size_t)snprintf(req, sizeof(req), "SET_NETWORK %d psk \"%s\"",
+		nwid, psk) >= sizeof(req)) {
+		warnx(
+		    "wpa_ctrl request too long (SET_NETWORK %d psk [REDACTED])",
+		    nwid);
+		return (1);
+	}
+
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
+	    0)
+		return (1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to set PSK on network id(%d)", nwid);
+		return (1);
+	}
+
+	return (0);
+}
+
+int
+configure_ess(struct wpa_ctrl *ctrl, int nwid)
+{
+	char reply[4096], req[64];
+	size_t reply_len = sizeof(reply) - 1;
+
+	snprintf(req, sizeof(req), "SET_NETWORK %d key_mgmt NONE", nwid);
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
+	    0)
+		return (1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to set key_mgmt on network id(%d)",
+		    nwid);
+		return (1);
+	}
+
+	return (0);
+}
