@@ -29,6 +29,7 @@
 #include <err.h>
 #include <getopt.h>
 #include <libifconfig.h>
+#include <readpassphrase.h>
 #include <regex.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -74,8 +75,6 @@ static const struct command commands[] = {
 };
 
 static char *parse_interface_arg(int argc, char **argv, int max_argc);
-static void read_password(char *buffer, size_t size, const char *prompt_format,
-    ...);
 
 static int
 cmd_help(int argc, char **argv)
@@ -294,39 +293,16 @@ cmd_disconnect(int argc, char **argv)
 	return (ret);
 }
 
-static void
-read_password(char *buffer, size_t size, const char *prompt_format, ...)
-{
-	struct termios oldt, newt;
-
-	tcgetattr(STDIN_FILENO, &oldt);
-	newt = oldt;
-
-	newt.c_lflag &= ~(ECHO);
-	tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-
-	va_list args;
-	va_start(args, prompt_format);
-	vprintf(prompt_format, args);
-	va_end(args);
-
-	if (fgets(buffer, size, stdin) == NULL) {
-		perror("error reading password");
-		buffer[0] = '\0';
-	}
-
-	buffer[strcspn(buffer, "\n")] = '\0';
-
-	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-	printf("\n");
-}
-
 static int
 cmd_connect(int argc, char **argv)
 {
-	int ret, rt_sockfd;
-	struct wifi_network_list *networks;
-	struct wifi_network *network = NULL;
+	int ret = 0;
+	int nwid = -1;
+	struct scan_results *srs;
+	struct scan_result *sr, *sr_tmp;
+	struct known_networks *nws;
+	struct known_network *nw, *nw_tmp;
+	struct wpa_ctrl *ctrl;
 	char *ssid, *ifname = parse_interface_arg(argc, argv, 4);
 
 	if (ifname == NULL)
@@ -338,47 +314,82 @@ cmd_connect(int argc, char **argv)
 	}
 	ssid = argv[3];
 
-	rt_sockfd = socket(PF_ROUTE, SOCK_RAW, 0);
-	if (rt_sockfd == -1) {
-		perror("socket(PF_ROUTE)");
+	ctrl = wpa_ctrl_open(wpa_ctrl_default_path(argv[1]));
+	if (ctrl == NULL) {
+		warn("failed to open wpa_ctrl interface");
 		return (1);
 	}
-	scan_and_wait_ioctl(rt_sockfd, ifname);
-	networks = get_scan_results_ioctl(rt_sockfd, ifname);
-	close(rt_sockfd);
 
-	STAILQ_FOREACH(network, networks, next) {
-		if (strcmp(network->ssid, ssid) == 0)
+	if (scan_and_wait_wpa(ctrl) != 0) {
+		warnx("scan failed");
+		ret = 1;
+		goto cleanup;
+	}
+
+	if ((srs = get_scan_results(ctrl)) == NULL) {
+		warnx("failed to retrieve scan results");
+		ret = 1;
+		goto cleanup;
+	}
+
+	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+		if (strcmp(sr->ssid, ssid) == 0)
 			break;
 	}
 
-	if (network == NULL) {
-		warnx("network '%s' is unavailable on %s", ssid, ifname);
-		return (1);
+	if (sr == NULL) {
+		warnx("SSID unavailable");
+		ret = 1;
+		goto cleanup;
 	}
 
-	if (!is_ssid_configured(ssid)) {
-		char password[256] = "";
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		goto cleanup;
+	}
 
-		if (argv[4] != NULL)
-			strncpy(password, argv[4], sizeof(password) - 1);
-		else if (is_wifi_network_secured(network))
-			read_password(password, sizeof(password),
-			    "enter password for %s: ", ssid);
-		password[sizeof(password) - 1] = '\0';
-
-		if (configure_wifi_network(network, password) != 0) {
-			printf("failed to configure '%s'\n", ssid);
-			free_wifi_network(network);
-			return (1);
+	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+		if (strcmp(nw->ssid, ssid) == 0) {
+			nwid = nw->id;
+			break;
 		}
 	}
 
-	ret = connect_with_wpa(ifname, ssid);
-	printf(ret == 0 ? "connected to '%s'\n" : "failed to connect to '%s'\n",
-	    ssid);
+	if (nwid == -1) {
+		if ((nwid = add_network(ctrl, sr)) == -1) {
+			warnx("failed to create new network");
+			goto cleanup;
+		}
 
-	free_wifi_network_list(networks);
+		if (strstr(sr->flags, "PSK") !=
+		    NULL) { /* TODO: cleanup & check psk length */
+			char psk[256] = "";
+
+			if (argc == 5)
+				strlcpy(psk, argv[4], sizeof(psk));
+			else
+				readpassphrase("network password: ", psk,
+				    sizeof(psk), RPP_REQUIRE_TTY);
+
+			ret = configure_psk(ctrl, nwid, psk);
+		} else {
+			ret = configure_ess(ctrl, nwid);
+		}
+
+		if (ret != 0) {
+			warnx("failed to configure key_mgmt");
+			goto cleanup;
+		}
+	}
+
+	if ((ret = select_network(ctrl, nwid)) != 0)
+		warnx("failed to select network");
+
+cleanup:
+	free_scan_results(srs);
+	free_known_networks(nws);
+
+	wpa_ctrl_close(ctrl);
 
 	return (ret);
 }

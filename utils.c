@@ -762,8 +762,13 @@ void
 free_known_networks(struct known_networks *nws)
 {
 	struct known_network *nw, *tmp;
+
+	if (nws == NULL)
+		return;
+
 	STAILQ_FOREACH_SAFE(nw, nws, next, tmp)
 		free(nw);
+
 	free(nws);
 }
 
@@ -832,14 +837,19 @@ get_scan_results(struct wpa_ctrl *ctrl)
 }
 
 void
-free_scan_results(struct scan_results *head)
+free_scan_results(struct scan_results *srs)
 {
-	struct scan_result *entry, *tmp;
-	STAILQ_FOREACH_SAFE(entry, head, next, tmp) {
-		free(entry->flags);
-		free(entry);
+	struct scan_result *sr, *tmp;
+
+	if (srs == NULL)
+		return;
+
+	STAILQ_FOREACH_SAFE(sr, srs, next, tmp) {
+		free(sr->flags);
+		free(sr);
 	}
-	free(head);
+
+	free(srs);
 }
 
 char *
