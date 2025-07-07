@@ -118,8 +118,6 @@ int disable_interface(const char *ifname);
 int restart_interface(const char *ifname);
 bool is_valid_interface(const char *ifname);
 
-int configure_wifi_network(struct wifi_network *network, const char *password);
-
 bool is_ssid_configured(const char *ssid);
 bool is_wifi_network_secured(struct wifi_network *network);
 
@@ -145,8 +143,6 @@ void free_wifi_network_list(struct wifi_network_list *);
 
 int modify_if_flags(int sockfd, const char *ifname, int set_flag,
     int clear_flag);
-
-void guard_root_access(void);
 
 struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
 void free_known_networks(struct known_networks *nws);

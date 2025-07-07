@@ -390,55 +390,6 @@ is_ssid_configured(const char *ssid)
 	return (is_configured);
 }
 
-int
-configure_wifi_network(struct wifi_network *network, const char *password)
-{
-	FILE *conf_file;
-	char security[256];
-
-	guard_root_access();
-
-	if (password == NULL)
-		password = "";
-
-	if (strstr(network->capabilities, "RSN")) {
-		snprintf(security, sizeof(security),
-		    "\n key_mgmt=WPA-PSK"
-		    "\n proto=RSN"
-		    "\n psk=\"%s\"",
-		    password);
-	} else if (strstr(network->capabilities, "WPA")) {
-		snprintf(security, sizeof(security),
-		    "\n key_mgmt=WPA-PSK"
-		    "\n proto=WPA"
-		    "\n psk=\"%s\"",
-		    password);
-	} else {
-		snprintf(security, sizeof(security),
-		    "\n key_mgmt=NONE"
-		    "\n wep_tx_keyidx=0"
-		    "\n wep_key0=%s",
-		    password);
-	}
-
-	conf_file = fopen("/etc/wpa_supplicant.conf", "a");
-	if (conf_file == NULL) {
-		perror("failed to open /etc/wpa_supplicant.conf");
-		return (1);
-	}
-
-	fprintf(conf_file,
-	    "\nnetwork={"
-	    "\n ssid=\"%s\""
-	    "%s"
-	    "\n}"
-	    "\n",
-	    network->ssid, security);
-
-	fclose(conf_file);
-	return (0);
-}
-
 bool
 is_wifi_network_secured(struct wifi_network *network)
 {

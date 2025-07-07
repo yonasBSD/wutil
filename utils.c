@@ -149,15 +149,6 @@ free_network_interface(struct network_interface *interface)
 	free(interface);
 }
 
-void
-guard_root_access(void)
-{
-	if (geteuid() != 0) {
-		warnx("insufficient permissions");
-		exit(EXIT_FAILURE);
-	}
-}
-
 int
 modify_if_flags(int sockfd, const char *ifname, int set_flag, int clear_flag)
 {
