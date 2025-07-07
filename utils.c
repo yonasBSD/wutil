@@ -694,3 +694,74 @@ regcomp_ignored_ifaces(regex_t *re)
 	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
 	return (regcomp(re, not_nics, REG_EXTENDED | REG_NOSUB) != 0);
 }
+
+struct known_networks *
+get_known_networks(struct wpa_ctrl *ctrl)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply);
+	struct known_networks *nws;
+
+	if (wpa_ctrl_request(ctrl, "LIST_NETWORKS", strlen("LIST_NETWORKS"),
+		reply, &reply_len, NULL) != 0)
+		return (NULL);
+
+	nws = malloc(sizeof(*nws));
+	if (nws == NULL) {
+		warn("malloc");
+		return (NULL);
+	}
+
+	STAILQ_INIT(nws);
+
+	reply[reply_len] = '\0';
+
+	for (char *brkn,
+	    *line = (strtok_r(reply, "\n", &brkn), strtok_r(NULL, "\n", &brkn));
+	    line != NULL; line = strtok_r(NULL, "\n", &brkn)) {
+		char *brkt;
+		/* network id / ssid / bssid / flags */
+		char *id_str = strtok_r(line, "\t", &brkt);
+		int id = id_str != NULL ? strtol(id_str, NULL, 10) : -1;
+		char *ssid = strtok_r(NULL, "\t", &brkt);
+		char *bssid = strtok_r(NULL, "\t", &brkt);
+		char *flags = strtok_r(NULL, "\t", &brkt);
+		struct known_network *nw = calloc(1, sizeof(*nw));
+
+		if (nw == NULL) {
+			warn("calloc");
+			free_known_networks(nws);
+			return (NULL);
+		}
+
+		nw->id = id;
+
+		if (ssid != NULL)
+			strlcpy(nw->ssid, ssid, sizeof(nw->ssid));
+
+		if (bssid != NULL && ether_aton_r(bssid, &nw->bssid) == NULL)
+			nw->bssid = (struct ether_addr) { 0 };
+
+		nw->state = KN_ENABLED;
+
+		if (flags != NULL) {
+			if (strstr(flags, "CURRENT") != NULL)
+				nw->state = KN_CURRENT;
+			else if (strstr(flags, "DISABLED") != NULL)
+				nw->state = KN_DISABLED;
+		}
+
+		STAILQ_INSERT_TAIL(nws, nw, next);
+	}
+
+	return (nws);
+}
+
+void
+free_known_networks(struct known_networks *nws)
+{
+	struct known_network *nw, *tmp;
+	STAILQ_FOREACH_SAFE(nw, nws, next, tmp)
+		free(nw);
+	free(nws);
+}

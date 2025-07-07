@@ -32,11 +32,13 @@
 #include <sys/cdefs.h>
 #include <sys/queue.h>
 
+#include <net/ethernet.h>
 #include <net80211/ieee80211.h>
 
 #include <libifconfig.h>
 #include <regex.h>
 #include <stdbool.h>
+#include <wpa_ctrl.h>
 
 enum connection_state {
 	CONNECTED,
@@ -87,6 +89,16 @@ struct network_configuration {
 	char *search_domain;
 };
 
+struct known_network {
+	int id;
+	enum { KN_ENABLED = 0, KN_DISABLED, KN_CURRENT } state;
+	char ssid[IEEE80211_NWID_LEN + 1];
+	struct ether_addr bssid;
+	STAILQ_ENTRY(known_network) next;
+};
+
+STAILQ_HEAD(known_networks, known_network);
+
 struct network_interface_list *get_interfaces(struct ifconfig_handle *lifh);
 void free_network_interface(struct network_interface *interface);
 void free_network_interface_list(struct network_interface_list *head);
@@ -126,5 +138,8 @@ int modify_if_flags(int sockfd, const char *ifname, int set_flag,
     int clear_flag);
 
 void guard_root_access(void);
+
+struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
+void free_known_networks(struct known_networks *nws);
 
 #endif /* !UTILS_H */
