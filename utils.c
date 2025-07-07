@@ -850,6 +850,48 @@ wpa_ctrl_default_path(const char *ifname)
 }
 
 int
+add_network(struct wpa_ctrl *ctrl, struct scan_result *sr)
+{
+	char reply[4096], req[64];
+	size_t reply_len = sizeof(reply) - 1;
+	int nwid = -1;
+	const char *errstr;
+
+	if (wpa_ctrl_request(ctrl, "ADD_NETWORK", sizeof("ADD_NETWORK") - 1,
+		reply, &reply_len, NULL) != 0)
+		return (-1);
+
+	reply[reply_len] = '\0';
+	nwid = strtonum(reply, 0, INT_MAX, &errstr);
+
+	if (errstr != NULL) {
+		warnx("(wpa_ctrl) failed to add network");
+		return (-1);
+	}
+
+	if ((size_t)snprintf(req, sizeof(req), "SET_NETWORK %d ssid \"%s\"",
+		nwid, sr->ssid) >= sizeof(req)) {
+		warnx("wpa_ctrl request too long (SET_NETWORK %d ssid %s)",
+		    nwid, sr->ssid);
+		return (-1);
+	}
+
+	reply_len = sizeof(reply) - 1;
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
+	    0)
+		return (-1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to set ssid(%s) on network id(%d)",
+		    sr->ssid, nwid);
+		return (-1);
+	}
+
+	return (nwid);
+}
+
+int
 select_network(struct wpa_ctrl *ctrl, int nwid)
 {
 	char reply[4096];
