@@ -118,9 +118,6 @@ int disable_interface(const char *ifname);
 int restart_interface(const char *ifname);
 bool is_valid_interface(const char *ifname);
 
-bool is_ssid_configured(const char *ssid);
-bool is_wifi_network_secured(struct wifi_network *network);
-
 int parse_network_config(int argc, char **argv,
     struct network_configuration *config);
 int configure_nic(char *interface_name, struct network_configuration *config);

@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ucl.h>
 #include <unistd.h>
 
 #include "utils.h"
@@ -353,52 +352,6 @@ cleanup:
 	return (ret);
 }
 
-bool
-is_ssid_configured(const char *ssid)
-{
-	bool is_configured = false;
-	ucl_object_t *config = NULL;
-	struct ucl_parser *parser = ucl_parser_new(UCL_PARSER_DEFAULT);
-
-	if (parser == NULL) {
-		warn("ucl_parser_new(UCL_PARSER_DEFAULT)");
-		return (is_configured);
-	}
-
-	if (!ucl_parser_add_file(parser, "/etc/wpa_supplicant.conf")) {
-		warnx("%s", ucl_parser_get_error(parser));
-		ucl_parser_free(parser);
-		return (is_configured);
-	}
-
-	config = ucl_parser_get_object(parser);
-	const ucl_object_t *networks = ucl_object_lookup(config, "network");
-	for (const ucl_object_t *network = networks; network != NULL;
-	    network = network->next) {
-		const ucl_object_t *nssid = ucl_object_lookup(network, "ssid");
-
-		if (nssid != NULL &&
-		    strcmp(ssid, ucl_object_tostring(nssid)) == 0) {
-			is_configured = true;
-			break;
-		}
-	}
-
-	ucl_object_unref(config);
-	ucl_parser_free(parser);
-
-	return (is_configured);
-}
-
-bool
-is_wifi_network_secured(struct wifi_network *network)
-{
-	if (strstr(network->capabilities, "RSN") ||
-	    strstr(network->capabilities, "WPA"))
-		return (true);
-	return (false);
-}
-
 int
 wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout)
 {
@@ -497,4 +450,312 @@ scan_and_wait_wpa(struct wpa_ctrl *ctrl)
 	wpa_ctrl_detach(ctrl);
 
 	return (ret);
+}
+
+char *
+wpa_ctrl_default_path(const char *ifname)
+{
+	static char path[128];
+	snprintf(path, sizeof(path), "/var/run/wpa_supplicant/%s", ifname);
+	return (path);
+}
+
+int
+add_network(struct wpa_ctrl *ctrl, struct scan_result *sr)
+{
+	char reply[4096], req[64];
+	size_t reply_len = sizeof(reply) - 1;
+	int nwid = -1;
+	char *nl;
+	const char *errstr;
+
+	if (wpa_ctrl_request(ctrl, "ADD_NETWORK", sizeof("ADD_NETWORK") - 1,
+		reply, &reply_len, NULL) != 0)
+		return (-1);
+
+	reply[reply_len] = '\0';
+	nl = strchr(reply, '\n');
+	if (nl != NULL)
+		*nl = '\0';
+	nwid = strtonum(reply, 0, INT_MAX, &errstr);
+
+	if (errstr != NULL) {
+		warnx("(wpa_ctrl) failed to add network");
+		return (-1);
+	}
+
+	if ((size_t)snprintf(req, sizeof(req), "SET_NETWORK %d ssid \"%s\"",
+		nwid, sr->ssid) >= sizeof(req)) {
+		warnx("wpa_ctrl request too long (SET_NETWORK %d ssid %s)",
+		    nwid, sr->ssid);
+		return (-1);
+	}
+
+	reply_len = sizeof(reply) - 1;
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
+	    0)
+		return (-1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to set ssid(%s) on network id(%d)",
+		    sr->ssid, nwid);
+		return (-1);
+	}
+
+	return (nwid);
+}
+
+int
+select_network(struct wpa_ctrl *ctrl, int nwid)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply) - 1;
+	char req[32] = "SELECT_NETWORK any";
+
+	if (nwid != -1)
+		snprintf(req, sizeof(req), "SELECT_NETWORK %d", nwid);
+
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
+	    0)
+		return (1);
+
+	reply[reply_len] = '\0';
+
+	return (strncmp(reply, "OK", sizeof("OK") - 1) != 0);
+}
+
+struct known_networks *
+get_known_networks(struct wpa_ctrl *ctrl)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply);
+	struct known_networks *nws = NULL;
+
+	if (wpa_ctrl_request(ctrl, "LIST_NETWORKS", strlen("LIST_NETWORKS"),
+		reply, &reply_len, NULL) != 0)
+		return (NULL);
+
+	nws = malloc(sizeof(*nws));
+	if (nws == NULL) {
+		warn("malloc");
+		return (NULL);
+	}
+
+	STAILQ_INIT(nws);
+
+	reply[reply_len] = '\0';
+
+	for (char *brkn,
+	    *line = (strtok_r(reply, "\n", &brkn), strtok_r(NULL, "\n", &brkn));
+	    line != NULL; line = strtok_r(NULL, "\n", &brkn)) {
+		char *brkt;
+		/* network id / ssid / bssid / flags */
+		char *id_str = strtok_r(line, "\t", &brkt);
+		int id = id_str != NULL ? strtol(id_str, NULL, 10) : -1;
+		char *ssid = strtok_r(NULL, "\t", &brkt);
+		char *bssid = strtok_r(NULL, "\t", &brkt);
+		char *flags = strtok_r(NULL, "\t", &brkt);
+		struct known_network *nw = calloc(1, sizeof(*nw));
+
+		if (nw == NULL) {
+			warn("calloc");
+			free_known_networks(nws);
+			return (NULL);
+		}
+
+		nw->id = id;
+
+		if (ssid != NULL)
+			strlcpy(nw->ssid, ssid, sizeof(nw->ssid));
+
+		if (bssid != NULL && ether_aton_r(bssid, &nw->bssid) == NULL)
+			nw->bssid = (struct ether_addr) { 0 };
+
+		nw->state = KN_ENABLED;
+
+		if (flags != NULL) {
+			if (strstr(flags, "CURRENT") != NULL)
+				nw->state = KN_CURRENT;
+			else if (strstr(flags, "DISABLED") != NULL)
+				nw->state = KN_DISABLED;
+		}
+
+		STAILQ_INSERT_TAIL(nws, nw, next);
+	}
+
+	return (nws);
+}
+
+void
+free_known_networks(struct known_networks *nws)
+{
+	struct known_network *nw, *tmp;
+
+	if (nws == NULL)
+		return;
+
+	STAILQ_FOREACH_SAFE(nw, nws, next, tmp)
+		free(nw);
+
+	free(nws);
+}
+
+struct scan_results *
+get_scan_results(struct wpa_ctrl *ctrl)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply);
+	struct scan_results *srs = NULL;
+
+	if (wpa_ctrl_request(ctrl, "SCAN_RESULTS", strlen("SCAN_RESULTS"),
+		reply, &reply_len, NULL) != 0)
+		return (NULL);
+
+	srs = malloc(sizeof(*srs));
+	if (srs == NULL) {
+		warn("malloc");
+		return (NULL);
+	}
+
+	STAILQ_INIT(srs);
+
+	reply[reply_len] = '\0';
+
+	for (char *brkn,
+	    *line = (strtok_r(reply, "\n", &brkn), strtok_r(NULL, "\n", &brkn));
+	    line != NULL; line = strtok_r(NULL, "\n", &brkn)) {
+		char *brkt;
+		/* bssid / frequency / signal level / flags / ssid */
+		char *bssid = strtok_r(line, "\t", &brkt);
+		char *freq_str = strtok_r(NULL, "\t", &brkt);
+		int freq = freq_str != NULL ? strtol(freq_str, NULL, 10) : 0;
+		char *signal_str = strtok_r(NULL, "\t", &brkt);
+		int signal = signal_str != NULL ? strtol(signal_str, NULL, 10) :
+						  0;
+		char *flags = strtok_r(NULL, "\t", &brkt);
+		char *ssid = strtok_r(NULL, "\t", &brkt);
+		struct scan_result *sr = calloc(1, sizeof(*sr));
+
+		if (sr == NULL) {
+			warn("calloc");
+			free_scan_results(srs);
+			return (NULL);
+		}
+
+		sr->freq = freq;
+		sr->signal = signal;
+
+		if (ssid != NULL)
+			strlcpy(sr->ssid, ssid, sizeof(sr->ssid));
+
+		if (bssid != NULL && ether_aton_r(bssid, &sr->bssid) == NULL)
+			sr->bssid = (struct ether_addr) { 0 };
+
+		if (flags != NULL && (sr->flags = strdup(flags)) == NULL) {
+			warn("strdup");
+			free(sr);
+			free_scan_results(srs);
+			return (NULL);
+		}
+
+		STAILQ_INSERT_TAIL(srs, sr, next);
+	}
+
+	return (srs);
+}
+
+void
+free_scan_results(struct scan_results *srs)
+{
+	struct scan_result *sr, *tmp;
+
+	if (srs == NULL)
+		return;
+
+	STAILQ_FOREACH_SAFE(sr, srs, next, tmp) {
+		free(sr->flags);
+		free(sr);
+	}
+
+	free(srs);
+}
+
+int
+configure_psk(struct wpa_ctrl *ctrl, int nwid, const char *psk)
+{
+	char reply[4096], req[128];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if ((size_t)snprintf(req, sizeof(req), "SET_NETWORK %d psk \"%s\"",
+		nwid, psk) >= sizeof(req)) {
+		warnx(
+		    "wpa_ctrl request too long (SET_NETWORK %d psk [REDACTED])",
+		    nwid);
+		return (1);
+	}
+
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
+	    0)
+		return (1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to set PSK on network id(%d)", nwid);
+		return (1);
+	}
+
+	return (0);
+}
+
+int
+configure_ess(struct wpa_ctrl *ctrl, int nwid)
+{
+	char reply[4096], req[64];
+	size_t reply_len = sizeof(reply) - 1;
+
+	snprintf(req, sizeof(req), "SET_NETWORK %d key_mgmt NONE", nwid);
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
+	    0)
+		return (1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to set key_mgmt on network id(%d)",
+		    nwid);
+		return (1);
+	}
+
+	return (0);
+}
+
+int
+update_config(struct wpa_ctrl *ctrl)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_request(ctrl, "SET update_config 1",
+		sizeof("SET update_config 1") - 1, reply, &reply_len,
+		NULL) != 0)
+		return (1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to set update_config=1");
+		return (1);
+	}
+
+	reply_len = sizeof(reply) - 1;
+	if (wpa_ctrl_request(ctrl, "SAVE_CONFIG", sizeof("SAVE_CONFIG") - 1,
+		reply, &reply_len, NULL) != 0)
+		return (1);
+
+	reply[reply_len] = '\0';
+	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+		warnx("(wpa_ctrl) failed to save config");
+		return (1);
+	}
+
+	return (0);
 }
