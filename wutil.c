@@ -26,6 +26,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/param.h>
+
 #include <err.h>
 #include <getopt.h>
 #include <libifconfig.h>
@@ -70,7 +72,6 @@ static const struct command commands[] = {
 	{ "configure", cmd_configure },
 	{ "disconnect", cmd_disconnect },
 	{ "connect", cmd_connect },
-	{ NULL, NULL },
 };
 
 static char *parse_interface_arg(int argc, char **argv, int max_argc);
@@ -404,18 +405,26 @@ cleanup:
 int
 main(int argc, char **argv)
 {
+	const struct command *cmd = NULL;
+
 	if (argc < 2) {
+		warnx("wrong number of arguments");
 		usage(argv[0]);
-		return (1);
+		return (EXIT_FAILURE);
 	}
 
-	for (const struct command *cmd = commands; cmd->name != NULL; cmd++) {
-		if (strcmp(argv[1], cmd->name) == 0)
-			return (cmd->handler(argc, argv));
+	for (size_t i = 0; i < nitems(commands); i++) {
+		if (strcmp(argv[1], commands[i].name) == 0) {
+			cmd = &commands[i];
+			break;
+		}
 	}
 
-	warnx("unsupported command '%s'", argv[1]);
-	usage(argv[0]);
+	if (cmd == NULL) {
+		warnx("Unknown command: %s", argv[1]);
+		usage(argv[0]);
+		return (EXIT_FAILURE);
+	}
 
-	return (1);
+	return (cmd->handler(argc, argv));
 }
