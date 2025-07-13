@@ -38,10 +38,11 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <wpa_ctrl.h>
 
+#include "interface.h"
 #include "usage.h"
 #include "utils.h"
-#include "wpa_ctrl.h"
 
 typedef int (*cmd_handler_f)(int argc, char **argv);
 
@@ -51,32 +52,93 @@ struct command {
 };
 
 static int cmd_help(int argc, char **argv);
-static int cmd_list(int argc, char **argv);
-static int cmd_show(int argc, char **argv);
 static int cmd_enable(int argc, char **argv);
 static int cmd_disable(int argc, char **argv);
 static int cmd_restart(int argc, char **argv);
 static int cmd_scan(int argc, char **argv);
-static int cmd_configure(int argc, char **argv);
 static int cmd_disconnect(int argc, char **argv);
 static int cmd_connect(int argc, char **argv);
-static const struct command *get_command(const char *cmd,
-    const struct command *cmds, size_t cmds_len);
 
-static const struct command commands[] = {
+static struct command old_commands[] = {
 	{ "help", cmd_help },
-	{ "list", cmd_list },
-	{ "show", cmd_show },
 	{ "enable", cmd_enable },
 	{ "disable", cmd_disable },
 	{ "restart", cmd_restart },
 	{ "scan", cmd_scan },
-	{ "configure", cmd_configure },
 	{ "disconnect", cmd_disconnect },
 	{ "connect", cmd_connect },
 };
 
-static char *parse_interface_arg(int argc, char **argv, int max_argc);
+static int cmd_interface(int argc, char *argv[]);
+static int cmd_known_network(int argc, char *argv[]);
+static int cmd_station(int argc, char *argv[]);
+
+static struct command commands[] = {
+	{ "help", cmd_help },
+
+	{ "interface", cmd_interface },
+	{ "if", cmd_interface },
+
+	{ "known-network", cmd_known_network },
+	{ "kn", cmd_known_network },
+
+	{ "station", cmd_station },
+	{ "sta", cmd_station },
+};
+
+static int
+cmd_interface(int argc, char *argv[])
+{
+	struct interface_command *cmd;
+	struct ifconfig_handle *lifh;
+	int ret = 0;
+
+	if (argc < 2) {
+		warnx("wrong number of arguments");
+		usage_interface(stderr, true);
+		return (1);
+	}
+
+	for (size_t i = 0; i < nitems(interface_cmds); i++) {
+		if (strcmp(argv[1], interface_cmds[i].name) == 0) {
+			cmd = &interface_cmds[i];
+			break;
+		}
+	}
+
+	if (cmd == NULL) {
+		warnx("Unknown subcommand: %s", argv[1]);
+		usage_interface(stderr, true);
+		return (1);
+	}
+
+	if ((lifh = ifconfig_open()) == NULL) {
+		warnx("failed to open libifconfig handle");
+		return (1);
+	}
+
+	ret = cmd->handler(lifh, argc, argv);
+
+	ifconfig_close(lifh);
+
+	return (ret);
+}
+
+static int
+cmd_known_network(int argc, char *argv[])
+{
+	(void)argc;
+	(void)argv;
+	return (0);
+}
+
+static int
+cmd_station(int argc, char *argv[])
+{
+	(void)argc;
+	(void)argv;
+	return (0);
+}
 
 static int
 cmd_help(int argc, char **argv)
@@ -85,91 +147,6 @@ cmd_help(int argc, char **argv)
 	(void)argv;
 	usage(stdout);
 	return (0);
-}
-
-static int
-cmd_list(int argc, char **argv)
-{
-	int ret = 0;
-	struct ifconfig_handle *lifh;
-	regex_t ignore;
-
-	if (argc > 2) {
-		warnx("bad value %s", argv[2]);
-		return (1);
-	}
-
-	if (regcomp_ignored_ifaces(&ignore) != 0)
-		return (1);
-
-	lifh = ifconfig_open();
-	if (lifh == NULL) {
-		warnx("failed to open libifconfig handle");
-		return (1);
-	}
-
-	printf("%-10s %-12s %-20s\n", "NAME", "STATE", "CONNECTED SSID");
-	if (ifconfig_foreach_iface(lifh, print_interface, &ignore) != 0) {
-		warnx("failed to get network interfaces");
-		ret = 1;
-	}
-
-	regfree(&ignore);
-	ifconfig_close(lifh);
-
-	return (ret);
-}
-
-static char *
-parse_interface_arg(int argc, char **argv, int max_argc)
-{
-	if (argc < 3) {
-		warnx("<interface> not provided");
-		return (NULL);
-	}
-
-	if (!is_valid_interface(argv[2])) {
-		warnx("unknown interface %s", argv[2]);
-		return (NULL);
-	}
-
-	if (argc > max_argc) {
-		warnx("bad value %s", argv[3]);
-		return (NULL);
-	}
-
-	return (argv[2]);
-}
-
-static int
-cmd_show(int argc, char **argv)
-{
-	int ret = 0;
-	struct ifconfig_handle *lifh;
-	struct network_interface iface = { 0 };
-
-	iface.name = parse_interface_arg(argc, argv, 3);
-	if (iface.name == NULL)
-		return (1);
-
-	lifh = ifconfig_open();
-	if (lifh == NULL) {
-		warnx("failed to open libifconfig handle");
-		return (1);
-	}
-
-	ret = ifconfig_foreach_iface(lifh, retrieve_interface, &iface);
-	ifconfig_close(lifh);
-
-	if (ret != 0) {
-		warnx("failed to get network interfaces");
-		return (ret);
-	}
-
-	printf("%-10s %-12s %-20s\n", iface.name,
-	    connection_state_to_string[iface.state], iface.connected_ssid);
-
-	return (ret);
 }
 
 static int
@@ -245,28 +222,6 @@ cmd_scan(int argc, char **argv)
 	free_scan_results(srs);
 
 	return (0);
-}
-
-static int
-cmd_configure(int argc, char **argv)
-{
-	char *interface_name;
-	struct network_configuration config = { 0 };
-	if (argc < 3) {
-		warnx("<interface> not provided");
-		return (1);
-	}
-
-	interface_name = argv[2];
-	if (!is_valid_interface(interface_name)) {
-		warnx("unknown interface %s", interface_name);
-		return (1);
-	}
-
-	if (parse_network_config(argc - 2, argv + 2, &config) != 0)
-		return (1);
-
-	return (configure_nic(interface_name, &config));
 }
 
 static int
@@ -405,21 +360,12 @@ cleanup:
 	return (ret);
 }
 
-static const struct command *
-get_command(const char *cmd, const struct command *cmds, size_t cmds_len)
-{
-	for (size_t i = 0; i < cmds_len; i++) {
-		if (strcmp(cmd, cmds[i].name) == 0)
-			return (&cmds[i]);
-	}
-
-	return (NULL);
-}
-
 int
 main(int argc, char *argv[])
 {
-	const struct command *cmd = NULL;
+	struct command *cmd = NULL;
+
+	(void)old_commands;
 
 	if (argc < 2) {
 		warnx("wrong number of arguments");
@@ -427,11 +373,18 @@ main(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	if ((cmd = get_command(argv[1], commands, nitems(commands))) == NULL) {
+	for (size_t i = 0; i < nitems(commands); i++) {
+		if (strcmp(argv[1], commands[i].name) == 0) {
+			cmd = &commands[i];
+			break;
+		}
+	}
+
+	if (cmd == NULL) {
 		warnx("Unknown command: %s", argv[1]);
 		usage(stderr);
 		return (EXIT_FAILURE);
 	}
 
-	return (cmd->handler(argc, argv));
+	return (cmd->handler(--argc, ++argv));
 }
