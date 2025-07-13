@@ -71,7 +71,6 @@ static void append_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
 
 static void is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata);
-static bool is_valid_inet(const char *inet);
 static int set_inet(struct snl_state *ss, uint32_t ifindex, const char *inet,
     uint8_t prefixlen, struct snl_errmsg_data *e);
 static int set_default_gateway(struct snl_state *ss, uint32_t oif,
@@ -222,12 +221,20 @@ restart_interface(const char *ifname)
 	return (ret);
 }
 
-static bool
+bool
 is_valid_inet(const char *inet)
 {
 	struct in_addr addr;
 
 	return (inet != NULL && inet_pton(AF_INET, inet, &addr) == 1);
+}
+
+bool
+is_valid_inet6(const char *inet6)
+{
+	struct in6_addr addr;
+
+	return (inet6 != NULL && inet_pton(AF_INET6, inet6, &addr) == 1);
 }
 
 int

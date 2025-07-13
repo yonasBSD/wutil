@@ -37,6 +37,7 @@
 
 #include <arpa/inet.h>
 #include <err.h>
+#include <getopt.h>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <regex.h>
@@ -107,26 +108,60 @@ cmd_interface_show(struct ifconfig_handle *lifh, int argc, char **argv)
 int
 cmd_interface_set(struct ifconfig_handle *lifh, int argc, char **argv)
 {
-	char *interface_name;
-	struct network_configuration config = { 0 };
+	char *ifname;
+	enum { NOCHANGE, UP, DOWN } state_change = NOCHANGE;
+	int ret = 0;
+	int opt;
+	struct option options[] = {
+		{ "state", required_argument, NULL, 's' },
+		{ NULL, 0, NULL, 0 },
+	};
 
 	(void)lifh;
 
-	if (argc < 3) {
+	while ((opt = getopt_long(argc, argv, "s:", options, NULL)) != -1) {
+		switch (opt) {
+		case 's':
+			if (strcasecmp(optarg, "up") == 0) {
+				state_change = UP;
+			} else if (strcasecmp(optarg, "down") == 0) {
+				state_change = DOWN;
+			} else {
+				warnx("invalid state -- %s", optarg);
+				return (1);
+			}
+			break;
+		case '?':
+		default:
+			return (1);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
 		warnx("<interface> not provided");
 		return (1);
 	}
 
-	interface_name = argv[2];
-	if (!is_wlan_group(lifh, interface_name)) {
-		warnx("invalid interface %s", interface_name);
+	ifname = argv[0];
+
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
 		return (1);
 	}
 
-	if (parse_network_config(argc - 2, argv + 2, &config) != 0)
+	if (!is_wlan_group(lifh, ifname)) {
+		warnx("invalid interface %s", ifname);
 		return (1);
+	}
 
-	return (configure_nic(interface_name, &config));
+	ret = state_change == UP ? enable_interface(ifname) :
+	    state_change == DOWN ? disable_interface(ifname) :
+				   0;
+
+	return (ret);
 }
 
 char *
@@ -233,7 +268,7 @@ print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata __unused)
 	}
 	default:
 		break;
-	};
+	}
 }
 
 static void

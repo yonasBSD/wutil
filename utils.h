@@ -153,4 +153,7 @@ int configure_ess(struct wpa_ctrl *ctrl, int nwid);
 int select_network(struct wpa_ctrl *ctrl, int nwid);
 int update_config(struct wpa_ctrl *ctrl);
 
+bool is_valid_inet(const char *inet);
+bool is_valid_inet6(const char *inet6);
+
 #endif /* !UTILS_H */
