@@ -76,24 +76,26 @@ cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv)
 int
 cmd_interface_show(struct ifconfig_handle *lifh, int argc, char **argv)
 {
-	int ret = 0;
 	struct network_interface iface = { 0 };
 
 	iface.name = parse_interface_arg(argc, argv, 3);
 	if (iface.name == NULL)
 		return (1);
 
-	ret = ifconfig_foreach_iface(lifh, retrieve_interface, &iface);
+	if (!is_wlan_group(lifh, argv[2])) {
+		warnx("invalid interface %s", argv[2]);
+		return (1);
+	}
 
-	if (ret != 0) {
+	if (ifconfig_foreach_iface(lifh, retrieve_interface, &iface) != 0) {
 		warnx("failed to get network interfaces");
-		return (ret);
+		return (1);
 	}
 
 	printf("%-10s %-12s %-20s\n", iface.name,
 	    connection_state_to_string[iface.state], iface.connected_ssid);
 
-	return (ret);
+	return (0);
 }
 
 int
@@ -110,8 +112,8 @@ cmd_interface_set(struct ifconfig_handle *lifh, int argc, char **argv)
 	}
 
 	interface_name = argv[2];
-	if (!is_valid_interface(interface_name)) {
-		warnx("unknown interface %s", interface_name);
+	if (!is_wlan_group(lifh, interface_name)) {
+		warnx("invalid interface %s", interface_name);
 		return (1);
 	}
 
@@ -129,7 +131,7 @@ parse_interface_arg(int argc, char **argv, int max_argc)
 		return (NULL);
 	}
 
-	if (!is_valid_interface(argv[2])) {
+	if (if_nametoindex(argv[2]) == 0) { /* returns 0 if invalid i.e false */
 		warnx("unknown interface %s", argv[2]);
 		return (NULL);
 	}
@@ -193,6 +195,12 @@ static bool
 is_wlan_group(struct ifconfig_handle *lifh, const char *ifname)
 {
 	struct ifgroupreq ifgr;
+
+	if (ifname == NULL)
+		return (false);
+
+	if (if_nametoindex(ifname) == 0) /* returns 0 if invalid i.e false */
+		return (false);
 
 	if (ifconfig_get_groups(lifh, ifname, &ifgr) == -1)
 		return (false);

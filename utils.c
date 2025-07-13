@@ -222,25 +222,6 @@ restart_interface(const char *ifname)
 	return (ret);
 }
 
-bool
-is_valid_interface(const char *ifname)
-{
-	bool is_valid;
-	regex_t ignored_ifaces;
-
-	if (ifname == NULL)
-		return (false);
-
-	is_valid = if_nametoindex(ifname); /* returns 0 if invalid i.e false */
-
-	regcomp_ignored_ifaces(&ignored_ifaces);
-	if (regexec(&ignored_ifaces, ifname, 0, NULL, 0) == 0)
-		is_valid = false;
-	regfree(&ignored_ifaces);
-
-	return (is_valid);
-}
-
 static bool
 is_valid_inet(const char *inet)
 {

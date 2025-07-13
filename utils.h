@@ -118,7 +118,6 @@ enum connection_state get_connection_state(struct ifconfig_handle *lifh,
 int enable_interface(const char *ifname);
 int disable_interface(const char *ifname);
 int restart_interface(const char *ifname);
-bool is_valid_interface(const char *ifname);
 
 int parse_network_config(int argc, char **argv,
     struct network_configuration *config);
