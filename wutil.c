@@ -31,8 +31,6 @@
 #include <err.h>
 #include <getopt.h>
 #include <libifconfig.h>
-#include <readpassphrase.h>
-#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,7 +41,6 @@
 #include "ieee80211.h"
 #include "interface.h"
 #include "usage.h"
-#include "utils.h"
 
 typedef int (*cmd_handler_f)(int argc, char **argv);
 
@@ -53,17 +50,6 @@ struct command {
 };
 
 static int cmd_help(int argc, char **argv);
-static int cmd_enable(int argc, char **argv);
-static int cmd_disable(int argc, char **argv);
-static int cmd_restart(int argc, char **argv);
-
-static struct command old_commands[] = {
-	{ "help", cmd_help },
-	{ "enable", cmd_enable },
-	{ "disable", cmd_disable },
-	{ "restart", cmd_restart },
-};
-
 static int cmd_interface(int argc, char *argv[]);
 static int cmd_known_network(int argc, char *argv[]);
 static int cmd_station(int argc, char *argv[]);
@@ -174,45 +160,10 @@ cmd_help(int argc, char **argv)
 	return (0);
 }
 
-static int
-cmd_enable(int argc, char **argv)
-{
-	const char *interface_name = parse_interface_arg(argc, argv, 3);
-
-	if (interface_name == NULL)
-		return (1);
-
-	return (enable_interface(interface_name));
-}
-
-static int
-cmd_disable(int argc, char **argv)
-{
-	char *interface_name = parse_interface_arg(argc, argv, 3);
-
-	if (interface_name == NULL)
-		return (1);
-
-	return (disable_interface(interface_name));
-}
-
-static int
-cmd_restart(int argc, char **argv)
-{
-	char *interface_name = parse_interface_arg(argc, argv, 3);
-
-	if (interface_name == NULL)
-		return (1);
-
-	return (restart_interface(interface_name));
-}
-
 int
 main(int argc, char *argv[])
 {
 	struct command *cmd = NULL;
-
-	(void)old_commands;
 
 	if (argc < 2) {
 		warnx("wrong number of arguments");

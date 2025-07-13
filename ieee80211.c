@@ -773,6 +773,9 @@ update_config(struct wpa_ctrl *ctrl)
 int
 cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
+	(void)argc;
+	(void)argv;
+
 	if (scan_and_wait(ctrl) != 0) {
 		warnx("scan failed");
 		return (1);
@@ -786,6 +789,9 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
 	struct scan_results *srs = NULL;
 	struct scan_result *sr, *sr_tmp;
+
+	(void)argc;
+	(void)argv;
 
 	if ((srs = get_scan_results(ctrl)) == NULL) {
 		warnx("failed to retrieve scan results");
@@ -812,6 +818,9 @@ cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
 	char reply[4096];
 	size_t reply_len = sizeof(reply);
+
+	(void)argc;
+	(void)argv;
 
 	if (wpa_ctrl_request(ctrl, "DISCONNECT", strlen("DISCONNECT"), reply,
 		&reply_len, NULL) != 0) {
@@ -914,9 +923,13 @@ cleanup:
 	return (ret);
 }
 
+/* TODO: implement */
 int
 cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	/* TODO: implement */
+	(void)ctrl;
+	(void)argc;
+	(void)argv;
+
 	return (0);
 }
