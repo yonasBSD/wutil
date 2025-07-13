@@ -118,18 +118,13 @@ cmd_station(int argc, char *argv[])
 {
 	int ret = 0;
 	struct wpa_command *cmd = NULL;
-	const char *wpa_ctrl_path = wpa_ctrl_default_path(
-	    "wlan0"); /* TODO: rework */
-	struct wpa_ctrl *ctrl = wpa_ctrl_open(wpa_ctrl_path);
-
-	(void)argc;
-	(void)argv;
-
-	if (ctrl == NULL) {
-		warn("failed to open wpa_supplicant ctrl_interface, %s",
-		    wpa_ctrl_path);
-		return (1);
-	}
+	const char *wpa_ctrl_path = wpa_ctrl_default_path();
+	struct wpa_ctrl *ctrl;
+	int opt;
+	struct option opts[] = {
+		{ "ctrl-interface", required_argument, NULL, 'c' },
+		{ NULL, 0, NULL, 0 },
+	};
 
 	if (argc < 2) {
 		warnx("wrong number of arguments");
@@ -137,11 +132,42 @@ cmd_station(int argc, char *argv[])
 		return (1);
 	}
 
+	while ((opt = getopt_long(argc, argv, "c:", opts, NULL)) != -1) {
+		switch (opt) {
+		case 'c':
+			wpa_ctrl_path = optarg;
+			break;
+		default:
+			return (1);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (wpa_ctrl_path == NULL) {
+		warn(
+		    "no ctrl interfaces on default paths, provide --ctrl-interface");
+		return (1);
+	}
+
+	if ((ctrl = wpa_ctrl_open(wpa_ctrl_path)) == NULL) {
+		warn("failed to open wpa_supplicant ctrl_interface, %s",
+		    wpa_ctrl_path);
+		return (1);
+	}
+
 	for (size_t i = 0; i < nitems(station_cmds); i++) {
-		if (strcmp(argv[1], station_cmds[i].name) == 0) {
+		if (strcmp(argv[0], station_cmds[i].name) == 0) {
 			cmd = &station_cmds[i];
 			break;
 		}
+	}
+
+	if (cmd == NULL) {
+		warnx("Unknown subcommand: %s", argv[0]);
+		usage_station(stderr, true);
+		return (1);
 	}
 
 	ret = cmd->handler(ctrl, argc, argv);

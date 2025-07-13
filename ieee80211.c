@@ -10,6 +10,7 @@
 #include <net80211/ieee80211_freebsd.h>
 #include <net80211/ieee80211_ioctl.h>
 
+#include <dirent.h>
 #include <err.h>
 #include <lib80211/lib80211_ioctl.h>
 #include <readpassphrase.h>
@@ -463,11 +464,29 @@ scan_and_wait(struct wpa_ctrl *ctrl)
 }
 
 char *
-wpa_ctrl_default_path(const char *ifname)
+wpa_ctrl_default_path(void)
 {
 	static char path[128];
-	snprintf(path, sizeof(path), "/var/run/wpa_supplicant/%s", ifname);
-	return (path);
+	char *ret = NULL;
+	const char *run_dir = "/var/run/wpa_supplicant";
+	DIR *dirp = opendir(run_dir);
+
+	if (dirp == NULL)
+		return NULL;
+
+	for (struct dirent *entry = readdir(dirp); entry != NULL;
+	    entry = readdir(dirp)) {
+		if (entry->d_type == DT_SOCK) {
+			snprintf(path, sizeof(path), "%s/%s", run_dir,
+			    entry->d_name);
+			ret = path;
+			break;
+		}
+	}
+
+	closedir(dirp);
+
+	return (ret);
 }
 
 int

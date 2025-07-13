@@ -85,7 +85,7 @@ void free_wifi_network_list(struct wifi_network_list *);
 int set_ssid(const char *ifname, const char *ssid);
 int get_ssid(const char *ifname, char *ssid, int ssid_len);
 
-char *wpa_ctrl_default_path(const char *ifname);
+char *wpa_ctrl_default_path(void);
 int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
 void free_scan_results(struct scan_results *head);
