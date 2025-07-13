@@ -573,24 +573,6 @@ configure_nic(char *ifname, struct network_configuration *config)
 	return (ret);
 }
 
-void
-retrieve_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
-    void *udata)
-{
-	struct network_interface *iface = udata;
-
-	if (iface == NULL || iface->name == NULL ||
-	    strcmp(ifa->ifa_name, iface->name) != 0)
-		return;
-
-	iface->state = get_connection_state(lifh, ifa);
-
-	memset(iface->connected_ssid, 0, IEEE80211_NWID_LEN + 1);
-	if (get_ssid(ifa->ifa_name, iface->connected_ssid,
-		IEEE80211_NWID_LEN) != 0)
-		iface->connected_ssid[0] = '\0';
-}
-
 int
 regcomp_ignored_ifaces(regex_t *re)
 {

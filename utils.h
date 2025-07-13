@@ -123,9 +123,6 @@ int parse_network_config(int argc, char **argv,
     struct network_configuration *config);
 int configure_nic(char *interface_name, struct network_configuration *config);
 
-void retrieve_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
-    void *udata);
-
 int regcomp_ignored_ifaces(regex_t *re);
 
 int set_ssid(const char *ifname, const char *ssid);
