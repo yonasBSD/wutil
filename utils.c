@@ -29,11 +29,14 @@
 #include <sys/param.h>
 #include <sys/event.h>
 #include <sys/ioccom.h>
+#include <sys/socket.h>
 #include <sys/sockio.h>
+#include <sys/sysctl.h>
 #include <sys/wait.h>
 
 #include <net/ethernet.h>
 #include <net/if.h>
+#include <net/if_dl.h>
 #include <netinet/in.h>
 #include <netlink/netlink.h>
 #include <netlink/netlink_route.h>
@@ -51,6 +54,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include "utils.h"
@@ -61,9 +65,6 @@ static int configure_ip_dhcp(const char *ifname);
 static int configure_ip_manual(const char *ifname,
     struct network_configuration *config);
 static int configure_resolvd(struct network_configuration *config);
-
-static enum connection_state get_connection_state(struct ifconfig_handle *lifh,
-    struct ifaddrs *ifa);
 
 static void append_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
@@ -591,23 +592,34 @@ configure_nic(char *ifname, struct network_configuration *config)
 	return (ret);
 }
 
-static void
-is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
+void
+retrieve_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
+    void *udata)
 {
-	bool *is_af_inet = udata;
+	struct network_interface *iface = udata;
 
-	(void)lifh;
-
-	if (is_af_inet == NULL)
+	if (iface == NULL || iface->name == NULL ||
+	    strcmp(ifa->ifa_name, iface->name) != 0)
 		return;
 
-	if (ifa->ifa_addr->sa_family == AF_INET ||
-	    ifa->ifa_addr->sa_family == AF_INET6) {
-		*is_af_inet = true;
-	}
+	iface->state = get_connection_state(lifh, ifa);
+
+	memset(iface->connected_ssid, 0, IEEE80211_NWID_LEN + 1);
+	if (get_ssid(ifa->ifa_name, iface->connected_ssid,
+		IEEE80211_NWID_LEN) != 0)
+		iface->connected_ssid[0] = '\0';
 }
 
-static enum connection_state
+int
+regcomp_ignored_ifaces(regex_t *re)
+{
+	const char not_nics[] =
+	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
+	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
+	return (regcomp(re, not_nics, REG_EXTENDED | REG_NOSUB) != 0);
+}
+
+enum connection_state
 get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
 {
 	bool is_interface_online = false;
@@ -637,50 +649,22 @@ get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
 	}
 
 	free(ifmr);
+
 	return (state);
 }
 
-void
-print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
+static void
+is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
 {
-	regex_t *ignore = udata;
-	enum connection_state state;
-	char ssid[IEEE80211_NWID_LEN + 1] = { 0 };
+	bool *is_af_inet = udata;
 
-	if (ignore != NULL && regexec(ignore, ifa->ifa_name, 0, NULL, 0) == 0)
+	(void)lifh;
+
+	if (is_af_inet == NULL)
 		return;
 
-	state = get_connection_state(lifh, ifa);
-	if (get_ssid(ifa->ifa_name, ssid, IEEE80211_NWID_LEN) != 0)
-		ssid[0] = '\0';
-
-	printf("%-10s %-12s %-20s\n", ifa->ifa_name,
-	    connection_state_to_string[state], ssid);
-}
-
-void
-retrieve_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
-    void *udata)
-{
-	struct network_interface *iface = udata;
-
-	if (iface == NULL || iface->name == NULL ||
-	    strcmp(ifa->ifa_name, iface->name) != 0)
-		return;
-
-	iface->state = get_connection_state(lifh, ifa);
-
-	memset(iface->connected_ssid, 0, IEEE80211_NWID_LEN + 1);
-	if (get_ssid(ifa->ifa_name, iface->connected_ssid,
-		IEEE80211_NWID_LEN) != 0)
-		iface->connected_ssid[0] = '\0';
-}
-
-int
-regcomp_ignored_ifaces(regex_t *re)
-{
-	const char not_nics[] =
-	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
-	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
-	return (regcomp(re, not_nics, REG_EXTENDED | REG_NOSUB) != 0);
+	if (ifa->ifa_addr->sa_family == AF_INET ||
+	    ifa->ifa_addr->sa_family == AF_INET6) {
+		*is_af_inet = true;
+	}
 }

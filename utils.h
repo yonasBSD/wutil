@@ -113,6 +113,8 @@ struct network_interface_list *get_interfaces(struct ifconfig_handle *lifh);
 void free_network_interface(struct network_interface *interface);
 void free_network_interface_list(struct network_interface_list *head);
 
+enum connection_state get_connection_state(struct ifconfig_handle *lifh,
+    struct ifaddrs *ifa);
 int enable_interface(const char *ifname);
 int disable_interface(const char *ifname);
 int restart_interface(const char *ifname);
@@ -122,8 +124,6 @@ int parse_network_config(int argc, char **argv,
     struct network_configuration *config);
 int configure_nic(char *interface_name, struct network_configuration *config);
 
-void print_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
-    void *udata);
 void retrieve_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 
