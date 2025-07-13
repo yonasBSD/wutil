@@ -43,6 +43,7 @@
 #include "interface.h"
 #include "usage.h"
 #include "utils.h"
+#include "ieee80211.h"
 
 typedef int (*cmd_handler_f)(int argc, char **argv);
 

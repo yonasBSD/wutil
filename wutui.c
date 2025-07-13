@@ -43,6 +43,7 @@
 
 #include "ctl_seq.h"
 #include "utils.h"
+#include "ieee80211.h"
 
 static int fetch_size(void);
 static void render(void);

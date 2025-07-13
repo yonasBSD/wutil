@@ -59,20 +59,6 @@ struct network_interface {
 
 STAILQ_HEAD(network_interface_list, network_interface);
 
-struct wifi_network {
-	char *ssid;
-	char *bssid;
-	char *capabilities;
-	int channel;
-	int data_rate;
-	int signal_dbm;
-	int noise_dbm;
-	int beacon_interval;
-	STAILQ_ENTRY(wifi_network) next;
-};
-
-STAILQ_HEAD(wifi_network_list, wifi_network);
-
 enum ip_configuration {
 	UNCHANGED = 0,
 	DHCP,
@@ -88,26 +74,6 @@ struct network_configuration {
 	char *dns2;
 	char *search_domain;
 };
-
-struct known_network {
-	int id;
-	enum { KN_ENABLED = 0, KN_DISABLED, KN_CURRENT } state;
-	char ssid[IEEE80211_NWID_LEN + 1];
-	struct ether_addr bssid;
-	STAILQ_ENTRY(known_network) next;
-};
-
-STAILQ_HEAD(known_networks, known_network);
-
-struct scan_result {
-	int freq, signal;
-	struct ether_addr bssid;
-	char ssid[IEEE80211_NWID_LEN + 1];
-	char *flags;
-	STAILQ_ENTRY(scan_result) next;
-};
-
-STAILQ_HEAD(scan_results, scan_result);
 
 struct network_interface_list *get_interfaces(struct ifconfig_handle *lifh);
 void free_network_interface(struct network_interface *interface);
@@ -125,33 +91,8 @@ int configure_nic(char *interface_name, struct network_configuration *config);
 
 int regcomp_ignored_ifaces(regex_t *re);
 
-int set_ssid(const char *ifname, const char *ssid);
-int get_ssid(const char *ifname, char *ssid, int ssid_len);
-
-void scan_and_wait_ioctl(int route_socket, const char *iface);
-struct wifi_network_list *get_scan_results_ioctl(int route_socket,
-    const char *ifname);
-void free_wifi_network(struct wifi_network *network);
-void free_wifi_network_list(struct wifi_network_list *);
-
 int modify_if_flags(int sockfd, const char *ifname, int set_flag,
     int clear_flag);
-
-struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
-void free_known_networks(struct known_networks *nws);
-
-char *wpa_ctrl_default_path(const char *ifname);
-int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
-struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
-void free_scan_results(struct scan_results *head);
-int scan_and_wait_wpa(struct wpa_ctrl *ctrl);
-
-int add_network(struct wpa_ctrl *ctrl, struct scan_result *sr);
-int configure_psk(struct wpa_ctrl *ctrl, int, const char *psk);
-int configure_ess(struct wpa_ctrl *ctrl, int nwid);
-/* use nwid = -1 to select any network */
-int select_network(struct wpa_ctrl *ctrl, int nwid);
-int update_config(struct wpa_ctrl *ctrl);
 
 bool is_valid_inet(const char *inet);
 bool is_valid_inet6(const char *inet6);

@@ -17,6 +17,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "ieee80211.h"
 #include "utils.h"
 
 static char *caps_to_str(int capinfo, char *capstr);
