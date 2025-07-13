@@ -47,10 +47,8 @@ usage_interface(FILE *fout, bool usage_str)
 	    "\twutil {interface | if} list\n"
 	    "\twutil {interface | if} show <interface>\n"
 	    "\twutil {interface | if} set\n"
-	    "\twutil {interface | if} set [--state {up | down}]\n"
-	    "\t  [--inet <inet/prefix>] <interface>\n"
-	    "\twutil {interface | if} set [-s {up | down}]\n"
-	    "\t  [-i <inet/prefix>] <iface>\n",
+	    "\twutil {interface | if} set [--state {up | down}] <interface>\n"
+	    "\twutil {interface | if} set [-s {up | down}] <interface>\n",
 	    usage_str ? "Usage:" : "");
 }
 
