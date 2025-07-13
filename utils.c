@@ -581,15 +581,6 @@ configure_nic(char *ifname, struct network_configuration *config)
 	return (ret);
 }
 
-int
-regcomp_ignored_ifaces(regex_t *re)
-{
-	const char not_nics[] =
-	    "(enc|lo|fwe|fwip|tap|plip|pfsync|pflog|ipfw|tun|sl|faith|ppp|bridge|wg)"
-	    "[0-9]+([[:space:]]*)|vm-[a-z]+([[:space:]]*)";
-	return (regcomp(re, not_nics, REG_EXTENDED | REG_NOSUB) != 0);
-}
-
 enum connection_state
 get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
 {

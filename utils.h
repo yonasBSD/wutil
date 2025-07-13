@@ -89,8 +89,6 @@ int parse_network_config(int argc, char **argv,
     struct network_configuration *config);
 int configure_nic(char *interface_name, struct network_configuration *config);
 
-int regcomp_ignored_ifaces(regex_t *re);
-
 int modify_if_flags(int sockfd, const char *ifname, int set_flag,
     int clear_flag);
 

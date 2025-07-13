@@ -70,6 +70,12 @@ struct scan_result {
 };
 
 STAILQ_HEAD(scan_results, scan_result);
+
+struct wpa_command {
+	const char *name;
+	int (*handler)(struct wpa_ctrl *ctrl, int argc, char **argv);
+};
+
 void scan_and_wait_ioctl(int route_socket, const char *iface);
 struct wifi_network_list *get_scan_results_ioctl(int route_socket,
     const char *ifname);
@@ -83,7 +89,7 @@ char *wpa_ctrl_default_path(const char *ifname);
 int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
 void free_scan_results(struct scan_results *head);
-int scan_and_wait_wpa(struct wpa_ctrl *ctrl);
+int scan_and_wait(struct wpa_ctrl *ctrl);
 
 struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
 void free_known_networks(struct known_networks *nws);
@@ -94,5 +100,13 @@ int configure_ess(struct wpa_ctrl *ctrl, int nwid);
 /* use nwid = -1 to select any network */
 int select_network(struct wpa_ctrl *ctrl, int nwid);
 int update_config(struct wpa_ctrl *ctrl);
+
+int cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv);
+int cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv);
+int cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv);
+int cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv);
+int cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv);
+
+extern struct wpa_command station_cmds[5];
 
 #endif /* !IEEE80211_H */

@@ -12,6 +12,7 @@
 
 #include <err.h>
 #include <lib80211/lib80211_ioctl.h>
+#include <readpassphrase.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,14 @@ static char *caps_to_str(int capinfo, char *capstr);
 static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
 static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
+
+struct wpa_command station_cmds[5] = {
+	{ "scan", cmd_wpa_scan },
+	{ "networks", cmd_wpa_networks },
+	{ "status", cmd_wpa_status },
+	{ "disconnect", cmd_wpa_disconnect },
+	{ "connect", cmd_wpa_connect },
+};
 
 void
 scan_and_wait_ioctl(int rt_sockfd, const char *ifname)
@@ -416,7 +425,7 @@ wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout)
 }
 
 int
-scan_and_wait_wpa(struct wpa_ctrl *ctrl)
+scan_and_wait(struct wpa_ctrl *ctrl)
 {
 	char buf[4096];
 	size_t len = sizeof(buf) - 1;
@@ -758,5 +767,156 @@ update_config(struct wpa_ctrl *ctrl)
 		return (1);
 	}
 
+	return (0);
+}
+
+int
+cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	if (scan_and_wait(ctrl) != 0) {
+		warnx("scan failed");
+		return (1);
+	}
+
+	return (0);
+}
+
+int
+cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	struct scan_results *srs = NULL;
+	struct scan_result *sr, *sr_tmp;
+
+	if ((srs = get_scan_results(ctrl)) == NULL) {
+		warnx("failed to retrieve scan results");
+		return (1);
+	}
+
+	printf("%-20.20s %-9.9s %6s %s\n", "SSID", "SIGNAL", "FREQUENCY",
+	    "CAPABILITIES");
+	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+		char signal_str[9];
+
+		snprintf(signal_str, sizeof(signal_str), "%d dBm", sr->signal);
+		printf("%-20.20s %-9s %6d  %s\n", sr->ssid, signal_str,
+		    sr->freq, sr->flags);
+	}
+
+	free_scan_results(srs);
+
+	return (0);
+}
+
+int
+cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply);
+
+	if (wpa_ctrl_request(ctrl, "DISCONNECT", strlen("DISCONNECT"), reply,
+		&reply_len, NULL) != 0) {
+		warnx("failed to disconnect");
+		return (1);
+	}
+
+	return (0);
+}
+
+int
+cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	int ret = 0;
+	int nwid = -1;
+	struct scan_results *srs = NULL;
+	struct scan_result *sr, *sr_tmp;
+	struct known_networks *nws = NULL;
+	struct known_network *nw, *nw_tmp;
+	char *ssid;
+
+	if (argc < 4) {
+		warnx("<ssid> not provided");
+		return (1);
+	}
+	ssid = argv[3];
+
+	if (scan_and_wait(ctrl) != 0) {
+		warnx("scan failed");
+		ret = 1;
+		goto cleanup;
+	}
+
+	if ((srs = get_scan_results(ctrl)) == NULL) {
+		warnx("failed to retrieve scan results");
+		ret = 1;
+		goto cleanup;
+	}
+
+	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+		if (strcmp(sr->ssid, ssid) == 0)
+			break;
+	}
+
+	if (sr == NULL) {
+		warnx("SSID unavailable");
+		ret = 1;
+		goto cleanup;
+	}
+
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		goto cleanup;
+	}
+
+	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+		if (strcmp(nw->ssid, ssid) == 0) {
+			nwid = nw->id;
+			break;
+		}
+	}
+
+	if (nwid == -1) {
+		if ((nwid = add_network(ctrl, sr)) == -1) {
+			warnx("failed to create new network");
+			goto cleanup;
+		}
+
+		if (strstr(sr->flags, "PSK") !=
+		    NULL) { /* TODO: cleanup & check psk length */
+			char psk[256] = "";
+
+			if (argc == 5)
+				strlcpy(psk, argv[4], sizeof(psk));
+			else
+				readpassphrase("network password: ", psk,
+				    sizeof(psk), RPP_REQUIRE_TTY);
+
+			ret = configure_psk(ctrl, nwid, psk);
+		} else {
+			ret = configure_ess(ctrl, nwid);
+		}
+
+		if (ret != 0) {
+			warnx("failed to configure key_mgmt");
+			goto cleanup;
+		}
+	}
+
+	if ((ret = select_network(ctrl, nwid)) != 0) {
+		warnx("failed to select network");
+	} else {
+		ret = update_config(ctrl);
+	}
+
+cleanup:
+	free_scan_results(srs);
+	free_known_networks(nws);
+
+	return (ret);
+}
+
+int
+cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	/* TODO: implement */
 	return (0);
 }
