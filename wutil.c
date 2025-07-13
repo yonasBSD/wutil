@@ -60,6 +60,8 @@ static int cmd_scan(int argc, char **argv);
 static int cmd_configure(int argc, char **argv);
 static int cmd_disconnect(int argc, char **argv);
 static int cmd_connect(int argc, char **argv);
+static const struct command *get_command(const char *cmd,
+    const struct command *cmds, size_t cmds_len);
 
 static const struct command commands[] = {
 	{ "help", cmd_help },
@@ -403,6 +405,17 @@ cleanup:
 	return (ret);
 }
 
+static const struct command *
+get_command(const char *cmd, const struct command *cmds, size_t cmds_len)
+{
+	for (size_t i = 0; i < cmds_len; i++) {
+		if (strcmp(cmd, cmds[i].name) == 0)
+			return (&cmds[i]);
+	}
+
+	return (NULL);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -414,14 +427,7 @@ main(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	for (size_t i = 0; i < nitems(commands); i++) {
-		if (strcmp(argv[1], commands[i].name) == 0) {
-			cmd = &commands[i];
-			break;
-		}
-	}
-
-	if (cmd == NULL) {
+	if ((cmd = get_command(argv[1], commands, nitems(commands))) == NULL) {
 		warnx("Unknown command: %s", argv[1]);
 		usage(stderr);
 		return (EXIT_FAILURE);
