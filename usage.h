@@ -29,6 +29,8 @@
 #ifndef USAGE_H
 #define USAGE_H
 
-void usage(char *program_name);
+#include <stdio.h>
+
+void usage(FILE *fout);
 
 #endif

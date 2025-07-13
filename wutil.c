@@ -80,7 +80,8 @@ static int
 cmd_help(int argc, char **argv)
 {
 	(void)argc;
-	usage(argv[0]);
+	(void)argv;
+	usage(stdout);
 	return (0);
 }
 
@@ -403,13 +404,13 @@ cleanup:
 }
 
 int
-main(int argc, char **argv)
+main(int argc, char *argv[])
 {
 	const struct command *cmd = NULL;
 
 	if (argc < 2) {
 		warnx("wrong number of arguments");
-		usage(argv[0]);
+		usage(stderr);
 		return (EXIT_FAILURE);
 	}
 
@@ -422,7 +423,7 @@ main(int argc, char **argv)
 
 	if (cmd == NULL) {
 		warnx("Unknown command: %s", argv[1]);
-		usage(argv[0]);
+		usage(stderr);
 		return (EXIT_FAILURE);
 	}
 
