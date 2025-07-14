@@ -12,8 +12,10 @@
 
 #include <dirent.h>
 #include <err.h>
+#include <getopt.h>
 #include <lib80211/lib80211_ioctl.h>
 #include <readpassphrase.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +30,8 @@ static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
 static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
 static int get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid);
+static int wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply,
+    size_t *reply_len, const char *fmt, ...);
 
 const char *security_to_string[] = {
 	[OPEN] = "Open",
@@ -498,7 +502,7 @@ wpa_ctrl_default_path(void)
 }
 
 int
-add_network(struct wpa_ctrl *ctrl, struct scan_result *sr)
+add_network(struct wpa_ctrl *ctrl, const char *ssid)
 {
 	char reply[4096], req[64];
 	size_t reply_len = sizeof(reply) - 1;
@@ -522,9 +526,9 @@ add_network(struct wpa_ctrl *ctrl, struct scan_result *sr)
 	}
 
 	if ((size_t)snprintf(req, sizeof(req), "SET_NETWORK %d ssid \"%s\"",
-		nwid, sr->ssid) >= sizeof(req)) {
+		nwid, ssid) >= sizeof(req)) {
 		warnx("wpa_ctrl request too long (SET_NETWORK %d ssid %s)",
-		    nwid, sr->ssid);
+		    nwid, ssid);
 		return (-1);
 	}
 
@@ -536,7 +540,7 @@ add_network(struct wpa_ctrl *ctrl, struct scan_result *sr)
 	reply[reply_len] = '\0';
 	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
 		warnx("(wpa_ctrl) failed to set ssid(%s) on network id(%d)",
-		    sr->ssid, nwid);
+		    ssid, nwid);
 		return (-1);
 	}
 
@@ -718,26 +722,33 @@ free_scan_results(struct scan_results *srs)
 int
 configure_psk(struct wpa_ctrl *ctrl, int nwid, const char *psk)
 {
-	char reply[4096], req[128];
+	char reply[4096];
 	size_t reply_len = sizeof(reply) - 1;
 
-	if ((size_t)snprintf(req, sizeof(req), "SET_NETWORK %d psk \"%s\"",
-		nwid, psk) >= sizeof(req)) {
-		warnx(
-		    "wpa_ctrl request too long (SET_NETWORK %d psk [REDACTED])",
-		    nwid);
-		return (1);
-	}
+	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+	    "SET_NETWORK %d psk \"%s\"", nwid, psk));
+}
 
-	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
-	    0)
+int
+configure_eap(struct wpa_ctrl *ctrl, int nwid, const char *identity,
+    const char *password)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+		"SET_NETWORK %d password \"%s\"", nwid, password) != 0)
 		return (1);
 
-	reply[reply_len] = '\0';
-	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
-		warnx("(wpa_ctrl) failed to set PSK on network id(%d)", nwid);
+	reply_len = sizeof(reply) - 1;
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+		"SET_NETWORK %d identity \"%s\"", nwid, identity) != 0)
 		return (1);
-	}
+
+	reply_len = sizeof(reply) - 1;
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+		"SET_NETWORK %d key_mgmt WPA-EAP", nwid) != 0)
+		return (1);
 
 	return (0);
 }
@@ -745,22 +756,11 @@ configure_psk(struct wpa_ctrl *ctrl, int nwid, const char *psk)
 int
 configure_ess(struct wpa_ctrl *ctrl, int nwid)
 {
-	char reply[4096], req[64];
+	char reply[4096];
 	size_t reply_len = sizeof(reply) - 1;
 
-	snprintf(req, sizeof(req), "SET_NETWORK %d key_mgmt NONE", nwid);
-	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
-	    0)
-		return (1);
-
-	reply[reply_len] = '\0';
-	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
-		warnx("(wpa_ctrl) failed to set key_mgmt on network id(%d)",
-		    nwid);
-		return (1);
-	}
-
-	return (0);
+	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+	    "SET_NETWORK %d key_mgmt NONE", nwid));
 }
 
 int
@@ -863,12 +863,52 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 	struct known_networks *nws = NULL;
 	struct known_network *nw, *nw_tmp;
 	char *ssid;
+	char identity[254] = "", password[256] = "";
+	bool hidden = false; /* NOOP */
+	int opt;
+	struct option options[] = {
+		{ "identity", required_argument, NULL, 'i' },
+		{ "password", required_argument, NULL, 'p' },
+		{ "hidden", no_argument, NULL, 'h' },
+		{ NULL, 0, NULL, 0 },
+	};
 
-	if (argc < 4) {
+	while ((opt = getopt_long(argc, argv, "i:p:h", options, NULL)) != -1) {
+		switch (opt) {
+		case 'i':
+			if (strlcpy(identity, optarg, sizeof(identity)) >=
+			    sizeof(identity)) {
+				warnx("identity too long");
+				return (1);
+			}
+			break;
+		case 'p':
+			if (strlcpy(password, optarg, sizeof(password)) >=
+			    sizeof(password)) {
+				warnx("password too long");
+				return (1);
+			}
+			break;
+		case 'h':
+			hidden = true;
+			break;
+		case '?':
+			break;
+		default:
+			break;
+		}
+	}
+
+	(void)hidden;
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
 		warnx("<ssid> not provided");
 		return (1);
 	}
-	ssid = argv[3];
+	ssid = argv[0];
 
 	if (scan_and_wait(ctrl) != 0) {
 		warnx("scan failed");
@@ -906,22 +946,47 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 	}
 
 	if (nwid == -1) {
-		if ((nwid = add_network(ctrl, sr)) == -1) {
+		if ((nwid = add_network(ctrl, sr->ssid)) == -1) {
 			warnx("failed to create new network");
 			goto cleanup;
 		}
 
-		if (sr->security ==
-		    PSK) { /* TODO: cleanup & check psk length */
-			char psk[256] = "";
+		if (sr->security == PSK) {
+			int psk_len;
 
-			if (argc == 5)
-				strlcpy(psk, argv[4], sizeof(psk));
-			else
-				readpassphrase("network password: ", psk,
-				    sizeof(psk), RPP_REQUIRE_TTY);
+			if (password[0] == '\0' &&
+			    readpassphrase("network password: ", password,
+				sizeof(password), RPP_REQUIRE_TTY) == NULL) {
+				warn("failed to read password");
+				goto cleanup;
+			}
 
-			ret = configure_psk(ctrl, nwid, psk);
+			psk_len = strlen(password);
+			if (psk_len < 8 || psk_len > 63) {
+				warnx("password must be 8–63 characters");
+				goto cleanup;
+			}
+
+			ret = configure_psk(ctrl, nwid, password);
+		} else if (sr->security == EAP) {
+			if (identity[0] == '\0') {
+				printf("network EAP identity: ");
+				if (fgets(identity, sizeof(identity), stdin) ==
+				    NULL) {
+					warnx("failed to read identity");
+					goto cleanup;
+				}
+				identity[strcspn(identity, "\n")] = '\0';
+			}
+
+			if (password[0] == '\0' &&
+			    readpassphrase("network EAP password: ", password,
+				sizeof(password), RPP_REQUIRE_TTY) == NULL) {
+				warn("failed to read password");
+				goto cleanup;
+			}
+
+			ret = configure_eap(ctrl, nwid, identity, password);
 		} else {
 			ret = configure_ess(ctrl, nwid);
 		}
@@ -1015,6 +1080,34 @@ cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 		printf("%21s: %s\n", "IP Address", ip_address);
 	if (security != NULL)
 		printf("%21s: %s\n", "Security", security);
+
+	return (0);
+}
+
+static int
+wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len,
+    const char *fmt, ...)
+{
+	char req[128];
+	va_list ap;
+
+	va_start(ap, fmt);
+	if ((size_t)vsnprintf(req, sizeof(req), fmt, ap) >= sizeof(req)) {
+		va_end(ap);
+		warnx("wpa_ctrl request too long: %s", req);
+		return (1);
+	}
+	va_end(ap);
+
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, reply_len, NULL) !=
+	    0)
+		return (1);
+	reply[*reply_len] = '\0';
+
+	if (strncmp(reply, "OK", 2) != 0) {
+		warnx("wpa_ctrl request failed: %s", req);
+		return (1);
+	}
 
 	return (0);
 }

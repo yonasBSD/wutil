@@ -126,7 +126,7 @@ cmd_station(int argc, char *argv[])
 		{ NULL, 0, NULL, 0 },
 	};
 
-	while ((opt = getopt_long(argc, argv, "c:", opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "+c:", opts, NULL)) != -1) {
 		switch (opt) {
 		case 'c':
 			wpa_ctrl_path = optarg;

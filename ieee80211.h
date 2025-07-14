@@ -98,8 +98,10 @@ int scan_and_wait(struct wpa_ctrl *ctrl);
 struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
 void free_known_networks(struct known_networks *nws);
 
-int add_network(struct wpa_ctrl *ctrl, struct scan_result *sr);
+int add_network(struct wpa_ctrl *ctrl, const char *ssid);
 int configure_psk(struct wpa_ctrl *ctrl, int, const char *psk);
+int configure_eap(struct wpa_ctrl *ctrl, int nwid, const char *identity,
+    const char *password);
 int configure_ess(struct wpa_ctrl *ctrl, int nwid);
 /* use nwid = -1 to select any network */
 int select_network(struct wpa_ctrl *ctrl, int nwid);
