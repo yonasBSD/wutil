@@ -126,12 +126,6 @@ cmd_station(int argc, char *argv[])
 		{ NULL, 0, NULL, 0 },
 	};
 
-	if (argc < 2) {
-		warnx("wrong number of arguments");
-		usage_station(stderr, true);
-		return (1);
-	}
-
 	while ((opt = getopt_long(argc, argv, "c:", opts, NULL)) != -1) {
 		switch (opt) {
 		case 'c':
@@ -145,15 +139,15 @@ cmd_station(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	if (wpa_ctrl_path == NULL) {
-		warn(
-		    "no ctrl interfaces on default paths, provide --ctrl-interface");
+	if (argc < 1) {
+		warnx("wrong number of arguments");
+		usage_station(stderr, true);
 		return (1);
 	}
 
-	if ((ctrl = wpa_ctrl_open(wpa_ctrl_path)) == NULL) {
-		warn("failed to open wpa_supplicant ctrl_interface, %s",
-		    wpa_ctrl_path);
+	if (wpa_ctrl_path == NULL) {
+		warn(
+		    "no ctrl interfaces on default paths, provide --ctrl-interface");
 		return (1);
 	}
 
@@ -167,6 +161,12 @@ cmd_station(int argc, char *argv[])
 	if (cmd == NULL) {
 		warnx("Unknown subcommand: %s", argv[0]);
 		usage_station(stderr, true);
+		return (1);
+	}
+
+	if ((ctrl = wpa_ctrl_open(wpa_ctrl_path)) == NULL) {
+		warn("failed to open wpa_supplicant ctrl_interface, %s",
+		    wpa_ctrl_path);
 		return (1);
 	}
 
