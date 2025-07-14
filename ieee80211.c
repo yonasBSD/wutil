@@ -32,6 +32,10 @@ static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
 static int get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid);
 static int wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply,
     size_t *reply_len, const char *fmt, ...);
+static int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
+    const char *identity, const char *password);
+static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
+    const char *identity, const char *password);
 
 const char *security_to_string[] = {
 	[OPEN] = "Open",
@@ -853,62 +857,14 @@ cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
 	return (0);
 }
 
-int
-cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
+static int
+configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
+    const char *identity, const char *password)
 {
-	int ret = 0;
-	int nwid = -1;
 	struct scan_results *srs = NULL;
 	struct scan_result *sr, *sr_tmp;
-	struct known_networks *nws = NULL;
-	struct known_network *nw, *nw_tmp;
-	char *ssid;
-	char identity[254] = "", password[256] = "";
-	bool hidden = false; /* NOOP */
-	int opt;
-	struct option options[] = {
-		{ "identity", required_argument, NULL, 'i' },
-		{ "password", required_argument, NULL, 'p' },
-		{ "hidden", no_argument, NULL, 'h' },
-		{ NULL, 0, NULL, 0 },
-	};
-
-	while ((opt = getopt_long(argc, argv, "i:p:h", options, NULL)) != -1) {
-		switch (opt) {
-		case 'i':
-			if (strlcpy(identity, optarg, sizeof(identity)) >=
-			    sizeof(identity)) {
-				warnx("identity too long");
-				return (1);
-			}
-			break;
-		case 'p':
-			if (strlcpy(password, optarg, sizeof(password)) >=
-			    sizeof(password)) {
-				warnx("password too long");
-				return (1);
-			}
-			break;
-		case 'h':
-			hidden = true;
-			break;
-		case '?':
-			break;
-		default:
-			break;
-		}
-	}
-
-	(void)hidden;
-
-	argc -= optind;
-	argv += optind;
-
-	if (argc < 1) {
-		warnx("<ssid> not provided");
-		return (1);
-	}
-	ssid = argv[0];
+	char identity_buf[254], password_buf[256];
+	int ret = 0;
 
 	if (scan_and_wait(ctrl) != 0) {
 		warnx("scan failed");
@@ -933,9 +889,143 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 		goto cleanup;
 	}
 
+	if (sr->security == PSK) {
+		int psk_len;
+
+		if (password == NULL &&
+		    (password = readpassphrase("network password: ",
+			 password_buf, sizeof(password_buf),
+			 RPP_REQUIRE_TTY)) == NULL) {
+			warn("failed to read password");
+			goto cleanup;
+		}
+
+		psk_len = strlen(password);
+		if (psk_len < 8 || psk_len > 63) {
+			warnx("password must be 8–63 characters");
+			goto cleanup;
+		}
+
+		ret = configure_psk(ctrl, nwid, password);
+	} else if (sr->security == EAP) {
+		if (identity == NULL) {
+			printf("network EAP identity: ");
+			if (fgets(identity_buf, sizeof(identity_buf), stdin) ==
+			    NULL) {
+				warnx("failed to read identity");
+				goto cleanup;
+			}
+			identity_buf[strcspn(identity_buf, "\n")] = '\0';
+			identity = identity_buf;
+		}
+
+		if (password == NULL &&
+		    (password = readpassphrase("network EAP password: ",
+			 password_buf, sizeof(password_buf),
+			 RPP_REQUIRE_TTY)) == NULL) {
+			warn("failed to read password");
+			goto cleanup;
+		}
+
+		ret = configure_eap(ctrl, nwid, identity, password);
+	} else {
+		ret = configure_ess(ctrl, nwid);
+	}
+
+	if (ret != 0) {
+		warnx("failed to configure key_mgmt");
+		goto cleanup;
+	}
+
+cleanup:
+	free_scan_results(srs);
+
+	return (ret);
+}
+
+static int
+configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid, const char *identity,
+    const char *password)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply) - 1;
+	int ret = 0;
+
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+		"SET_NETWORK %d scan_ssid 1", nwid) != 0)
+		return (1);
+
+	if (identity != NULL) {
+		char password_buf[256];
+
+		if (password == NULL &&
+		    (password = readpassphrase("network EAP password: ",
+			 password_buf, sizeof(password_buf),
+			 RPP_REQUIRE_TTY)) == NULL) {
+			warn("failed to read password");
+			return (1);
+		}
+
+		ret = configure_eap(ctrl, nwid, identity, password);
+	} else if (password != NULL) {
+		ret = configure_psk(ctrl, nwid, password);
+	} else {
+		ret = configure_ess(ctrl, nwid);
+	}
+
+	return (ret);
+}
+
+int
+cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	int nwid = -1;
+	int config_ret;
+	struct known_networks *nws = NULL;
+	struct known_network *nw, *nw_tmp;
+	const char *ssid;
+	const char *identity = NULL, *password = NULL;
+	bool hidden = false;
+	int opt;
+	struct option options[] = {
+		{ "identity", required_argument, NULL, 'i' },
+		{ "password", required_argument, NULL, 'p' },
+		{ "hidden", no_argument, NULL, 'h' },
+		{ NULL, 0, NULL, 0 },
+	};
+
+	while ((opt = getopt_long(argc, argv, "i:p:h", options, NULL)) != -1) {
+		switch (opt) {
+		case 'i':
+			identity = optarg;
+			break;
+		case 'p':
+			password = optarg;
+			break;
+		case 'h':
+			hidden = true;
+			break;
+		case '?':
+			break;
+		default:
+			break;
+		}
+	}
+
+	(void)hidden;
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		warnx("<ssid> not provided");
+		return (1);
+	}
+	ssid = argv[0];
+
 	if ((nws = get_known_networks(ctrl)) == NULL) {
 		warnx("failed to retrieve known networks");
-		goto cleanup;
+		return (1);
 	}
 
 	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
@@ -945,69 +1035,33 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 		}
 	}
 
-	if (nwid == -1) {
-		if ((nwid = add_network(ctrl, sr->ssid)) == -1) {
-			warnx("failed to create new network");
-			goto cleanup;
-		}
-
-		if (sr->security == PSK) {
-			int psk_len;
-
-			if (password[0] == '\0' &&
-			    readpassphrase("network password: ", password,
-				sizeof(password), RPP_REQUIRE_TTY) == NULL) {
-				warn("failed to read password");
-				goto cleanup;
-			}
-
-			psk_len = strlen(password);
-			if (psk_len < 8 || psk_len > 63) {
-				warnx("password must be 8–63 characters");
-				goto cleanup;
-			}
-
-			ret = configure_psk(ctrl, nwid, password);
-		} else if (sr->security == EAP) {
-			if (identity[0] == '\0') {
-				printf("network EAP identity: ");
-				if (fgets(identity, sizeof(identity), stdin) ==
-				    NULL) {
-					warnx("failed to read identity");
-					goto cleanup;
-				}
-				identity[strcspn(identity, "\n")] = '\0';
-			}
-
-			if (password[0] == '\0' &&
-			    readpassphrase("network EAP password: ", password,
-				sizeof(password), RPP_REQUIRE_TTY) == NULL) {
-				warn("failed to read password");
-				goto cleanup;
-			}
-
-			ret = configure_eap(ctrl, nwid, identity, password);
-		} else {
-			ret = configure_ess(ctrl, nwid);
-		}
-
-		if (ret != 0) {
-			warnx("failed to configure key_mgmt");
-			goto cleanup;
-		}
-	}
-
-	if ((ret = select_network(ctrl, nwid)) != 0) {
-		warnx("failed to select network");
-	} else {
-		ret = update_config(ctrl);
-	}
-
-cleanup:
-	free_scan_results(srs);
 	free_known_networks(nws);
 
-	return (ret);
+	if (nwid == -1 && (nwid = add_network(ctrl, ssid)) == -1) {
+		warnx("failed to create new network");
+		return (1);
+	}
+
+	config_ret = hidden ?
+	    configure_hidden_ssid(ctrl, nwid, identity, password) :
+	    configure_ssid(ctrl, nwid, ssid, identity, password);
+
+	if (config_ret != 0) {
+		warnx("failed to configure SSID");
+		return (1);
+	}
+
+	if (select_network(ctrl, nwid) != 0) {
+		warnx("failed to select network");
+		return (1);
+	}
+
+	if (update_config(ctrl) != 0) {
+		warnx("failed to update wpa_supplicant config");
+		return (1);
+	}
+
+	return (0);
 }
 
 static int
