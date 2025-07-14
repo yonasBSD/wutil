@@ -9,32 +9,28 @@ $ make
 ## Usage
 ```
 $ ./wutil help
-Usage: wutil [commands] [args]
-Commands:
-  help                                     Show this message and exit
-  list                                     List all network interfaces with their current status
-  show       <interface>                   Display detailed status for <interface>
-  enable     <interface>                   Enable <interface>
-  disable    <interface>                   Disable <interface>
-  restart    <interface>                   Restart <interface>
-  configure  <interface>                   Configure network settings for <interface>
-                                             Options:
-                                               --method [dhcp|manual] Set IP assignment method
-                                               --ip <ip_address> Static IP address (required if manual)
-                                               --netmask <netmask> Subnet mask (required if manual)
-                                               --gateway <gateway> Default gateway (required if manual)
-                                               --dns1 <dns_server> Primary DNS server
-                                               --dns2 <dns_server> Secondary DNS server (optional)
-                                               --search <domain> Search domain (optional)
-  scan       <interface>                         Scan available Wi-Fi networks
-  disconnect <interface>                   Disconnect from the current Wi-Fi network
-  connect    <interface> <ssid> [psk]      Connect to a Wi-Fi network with optional PSK (password)
-
-
+Usage:  wutil help
+        wutil {interface | if} list
+        wutil {interface | if} show <interface>
+        wutil {interface | if} set
+        wutil {interface | if} set [--state {up | down}] <interface>
+        wutil {interface | if} set [-s {up | down}] <interface>
+        wutil {known-network | kn} [--ctrl-interface <path>] list
+        wutil {known-network | kn} [-c <path>] {show | forget} <ssid>
+        wutil {known-network | kn} [--ctrl-interface <path>] set
+          [--priority <num>] [--autoconnect {yes | no}] <ssid>
+        wutil {known-network | kn} [-c <path>] set
+          [-p <num>] [-a {y | n}] <ssid>
+        wutil {station | sta} [--ctrl-interface <path>]
+          {scan | networks | status | disconnect}
+        wutil {station | sta} [--ctrl-interface <path>] connect
+          [--identity <id>] [--password <password>] [--hidden] <ssid>
+        wutil {station | sta} [-c <path>] connect
+          [-i <id>] [-p <password>] [-h] <ssid>
 ```
 
 ### wutui
 ```
-$ ./build/bsd/x86_64/release/wutui
+$ ./wutui
 ```
 ![04-09-2025-000549](https://github.com/user-attachments/assets/f564c27b-1abd-46ab-ab2b-d4b56cd122e4)
