@@ -21,11 +21,13 @@
 
 #include "ieee80211.h"
 #include "utils.h"
+#include "wpa_ctrl.h"
 
 static char *caps_to_str(int capinfo, char *capstr);
 static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
 static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
+static int get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid);
 
 const char *security_to_string[] = {
 	[OPEN] = "Open",
@@ -943,13 +945,76 @@ cleanup:
 	return (ret);
 }
 
-/* TODO: implement */
+static int
+get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid)
+{
+	char buf[4096];
+	size_t buf_len = sizeof(buf);
+	size_t len = snprintf(buf, buf_len, "BSS %s MASK=%x", bssid,
+	    WPA_BSS_MASK_FREQ);
+	int freq = 0;
+
+	if (wpa_ctrl_request(ctrl, buf, len, buf, &buf_len, NULL) != 0) {
+		warnx("failed to disconnect");
+		return (0);
+	}
+
+	if (sscanf(buf, "freq=%d", &freq) != 1)
+		return (0);
+
+	return (freq);
+}
+
 int
 cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	(void)ctrl;
+	char reply[4096];
+	size_t reply_len = sizeof(reply);
+	const char *ssid = NULL;
+	const char *bssid = NULL;
+	const char *ip_address = NULL;
+	const char *supplicant_state = NULL;
+	const char *security = NULL;
+
 	(void)argc;
 	(void)argv;
+
+	if (wpa_ctrl_request(ctrl, "STATUS", strlen("STATUS"), reply,
+		&reply_len, NULL) != 0) {
+		warnx("failed to disconnect");
+		return (1);
+	}
+
+	reply[reply_len] = '\0';
+
+	for (char *brkn, *line = strtok_r(reply, "\n", &brkn); line != NULL;
+	    line = strtok_r(NULL, "\n", &brkn)) {
+		char *brkt;
+		/* key=value */
+		char *key = strtok_r(line, "=", &brkt);
+		char *value = strtok_r(NULL, "=", &brkt);
+
+		if (strcmp(key, "bssid") == 0)
+			bssid = value;
+		else if (strcmp(key, "ssid") == 0)
+			ssid = value;
+		else if (strcmp(key, "ip_address") == 0)
+			ip_address = value;
+		else if (strcmp(key, "wpa_state") == 0)
+			supplicant_state = value;
+	}
+
+	printf("%21s: %s\n", "wpa_supplicant Status", supplicant_state);
+	if (bssid != NULL) {
+		printf("%21s: %s\n", "Connected BSSID", bssid);
+		printf("%21s: %d\n", "Frequency", get_bss_freq(ctrl, bssid));
+	}
+	if (ssid != NULL)
+		printf("%21s: %s\n", "Connected SSID", ssid);
+	if (ip_address != NULL)
+		printf("%21s: %s\n", "IP Address", ip_address);
+	if (security != NULL)
+		printf("%21s: %s\n", "Security", security);
 
 	return (0);
 }
