@@ -27,6 +27,12 @@ static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
 static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
 
+const char *security_to_string[] = {
+	[OPEN] = "Open",
+	[EAP] = "EAP",
+	[PSK] = "PSK",
+};
+
 struct wpa_command station_cmds[5] = {
 	{ "scan", cmd_wpa_scan },
 	{ "networks", cmd_wpa_networks },
@@ -681,11 +687,10 @@ get_scan_results(struct wpa_ctrl *ctrl)
 		if (bssid != NULL && ether_aton_r(bssid, &sr->bssid) == NULL)
 			sr->bssid = (struct ether_addr) { 0 };
 
-		if (flags != NULL && (sr->flags = strdup(flags)) == NULL) {
-			warn("strdup");
-			free(sr);
-			free_scan_results(srs);
-			return (NULL);
+		if (flags != NULL) {
+			sr->security = strstr(flags, "PSK") != NULL ? PSK :
+			    strstr(flags, "EAP") != NULL	    ? EAP :
+								      OPEN;
 		}
 
 		STAILQ_INSERT_TAIL(srs, sr, next);
@@ -702,10 +707,8 @@ free_scan_results(struct scan_results *srs)
 	if (srs == NULL)
 		return;
 
-	STAILQ_FOREACH_SAFE(sr, srs, next, tmp) {
-		free(sr->flags);
+	STAILQ_FOREACH_SAFE(sr, srs, next, tmp)
 		free(sr);
-	}
 
 	free(srs);
 }
@@ -817,14 +820,12 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	printf("%-20.20s %-9.9s %6s %s\n", "SSID", "SIGNAL", "FREQUENCY",
-	    "CAPABILITIES");
+	printf("%-*s %-8s %-9s %-8s\n", IEEE80211_NWID_LEN, "SSID", "Signal",
+	    "Frequency", "Security");
 	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
-		char signal_str[9];
-
-		snprintf(signal_str, sizeof(signal_str), "%d dBm", sr->signal);
-		printf("%-20.20s %-9s %6d  %s\n", sr->ssid, signal_str,
-		    sr->freq, sr->flags);
+		printf("%-*s %4d dBm %5d MHz %-8s\n", IEEE80211_NWID_LEN,
+		    sr->ssid, sr->signal, sr->freq,
+		    security_to_string[sr->security]);
 	}
 
 	free_scan_results(srs);
@@ -908,8 +909,8 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 			goto cleanup;
 		}
 
-		if (strstr(sr->flags, "PSK") !=
-		    NULL) { /* TODO: cleanup & check psk length */
+		if (sr->security ==
+		    PSK) { /* TODO: cleanup & check psk length */
 			char psk[256] = "";
 
 			if (argc == 5)

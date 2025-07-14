@@ -61,11 +61,15 @@ struct known_network {
 
 STAILQ_HEAD(known_networks, known_network);
 
+enum security { OPEN = 0, EAP, PSK };
+
+extern const char *security_to_string[];
+
 struct scan_result {
 	int freq, signal;
 	struct ether_addr bssid;
 	char ssid[IEEE80211_NWID_LEN + 1];
-	char *flags;
+	enum security security;
 	STAILQ_ENTRY(scan_result) next;
 };
 
