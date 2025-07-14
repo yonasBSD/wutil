@@ -268,17 +268,17 @@ parse_network_config(int argc, char **argv,
 		switch (opt) {
 		case 'm':
 			if (strcasecmp(optarg, "dhcp") == 0) {
-				config->method = DHCP;
+				config->method = IP_DHCP;
 			} else if (strcasecmp(optarg, "manual") == 0) {
-				config->method = MANUAL;
+				config->method = IP_MANUAL;
 			} else {
 				warnx("invalid method: %s", optarg);
 				return (1);
 			}
 			break;
 		case 'i':
-			if (config->method == UNCHANGED ||
-			    config->method != MANUAL) {
+			if (config->method == IP_UNCHANGED ||
+			    config->method != IP_MANUAL) {
 				warnx("-i <ip> requires --method=manual");
 				return (1);
 			}
@@ -289,8 +289,8 @@ parse_network_config(int argc, char **argv,
 			config->ip = optarg;
 			break;
 		case 'n':
-			if (config->method == UNCHANGED ||
-			    config->method != MANUAL) {
+			if (config->method == IP_UNCHANGED ||
+			    config->method != IP_MANUAL) {
 				warnx("-n <netmask> requires --method=manual");
 				return (1);
 			}
@@ -301,8 +301,8 @@ parse_network_config(int argc, char **argv,
 			}
 			break;
 		case 'g':
-			if (config->method == UNCHANGED ||
-			    config->method != MANUAL) {
+			if (config->method == IP_UNCHANGED ||
+			    config->method != IP_MANUAL) {
 				warnx("-g <gateway> requires --method=manual");
 				return (1);
 			}
@@ -332,7 +332,7 @@ parse_network_config(int argc, char **argv,
 		return (1);
 	}
 
-	if (config->method == MANUAL) {
+	if (config->method == IP_MANUAL) {
 		bool has_ip = config->ip != NULL;
 		bool has_nm = config->prefix_len != -1;
 		bool has_gw = config->gateway != NULL;
@@ -557,9 +557,10 @@ configure_ip_dhcp(const char *ifname)
 static int
 configure_ip(const char *ifname, struct network_configuration *config)
 {
-	return (config->method == MANUAL ? configure_ip_manual(ifname, config) :
-		config->method == DHCP	 ? configure_ip_dhcp(ifname) :
-					   0);
+	return (config->method == IP_MANUAL ?
+		configure_ip_manual(ifname, config) :
+		config->method == IP_DHCP ? configure_ip_dhcp(ifname) :
+					    0);
 }
 
 int

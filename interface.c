@@ -47,6 +47,7 @@
 
 #include "interface.h"
 #include "libifconfig.h"
+#include "usage.h"
 #include "utils.h"
 
 struct interface_command interface_cmds[3] = {
@@ -135,6 +136,12 @@ cmd_interface_set(struct ifconfig_handle *lifh, int argc, char **argv)
 		default:
 			return (1);
 		}
+	}
+
+	if (optind == 1) {
+		warnx("no options were provided");
+		usage_interface(stderr, true);
+		return 1;
 	}
 
 	argc -= optind;

@@ -50,6 +50,7 @@
 #include <unistd.h>
 
 #include "ieee80211.h"
+#include "usage.h"
 #include "utils.h"
 #include "wpa_ctrl.h"
 
@@ -1474,8 +1475,107 @@ cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 int
 cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	(void)ctrl;
-	(void)argc;
-	(void)argv;
-	return (0);
+	int opt, ret = 0;
+	int priority = 0;
+	bool set_priority = false;
+	enum { UNCHANGED, YES, NO } autoconnect = UNCHANGED;
+	char reply[5]; /* OK or FAIL response */
+	size_t reply_len = sizeof(reply) - 1;
+	char *endptr;
+	const char *ssid;
+	struct known_network *nw, *nw_tmp;
+	struct known_networks *nws = NULL;
+
+	struct option options[] = {
+		{ "priority", required_argument, NULL, 'p' },
+		{ "autoconnect", required_argument, NULL, 'a' },
+		{ NULL, 0, NULL, 0 },
+	};
+
+	while ((opt = getopt_long(argc, argv, "p:a:", options, NULL)) != -1) {
+		switch (opt) {
+		case 'a':
+			if (strcmp(optarg, "y") == 0 ||
+			    strcmp(optarg, "yes") == 0) {
+				autoconnect = YES;
+			} else if (strcmp(optarg, "n") == 0 ||
+			    strcmp(optarg, "no") == 0) {
+				autoconnect = NO;
+			} else {
+				warnx("invalid value '%s' for --autoconnect",
+				    optarg);
+				return (1);
+			}
+			break;
+		case 'p':
+			priority = strtol(optarg, &endptr, 10);
+			if (*endptr != '\0') {
+				warnx("invalid value '%s' for --priority",
+				    optarg);
+				return (-1);
+			}
+			set_priority = true;
+			break;
+		case '?':
+		default:
+			return (1);
+		}
+	}
+
+	if (optind == 1) {
+		warnx("no options were provided");
+		usage_known_networks(stderr, true);
+		return 1;
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		warnx("<network> not provided");
+		return (1);
+	}
+	ssid = argv[0];
+
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
+	}
+
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+		if (strcmp(nw->ssid, ssid) == 0)
+			break;
+	}
+
+	if (nw == NULL) {
+		warnx("unknown network %s", ssid);
+		ret = 1;
+		goto cleanup;
+	}
+
+	if (autoconnect != UNCHANGED &&
+	    wpa_ctrl_ack_request(ctrl, reply, &reply_len, "%s_NETWORK %d",
+		autoconnect == YES ? "ENABLE" : "DISABLE", nw->id) != 0) {
+		warnx("failed to set priority");
+		ret = 1;
+		goto cleanup;
+	}
+
+	if (set_priority &&
+	    wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+		"SET_NETWORK %d priority %d", nw->id, priority) != 0) {
+		warnx("failed to set priority");
+		ret = 1;
+		goto cleanup;
+	}
+
+cleanup:
+	free_known_networks(nws);
+
+	return (ret);
 }

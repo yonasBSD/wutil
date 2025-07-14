@@ -60,9 +60,9 @@ struct network_interface {
 STAILQ_HEAD(network_interface_list, network_interface);
 
 enum ip_configuration {
-	UNCHANGED = 0,
-	DHCP,
-	MANUAL,
+	IP_UNCHANGED = 0,
+	IP_DHCP,
+	IP_MANUAL,
 };
 
 struct network_configuration {
