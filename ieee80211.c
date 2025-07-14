@@ -1349,8 +1349,10 @@ cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 	struct known_network *nw, *nw_tmp;
 	struct known_networks *nws = get_known_networks(ctrl);
 
-	(void)argc;
-	(void)argv;
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
+	}
 
 	if (nws == NULL) {
 		warnx("failed to retrieve known networks");
@@ -1374,9 +1376,48 @@ cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 int
 cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	(void)ctrl;
-	(void)argc;
-	(void)argv;
+	struct known_network *nw, *nw_tmp;
+	struct known_networks *nws = NULL;
+	const char *ssid;
+
+	if (argc < 2) {
+		warnx("<network> not provided");
+		return (1);
+	}
+	ssid = argv[1];
+
+	if (argc > 2) {
+		warnx("bad value %s", argv[2]);
+		return (1);
+	}
+
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+		if (strcmp(nw->ssid, ssid) == 0)
+			break;
+	}
+
+	if (nw == NULL) {
+		warnx("unknown network %s", ssid);
+		free_known_networks(nws);
+		return (1);
+	}
+
+	printf("%12s: %s\n", "Network SSID", nw->ssid);
+	printf("%12s: %s\n", "Security",
+	    security_to_string[known_network_security(ctrl, nw->id)]);
+	printf("%12s: %s\n", "Hidden",
+	    is_hidden_network(ctrl, nw->id) ? "Yes" : "No");
+	printf("%12s: %d\n", "Priority", get_network_priority(ctrl, nw->id));
+	printf("%12s: %s\n", "Autoconnect",
+	    nw->state == KN_DISABLED ? "No" : "Yes");
+
+	free_known_networks(nws);
+
 	return (0);
 }
 
