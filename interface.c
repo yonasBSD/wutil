@@ -235,7 +235,7 @@ print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata __unused)
 		if (inet_ntop(AF_INET, &inet.sin->sin_addr, addr_buf,
 			sizeof(addr_buf)) == NULL)
 			return;
-		printf("%-9s: %s/%d\n", "inet", addr_buf, inet.prefixlen);
+		printf("%9s: %s/%d\n", "inet", addr_buf, inet.prefixlen);
 
 		break;
 	}
@@ -247,7 +247,7 @@ print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata __unused)
 		if (inet_ntop(AF_INET6, &inet6.sin6->sin6_addr, addr_buf,
 			sizeof(addr_buf)) == NULL)
 			return;
-		printf("%-9s: %s/%d\n", "inet6", addr_buf, inet6.prefixlen);
+		printf("%9s: %s/%d\n", "inet6", addr_buf, inet6.prefixlen);
 
 		break;
 	}
@@ -262,7 +262,7 @@ print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata __unused)
 
 		if (ether_ntoa_r(&ea, addr_buf) == NULL)
 			strcpy(addr_buf, "N/A");
-		printf("%-9s: %s\n", "MAC", addr_buf);
+		printf("%9s: %s\n", "MAC", addr_buf);
 
 		break;
 	}
@@ -285,9 +285,9 @@ show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 		sizeof(device)) != 0)
 		device[0] = '\0';
 
-	printf("%-9s: %s\n", "Interface", ifa->ifa_name);
-	printf("%-9s: %s\n", "State", state);
-	printf("%-9s: %s\n", "Device", device);
+	printf("%9s: %s\n", "Interface", ifa->ifa_name);
+	printf("%9s: %s\n", "State", state);
+	printf("%9s: %s\n", "Device", device);
 	ifconfig_foreach_ifaddr(lifh, ifa, print_ifaddr, NULL);
 }
 
