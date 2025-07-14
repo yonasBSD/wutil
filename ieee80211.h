@@ -62,7 +62,7 @@ struct known_network {
 
 STAILQ_HEAD(known_networks, known_network);
 
-enum security { OPEN = 0, EAP, PSK };
+enum security { SEC_OPEN = 0, SEC_EAP, SEC_PSK, SEC_NA };
 
 extern const char *security_to_string[];
 

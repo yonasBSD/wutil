@@ -64,11 +64,15 @@ static int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
     const char *identity, const char *password);
 static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
     const char *identity, const char *password);
+static enum security known_network_security(struct wpa_ctrl *ctrl, int nwid);
+static bool is_hidden_network(struct wpa_ctrl *ctrl, int nwid);
+static int get_network_priority(struct wpa_ctrl *ctrl, int nwid);
 
 const char *security_to_string[] = {
-	[OPEN] = "Open",
-	[EAP] = "EAP",
-	[PSK] = "PSK",
+	[SEC_OPEN] = "Open",
+	[SEC_EAP] = "EAP",
+	[SEC_PSK] = "PSK",
+	[SEC_NA] = "N/A",
 };
 
 struct wpa_command station_cmds[5] = {
@@ -733,9 +737,9 @@ get_scan_results(struct wpa_ctrl *ctrl)
 			sr->bssid = (struct ether_addr) { 0 };
 
 		if (flags != NULL) {
-			sr->security = strstr(flags, "PSK") != NULL ? PSK :
-			    strstr(flags, "EAP") != NULL	    ? EAP :
-								      OPEN;
+			sr->security = strstr(flags, "PSK") != NULL ? SEC_PSK :
+			    strstr(flags, "EAP") != NULL	    ? SEC_EAP :
+								      SEC_OPEN;
 		}
 
 		STAILQ_INSERT_TAIL(srs, sr, next);
@@ -924,7 +928,7 @@ configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
 		goto cleanup;
 	}
 
-	if (sr->security == PSK) {
+	if (sr->security == SEC_PSK) {
 		int psk_len;
 
 		if (password == NULL &&
@@ -942,7 +946,7 @@ configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
 		}
 
 		ret = configure_psk(ctrl, nwid, password);
-	} else if (sr->security == EAP) {
+	} else if (sr->security == SEC_EAP) {
 		if (identity == NULL) {
 			printf("network EAP identity: ");
 			if (fgets(identity_buf, sizeof(identity_buf), stdin) ==
@@ -1174,6 +1178,29 @@ cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 }
 
 static int
+wpa_ctrl_requestf(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len,
+    const char *fmt, ...)
+{
+	char req[128];
+	va_list ap;
+
+	va_start(ap, fmt);
+	if ((size_t)vsnprintf(req, sizeof(req), fmt, ap) >= sizeof(req)) {
+		va_end(ap);
+		warnx("wpa_ctrl request too long: %s", req);
+		return (1);
+	}
+	va_end(ap);
+
+	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, reply_len, NULL) !=
+	    0)
+		return (1);
+	reply[*reply_len] = '\0';
+
+	return (0);
+}
+
+static int
 wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len,
     const char *fmt, ...)
 {
@@ -1267,12 +1294,79 @@ template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 	return (ret);
 }
 
+static enum security
+known_network_security(struct wpa_ctrl *ctrl, int nwid)
+{
+	char reply[4096];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_requestf(ctrl, reply, &reply_len,
+		"GET_NETWORK %d key_mgmt", nwid) != 0)
+		return (SEC_NA);
+
+	return strstr(reply, "PSK") != NULL ? SEC_PSK :
+	    strstr(reply, "EAP") != NULL    ? SEC_EAP :
+	    strstr(reply, "NONE") != NULL   ? SEC_OPEN :
+					      SEC_NA;
+}
+
+static bool
+is_hidden_network(struct wpa_ctrl *ctrl, int nwid)
+{
+	char reply[2]; /* normally 0/1 response */
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_requestf(ctrl, reply, &reply_len,
+		"GET_NETWORK %d scan_ssid", nwid) != 0)
+		return (false);
+
+	return (reply[0] == '1');
+}
+
+static int
+get_network_priority(struct wpa_ctrl *ctrl, int nwid)
+{
+	int priority;
+	char *endptr;
+	char reply[16];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_requestf(ctrl, reply, &reply_len,
+		"GET_NETWORK %d priority", nwid) != 0)
+		return (SEC_NA);
+
+	priority = strtol(reply, &endptr, 10);
+
+	if (*endptr != '\0')
+		return (-1);
+
+	return (priority);
+}
+
 int
 cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	(void)ctrl;
+	struct known_network *nw, *nw_tmp;
+	struct known_networks *nws = get_known_networks(ctrl);
+
 	(void)argc;
 	(void)argv;
+
+	if (nws == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	printf("%-*s %-8s %-6s %-8s\n", IEEE80211_NWID_LEN, "SSID", "Security",
+	    "Hidden", "Priority");
+	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+		printf("%-*s %-8s %-6s %8d\n", IEEE80211_NWID_LEN, nw->ssid,
+		    security_to_string[known_network_security(ctrl, nw->id)],
+		    is_hidden_network(ctrl, nw->id) ? "Yes" : "",
+		    get_network_priority(ctrl, nw->id));
+	}
+
+	free_known_networks(nws);
 
 	return (0);
 }
