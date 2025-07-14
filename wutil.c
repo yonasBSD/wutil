@@ -27,6 +27,7 @@
  */
 
 #include <sys/param.h>
+#include <sys/_param.h>
 
 #include <err.h>
 #include <getopt.h>
@@ -108,73 +109,15 @@ cmd_interface(int argc, char *argv[])
 static int
 cmd_known_network(int argc, char *argv[])
 {
-	(void)argc;
-	(void)argv;
-	return (0);
+	return (template_cmd_wpa(argc, argv, known_network_cmds,
+	    nitems(known_network_cmds), usage_known_networks));
 }
 
 static int
 cmd_station(int argc, char *argv[])
 {
-	int ret = 0;
-	struct wpa_command *cmd = NULL;
-	const char *wpa_ctrl_path = wpa_ctrl_default_path();
-	struct wpa_ctrl *ctrl;
-	int opt;
-	struct option opts[] = {
-		{ "ctrl-interface", required_argument, NULL, 'c' },
-		{ NULL, 0, NULL, 0 },
-	};
-
-	while ((opt = getopt_long(argc, argv, "+c:", opts, NULL)) != -1) {
-		switch (opt) {
-		case 'c':
-			wpa_ctrl_path = optarg;
-			break;
-		default:
-			return (1);
-		}
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	if (argc < 1) {
-		warnx("wrong number of arguments");
-		usage_station(stderr, true);
-		return (1);
-	}
-
-	if (wpa_ctrl_path == NULL) {
-		warn(
-		    "no ctrl interfaces on default paths, provide --ctrl-interface");
-		return (1);
-	}
-
-	for (size_t i = 0; i < nitems(station_cmds); i++) {
-		if (strcmp(argv[0], station_cmds[i].name) == 0) {
-			cmd = &station_cmds[i];
-			break;
-		}
-	}
-
-	if (cmd == NULL) {
-		warnx("Unknown subcommand: %s", argv[0]);
-		usage_station(stderr, true);
-		return (1);
-	}
-
-	if ((ctrl = wpa_ctrl_open(wpa_ctrl_path)) == NULL) {
-		warn("failed to open wpa_supplicant ctrl_interface, %s",
-		    wpa_ctrl_path);
-		return (1);
-	}
-
-	ret = cmd->handler(ctrl, argc, argv);
-
-	wpa_ctrl_close(ctrl);
-
-	return (ret);
+	return (template_cmd_wpa(argc, argv, station_cmds, nitems(station_cmds),
+	    usage_station));
 }
 
 static int

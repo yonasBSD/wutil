@@ -51,6 +51,13 @@ struct wpa_command station_cmds[5] = {
 	{ "connect", cmd_wpa_connect },
 };
 
+struct wpa_command known_network_cmds[4] = {
+	{ "list", cmd_known_network_list },
+	{ "show", cmd_known_network_show },
+	{ "forget", cmd_known_network_show },
+	{ "set", cmd_known_network_set },
+};
+
 void
 scan_and_wait_ioctl(int rt_sockfd, const char *ifname)
 {
@@ -1163,5 +1170,107 @@ wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len,
 		return (1);
 	}
 
+	return (0);
+}
+
+int
+template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
+    size_t cmds_len, void (*usage_fn)(FILE *, bool))
+{
+	int ret = 0;
+	struct wpa_command *cmd = NULL;
+	const char *wpa_ctrl_path = wpa_ctrl_default_path();
+	struct wpa_ctrl *ctrl;
+	int opt;
+	struct option opts[] = {
+		{ "ctrl-interface", required_argument, NULL, 'c' },
+		{ NULL, 0, NULL, 0 },
+	};
+
+	while ((opt = getopt_long(argc, argv, "+c:", opts, NULL)) != -1) {
+		switch (opt) {
+		case 'c':
+			wpa_ctrl_path = optarg;
+			break;
+		default:
+			return (1);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		warnx("wrong number of arguments");
+		if (usage_fn != NULL)
+			usage_fn(stderr, true);
+		return (1);
+	}
+
+	if (wpa_ctrl_path == NULL) {
+		warn(
+		    "no ctrl interfaces on default paths, provide --ctrl-interface");
+		return (1);
+	}
+
+	for (size_t i = 0; i < cmds_len; i++) {
+		if (strcmp(argv[0], cmds[i].name) == 0) {
+			cmd = &cmds[i];
+			break;
+		}
+	}
+
+	if (cmd == NULL) {
+		warnx("Unknown subcommand: %s", argv[0]);
+		usage_fn(stderr, true);
+		return (1);
+	}
+
+	if ((ctrl = wpa_ctrl_open(wpa_ctrl_path)) == NULL) {
+		warn("failed to open wpa_supplicant ctrl_interface, %s",
+		    wpa_ctrl_path);
+		return (1);
+	}
+
+	ret = cmd->handler(ctrl, argc, argv);
+
+	wpa_ctrl_close(ctrl);
+
+	return (ret);
+}
+
+int
+cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	(void)ctrl;
+	(void)argc;
+	(void)argv;
+	return (0);
+}
+
+int
+cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	(void)ctrl;
+	(void)argc;
+	(void)argv;
+	return (0);
+}
+
+int
+cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	(void)ctrl;
+	(void)argc;
+	(void)argv;
+	return (0);
+}
+
+int
+cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	(void)ctrl;
+	(void)argc;
+	(void)argv;
 	return (0);
 }
