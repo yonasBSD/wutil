@@ -86,7 +86,7 @@ struct wpa_command station_cmds[5] = {
 struct wpa_command known_network_cmds[4] = {
 	{ "list", cmd_known_network_list },
 	{ "show", cmd_known_network_show },
-	{ "forget", cmd_known_network_show },
+	{ "forget", cmd_known_network_forget },
 	{ "set", cmd_known_network_set },
 };
 
@@ -1359,10 +1359,12 @@ cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	printf("%-*s %-8s %-6s %-8s\n", IEEE80211_NWID_LEN, "SSID", "Security",
-	    "Hidden", "Priority");
+	printf("  %-*s %-8s %-6s %-8s\n", IEEE80211_NWID_LEN, "SSID",
+	    "Security", "Hidden", "Priority");
 	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
-		printf("%-*s %-8s %-6s %8d\n", IEEE80211_NWID_LEN, nw->ssid,
+		printf("%c %-*s %-8s %-6s %8d\n",
+		    nw->state == KN_CURRENT ? '>' : ' ', IEEE80211_NWID_LEN,
+		    nw->ssid,
 		    security_to_string[known_network_security(ctrl, nw->id)],
 		    is_hidden_network(ctrl, nw->id) ? "Yes" : "",
 		    get_network_priority(ctrl, nw->id));
@@ -1424,9 +1426,48 @@ cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 int
 cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	(void)ctrl;
-	(void)argc;
-	(void)argv;
+	struct known_network *nw, *nw_tmp;
+	struct known_networks *nws = NULL;
+	const char *ssid;
+	char reply[5]; /* OK or FAIL response */
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (argc < 2) {
+		warnx("<network> not provided");
+		return (1);
+	}
+	ssid = argv[1];
+
+	if (argc > 2) {
+		warnx("bad value %s", argv[2]);
+		return (1);
+	}
+
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+		if (strcmp(nw->ssid, ssid) == 0)
+			break;
+	}
+
+	if (nw == NULL) {
+		warnx("unknown network %s", ssid);
+		free_known_networks(nws);
+		return (1);
+	}
+
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "REMOVE_NETWORK %d",
+		nw->id) != 0) {
+		warnx("failed to forget network %s", ssid);
+		free_known_networks(nws);
+		return (1);
+	}
+
+	free_known_networks(nws);
+
 	return (0);
 }
 
