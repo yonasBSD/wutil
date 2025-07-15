@@ -1003,7 +1003,6 @@ int
 cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
 	int nwid = -1;
-	int config_ret;
 	struct known_networks *nws = NULL;
 	struct known_network *nw, *nw_tmp;
 	const char *ssid;
@@ -1067,18 +1066,22 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 
 	free_known_networks(nws);
 
-	if (nwid == -1 && (nwid = add_network(ctrl, ssid)) == -1) {
-		warnx("failed to create new network");
-		return (1);
-	}
+	if (nwid == -1) {
+		int config_ret;
 
-	config_ret = hidden ?
-	    configure_hidden_ssid(ctrl, nwid, identity, password) :
-	    configure_ssid(ctrl, nwid, ssid, identity, password);
+		if ((nwid = add_network(ctrl, ssid)) == -1) {
+			warnx("failed to create new network");
+			return (1);
+		}
 
-	if (config_ret != 0) {
-		warnx("failed to configure SSID");
-		return (1);
+		config_ret = hidden ?
+		    configure_hidden_ssid(ctrl, nwid, identity, password) :
+		    configure_ssid(ctrl, nwid, ssid, identity, password);
+
+		if (config_ret != 0) {
+			warnx("failed to configure SSID");
+			return (1);
+		}
 	}
 
 	if (select_network(ctrl, nwid) != 0) {
