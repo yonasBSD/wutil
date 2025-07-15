@@ -76,6 +76,6 @@ usage_station(FILE *fout, bool usage_str)
 	    "\twutil {station | sta} [--ctrl-interface <path>] connect\n"
 	    "\t  [--identity <id>] [--password <password>] [--hidden] <ssid>\n"
 	    "\twutil {station | sta} [-c <path>] connect\n"
-	    "\t  [-i <id>] [-p <password>] [-h] <ssid>\n",
+	    "\t  [-i <id>] [-p <password>] [-h] <ssid> [password]\n",
 	    usage_str ? "Usage:" : "");
 }

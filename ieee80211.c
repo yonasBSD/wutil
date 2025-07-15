@@ -1063,6 +1063,13 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 	}
 	ssid = argv[0];
 
+	if (argc == 2 && password == NULL) {
+		password = argv[1];
+	} else if (argc >= 2) {
+		warnx("bad value %s", argv[password != NULL ? 1 : 2]);
+		return (1);
+	}
+
 	if ((nws = get_known_networks(ctrl)) == NULL) {
 		warnx("failed to retrieve known networks");
 		return (1);
