@@ -1214,7 +1214,7 @@ wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len,
 
 int
 template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
-    size_t cmds_len, void (*usage_fn)(FILE *, bool))
+    size_t cmds_len, usage_f usage_handler)
 {
 	int ret = 0;
 	struct wpa_command *cmd = NULL;
@@ -1241,8 +1241,8 @@ template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 
 	if (argc < 1) {
 		warnx("wrong number of arguments");
-		if (usage_fn != NULL)
-			usage_fn(stderr, true);
+		if (usage_handler != NULL)
+			usage_handler(stderr, true);
 		return (1);
 	}
 
@@ -1261,7 +1261,7 @@ template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 
 	if (cmd == NULL) {
 		warnx("Unknown subcommand: %s", argv[0]);
-		usage_fn(stderr, true);
+		usage_handler(stderr, true);
 		return (1);
 	}
 

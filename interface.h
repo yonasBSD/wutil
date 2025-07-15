@@ -31,9 +31,12 @@
 
 #include "libifconfig.h"
 
+typedef int (
+    *iface_cmd_handler_f)(struct ifconfig_handle *lifh, int argc, char **argv);
+
 struct interface_command {
 	const char *name;
-	int (*handler)(struct ifconfig_handle *lifh, int argc, char **argv);
+	iface_cmd_handler_f handler;
 };
 
 int cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv);

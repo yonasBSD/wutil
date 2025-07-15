@@ -37,4 +37,6 @@ void usage_interface(FILE *fout, bool usage_str);
 void usage_known_networks(FILE *fout, bool usage_str);
 void usage_station(FILE *fout, bool usage_str);
 
+typedef void(usage_f)(FILE *, bool);
+
 #endif

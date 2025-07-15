@@ -37,6 +37,7 @@
 
 #include <stdio.h>
 #include <wpa_ctrl.h>
+#include "usage.h"
 
 struct wifi_network {
 	char *ssid;
@@ -76,10 +77,15 @@ struct scan_result {
 
 STAILQ_HEAD(scan_results, scan_result);
 
+typedef int (*wpa_cmd_handler_f)(struct wpa_ctrl *ctrl, int argc, char **argv);
+
 struct wpa_command {
 	const char *name;
-	int (*handler)(struct wpa_ctrl *ctrl, int argc, char **argv);
+	wpa_cmd_handler_f handler;
 };
+
+int template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
+    size_t cmds_len, usage_f usage_handler);
 
 void scan_and_wait_ioctl(int route_socket, const char *iface);
 struct wifi_network_list *get_scan_results_ioctl(int route_socket,
@@ -118,9 +124,6 @@ int cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv);
 int cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv);
 int cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv);
 int cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv);
-
-int template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
-    size_t cmds_len, void (*usage_fn)(FILE *, bool));
 
 extern struct wpa_command station_cmds[5];
 extern struct wpa_command known_network_cmds[4];
