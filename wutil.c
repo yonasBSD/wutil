@@ -27,7 +27,6 @@
  */
 
 #include <sys/param.h>
-#include <sys/_param.h>
 
 #include <err.h>
 #include <getopt.h>

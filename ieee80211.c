@@ -48,11 +48,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <wpa_ctrl.h>
 
 #include "ieee80211.h"
 #include "usage.h"
 #include "utils.h"
-#include "wpa_ctrl.h"
 
 static char *caps_to_str(int capinfo, char *capstr);
 static int map_gsm_freq(uint16_t freq, uint16_t flags);
