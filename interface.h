@@ -29,6 +29,8 @@
 #ifndef INTERFACE_H
 #define INTERFACE_H
 
+#include <stdbool.h>
+
 #include "libifconfig.h"
 
 typedef int (
@@ -39,12 +41,14 @@ struct interface_command {
 	iface_cmd_handler_f handler;
 };
 
+extern struct interface_command interface_cmds[3];
+
 int cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv);
 int cmd_interface_show(struct ifconfig_handle *lifh, int argc, char **argv);
 int cmd_interface_set(struct ifconfig_handle *lifh, int argc, char **argv);
 
-char *parse_interface_arg(int argc, char **argv, int max_argc);
-
-extern struct interface_command interface_cmds[3];
+bool is_wlan_group(struct ifconfig_handle *lifh, const char *ifname);
+int get_iface_parent(const char *ifname, int ifname_len, char *buf,
+    int buf_len);
 
 #endif /* !INTERFACE_H */

@@ -56,16 +56,14 @@ struct interface_command interface_cmds[3] = {
 	{ "set", cmd_interface_set },
 };
 
+static char *parse_interface_arg(int argc, char **argv, int max_argc);
+
 static void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 static void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
-
 static void get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata);
-static bool is_wlan_group(struct ifconfig_handle *lifh, const char *ifname);
-static int get_iface_parent(const char *ifname, int ifname_len, char *buf,
-    int buf_len);
 
 int
 cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv)
@@ -313,7 +311,7 @@ get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
 		memcpy(ea, LLADDR(sdl), ETHER_ADDR_LEN);
 }
 
-static bool
+bool
 is_wlan_group(struct ifconfig_handle *lifh, const char *ifname)
 {
 	struct ifgroupreq ifgr;
@@ -337,7 +335,7 @@ is_wlan_group(struct ifconfig_handle *lifh, const char *ifname)
 	return (false);
 }
 
-static int
+int
 get_iface_parent(const char *ifname, int ifname_len, char *buf, int buf_len)
 { /* assumes ifname[ifname_len] == '\0' */
 	char name[32];
