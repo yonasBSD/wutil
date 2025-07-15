@@ -59,6 +59,8 @@ static int map_gsm_freq(uint16_t freq, uint16_t flags);
 static int freq_to_chan(uint16_t freq, uint16_t flags);
 static int lib80211_set_ssid(int sockfd, const char *ifname, const char *ssid);
 static int get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid);
+static int wpa_ctrl_requestf(struct wpa_ctrl *ctrl, char *reply,
+    size_t *reply_len, const char *fmt, ...);
 static int wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply,
     size_t *reply_len, const char *fmt, ...);
 static int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
@@ -68,6 +70,11 @@ static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
 static enum security known_network_security(struct wpa_ctrl *ctrl, int nwid);
 static bool is_hidden_network(struct wpa_ctrl *ctrl, int nwid);
 static int get_network_priority(struct wpa_ctrl *ctrl, int nwid);
+
+#define WPA_MAX_REPLY_SIZE   4096
+#define WPA_BIN_REPLY_SIZE   2	/* sizeof("0") or sizeof("1") */
+#define WPA_ACK_REPLY_SIZE   4	/* sizeof("FAIL") for OK or FAIL reply */
+#define WPA_INT32_REPLY_SIZE 13 /* snprintf(NULL, 0, "%d\n", INT32_MIN) + 1 */
 
 const char *security_to_string[] = {
 	[SEC_OPEN] = "Open",
@@ -484,20 +491,13 @@ wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout)
 int
 scan_and_wait(struct wpa_ctrl *ctrl)
 {
-	char buf[4096];
-	size_t len = sizeof(buf) - 1;
+	char reply[WPA_ACK_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
 	int wpa_fd = wpa_ctrl_get_fd(ctrl);
 	int ret = 0;
 	struct timespec timeout = { .tv_sec = 5, .tv_nsec = 0 };
 
-	if (wpa_ctrl_request(ctrl, "SCAN", sizeof("SCAN") - 1, buf, &len,
-		NULL) != 0) {
-		warnx("failed to request wpa_ctrl SCAN");
-		return (1);
-	}
-	buf[len] = '\0';
-
-	if (strncmp(buf, "OK", sizeof("OK") - 1) != 0) {
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "SCAN") != 0) {
 		warnx("failed to initiate scan");
 		return (1);
 	}
@@ -548,7 +548,7 @@ wpa_ctrl_default_path(void)
 int
 add_network(struct wpa_ctrl *ctrl, const char *ssid)
 {
-	char reply[4096], req[64];
+	char reply[WPA_INT32_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 	int nwid = -1;
 	char *nl;
@@ -569,20 +569,8 @@ add_network(struct wpa_ctrl *ctrl, const char *ssid)
 		return (-1);
 	}
 
-	if ((size_t)snprintf(req, sizeof(req), "SET_NETWORK %d ssid \"%s\"",
-		nwid, ssid) >= sizeof(req)) {
-		warnx("wpa_ctrl request too long (SET_NETWORK %d ssid %s)",
-		    nwid, ssid);
-		return (-1);
-	}
-
-	reply_len = sizeof(reply) - 1;
-	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
-	    0)
-		return (-1);
-
-	reply[reply_len] = '\0';
-	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+		"SET_NETWORK %d ssid \"%s\"", nwid, ssid) != 0) {
 		warnx("(wpa_ctrl) failed to set ssid(%s) on network id(%d)",
 		    ssid, nwid);
 		return (-1);
@@ -594,7 +582,7 @@ add_network(struct wpa_ctrl *ctrl, const char *ssid)
 int
 select_network(struct wpa_ctrl *ctrl, int nwid)
 {
-	char reply[4096];
+	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 	char req[32] = "SELECT_NETWORK any";
 
@@ -613,8 +601,8 @@ select_network(struct wpa_ctrl *ctrl, int nwid)
 struct known_networks *
 get_known_networks(struct wpa_ctrl *ctrl)
 {
-	char reply[4096];
-	size_t reply_len = sizeof(reply);
+	char reply[WPA_MAX_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
 	struct known_networks *nws = NULL;
 
 	if (wpa_ctrl_request(ctrl, "LIST_NETWORKS", strlen("LIST_NETWORKS"),
@@ -689,8 +677,8 @@ free_known_networks(struct known_networks *nws)
 struct scan_results *
 get_scan_results(struct wpa_ctrl *ctrl)
 {
-	char reply[4096];
-	size_t reply_len = sizeof(reply);
+	char reply[WPA_MAX_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
 	struct scan_results *srs = NULL;
 
 	if (wpa_ctrl_request(ctrl, "SCAN_RESULTS", strlen("SCAN_RESULTS"),
@@ -766,7 +754,7 @@ free_scan_results(struct scan_results *srs)
 int
 configure_psk(struct wpa_ctrl *ctrl, int nwid, const char *psk)
 {
-	char reply[4096];
+	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
 	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
@@ -777,7 +765,7 @@ int
 configure_eap(struct wpa_ctrl *ctrl, int nwid, const char *identity,
     const char *password)
 {
-	char reply[4096];
+	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
 	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
@@ -800,7 +788,7 @@ configure_eap(struct wpa_ctrl *ctrl, int nwid, const char *identity,
 int
 configure_ess(struct wpa_ctrl *ctrl, int nwid)
 {
-	char reply[4096];
+	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
 	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
@@ -810,27 +798,17 @@ configure_ess(struct wpa_ctrl *ctrl, int nwid)
 int
 update_config(struct wpa_ctrl *ctrl)
 {
-	char reply[4096];
+	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
-	if (wpa_ctrl_request(ctrl, "SET update_config 1",
-		sizeof("SET update_config 1") - 1, reply, &reply_len,
-		NULL) != 0)
-		return (1);
-
-	reply[reply_len] = '\0';
-	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+		"SET update_config 1") != 0) {
 		warnx("(wpa_ctrl) failed to set update_config=1");
 		return (1);
 	}
 
 	reply_len = sizeof(reply) - 1;
-	if (wpa_ctrl_request(ctrl, "SAVE_CONFIG", sizeof("SAVE_CONFIG") - 1,
-		reply, &reply_len, NULL) != 0)
-		return (1);
-
-	reply[reply_len] = '\0';
-	if (strncmp(reply, "OK", sizeof("OK") - 1) != 0) {
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "SAVE_CONFIG") != 0) {
 		warnx("(wpa_ctrl) failed to save config");
 		return (1);
 	}
@@ -882,14 +860,13 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 int
 cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	char reply[4096];
-	size_t reply_len = sizeof(reply);
+	char reply[WPA_ACK_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
 
 	(void)argc;
 	(void)argv;
 
-	if (wpa_ctrl_request(ctrl, "DISCONNECT", strlen("DISCONNECT"), reply,
-		&reply_len, NULL) != 0) {
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "DISCONNECT") != 0) {
 		warnx("failed to disconnect");
 		return (1);
 	}
@@ -987,7 +964,7 @@ static int
 configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid, const char *identity,
     const char *password)
 {
-	char reply[4096];
+	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 	int ret = 0;
 
@@ -1114,18 +1091,17 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 static int
 get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid)
 {
-	char buf[4096];
-	size_t buf_len = sizeof(buf);
-	size_t len = snprintf(buf, buf_len, "BSS %s MASK=%x", bssid,
-	    WPA_BSS_MASK_FREQ);
+	char reply[sizeof("freq=") + WPA_INT32_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
 	int freq = 0;
 
-	if (wpa_ctrl_request(ctrl, buf, len, buf, &buf_len, NULL) != 0) {
+	if (wpa_ctrl_requestf(ctrl, reply, &reply_len, "BSS %s MASK=%x", bssid,
+		WPA_BSS_MASK_FREQ) != 0) {
 		warnx("failed to disconnect");
 		return (0);
 	}
 
-	if (sscanf(buf, "freq=%d", &freq) != 1)
+	if (sscanf(reply, "freq=%d", &freq) != 1)
 		return (0);
 
 	return (freq);
@@ -1134,8 +1110,8 @@ get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid)
 int
 cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	char reply[4096];
-	size_t reply_len = sizeof(reply);
+	char reply[WPA_MAX_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
 	const char *ssid = NULL;
 	const char *bssid = NULL;
 	const char *ip_address = NULL;
@@ -1305,7 +1281,7 @@ template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 static enum security
 known_network_security(struct wpa_ctrl *ctrl, int nwid)
 {
-	char reply[4096];
+	char reply[WPA_MAX_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
 	if (wpa_ctrl_requestf(ctrl, reply, &reply_len,
@@ -1321,7 +1297,7 @@ known_network_security(struct wpa_ctrl *ctrl, int nwid)
 static bool
 is_hidden_network(struct wpa_ctrl *ctrl, int nwid)
 {
-	char reply[2]; /* normally 0/1 response */
+	char reply[WPA_BIN_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
 	if (wpa_ctrl_requestf(ctrl, reply, &reply_len,
@@ -1336,7 +1312,7 @@ get_network_priority(struct wpa_ctrl *ctrl, int nwid)
 {
 	int priority;
 	char *endptr;
-	char reply[16];
+	char reply[WPA_INT32_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
 	if (wpa_ctrl_requestf(ctrl, reply, &reply_len,
@@ -1437,7 +1413,7 @@ cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 	struct known_network *nw, *nw_tmp;
 	struct known_networks *nws = NULL;
 	const char *ssid;
-	char reply[5]; /* OK or FAIL response */
+	char reply[WPA_MAX_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
 	if (argc < 2) {
@@ -1486,7 +1462,7 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 	int priority = 0;
 	bool set_priority = false;
 	enum { UNCHANGED, YES, NO } autoconnect = UNCHANGED;
-	char reply[5]; /* OK or FAIL response */
+	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 	char *endptr;
 	const char *ssid;
