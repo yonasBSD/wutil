@@ -139,7 +139,7 @@ cmd_interface_set(struct ifconfig_handle *lifh, int argc, char **argv)
 	if (optind == 1) {
 		warnx("no options were provided");
 		usage_interface(stderr, true);
-		return 1;
+		return (1);
 	}
 
 	argc -= optind;

@@ -290,10 +290,10 @@ caps_to_str(int capinfo, char *capstr)
 			*cp++ += caps[i].c;
 	}
 	if (cp == NULL)
-		return NULL;
+		return (NULL);
 	*cp = '\0';
 
-	return capstr;
+	return (capstr);
 }
 
 static int
@@ -318,39 +318,39 @@ freq_to_chan(uint16_t freq, uint16_t flags)
 	(37 + ((freq * 10) + ((freq % 5) == 2 ? 5 : 0) - 49400) / 5)
 
 	if (flags & IEEE80211_CHAN_GSM)
-		return map_gsm_freq(freq, flags);
+		return (map_gsm_freq(freq, flags));
 	if (flags & IEEE80211_CHAN_2GHZ) { /* 2GHz band */
 		if (freq == 2484)
-			return 14;
+			return (14);
 		if (freq < 2484)
 			return ((int)freq - 2407) / 5;
 		else
-			return 15 + ((freq - 2512) / 20);
+			return (15 + ((freq - 2512) / 20));
 	} else if (flags & IEEE80211_CHAN_5GHZ) { /* 5Ghz band */
 		if (freq <= 5000) {
 			/* XXX check regdomain? */
 			if (IS_FREQ_IN_PSB(freq))
-				return MAPPSB(freq);
-			return (freq - 4000) / 5;
+				return (MAPPSB(freq));
+			return ((freq - 4000) / 5);
 		} else
-			return (freq - 5000) / 5;
+			return ((freq - 5000) / 5);
 	} else { /* either, guess */
 		if (freq == 2484)
-			return 14;
+			return (14);
 		if (freq < 2484) {
 			if (907 <= freq && freq <= 922)
-				return map_gsm_freq(freq, flags);
-			return ((int)freq - 2407) / 5;
+				return (map_gsm_freq(freq, flags));
+			return (((int)freq - 2407) / 5);
 		}
 		if (freq < 5000) {
 			if (IS_FREQ_IN_PSB(freq))
-				return MAPPSB(freq);
+				return (MAPPSB(freq));
 			else if (freq > 4900)
-				return (freq - 4000) / 5;
+				return ((freq - 4000) / 5);
 			else
-				return 15 + ((freq - 2512) / 20);
+				return (15 + ((freq - 2512) / 20));
 		}
-		return (freq - 5000) / 5;
+		return ((freq - 5000) / 5);
 	}
 #undef IS_FREQ_IN_PSB
 #undef MAPPSB
@@ -528,7 +528,7 @@ wpa_ctrl_default_path(void)
 	DIR *dirp = opendir(run_dir);
 
 	if (dirp == NULL)
-		return NULL;
+		return (NULL);
 
 	for (struct dirent *entry = readdir(dirp); entry != NULL;
 	    entry = readdir(dirp)) {
@@ -1299,10 +1299,10 @@ known_network_security(struct wpa_ctrl *ctrl, int nwid)
 		"GET_NETWORK %d key_mgmt", nwid) != 0)
 		return (SEC_NA);
 
-	return strstr(reply, "PSK") != NULL ? SEC_PSK :
-	    strstr(reply, "EAP") != NULL    ? SEC_EAP :
-	    strstr(reply, "NONE") != NULL   ? SEC_OPEN :
-					      SEC_NA;
+	return (strstr(reply, "PSK") != NULL  ? SEC_PSK :
+		strstr(reply, "EAP") != NULL  ? SEC_EAP :
+		strstr(reply, "NONE") != NULL ? SEC_OPEN :
+						SEC_NA);
 }
 
 static bool
@@ -1519,7 +1519,7 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 	if (optind == 1) {
 		warnx("no options were provided");
 		usage_known_networks(stderr, true);
-		return 1;
+		return (1);
 	}
 
 	argc -= optind;
