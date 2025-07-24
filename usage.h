@@ -14,6 +14,7 @@ void usage(FILE *fout);
 void usage_interface(FILE *fout, bool usage_str);
 void usage_known_networks(FILE *fout, bool usage_str);
 void usage_station(FILE *fout, bool usage_str);
+void usage_tui(FILE *fout);
 
 typedef void(usage_f)(FILE *, bool);
 

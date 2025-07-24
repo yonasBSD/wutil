@@ -930,7 +930,7 @@ template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 
 	if (wpa_ctrl_path == NULL) {
 		warn(
-		    "no ctrl interfaces on default paths, provide --ctrl-interface");
+		    "no wpa ctrl interface on default path, provide --ctrl-interface");
 		return (1);
 	}
 
@@ -948,7 +948,7 @@ template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 	}
 
 	if ((ctrl = wpa_ctrl_open(wpa_ctrl_path)) == NULL) {
-		warn("failed to open wpa_supplicant ctrl_interface, %s",
+		warn("failed to open wpa_supplicant control interface, %s",
 		    wpa_ctrl_path);
 		return (1);
 	}

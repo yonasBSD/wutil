@@ -54,3 +54,12 @@ usage_station(FILE *fout, bool usage_str)
 	    "\t  [-i <id>] [-p <password>] [-h] <ssid> [password]\n",
 	    usage_str ? "Usage:" : "");
 }
+
+void
+usage_tui(FILE *fout)
+{
+	fprintf(fout,
+	    "Usage:"
+	    "\twutil [-h | --help]\n"
+	    "\twutui [--ctrl-interface <path> | -c <path>]\n");
+}
