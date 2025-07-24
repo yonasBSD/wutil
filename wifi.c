@@ -761,29 +761,22 @@ get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid)
 	return (freq);
 }
 
-int
-cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
+struct supplicant_status *
+get_supplicant_status(struct wpa_ctrl *ctrl)
 {
 	char reply[WPA_MAX_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
-	const char *ssid = NULL;
-	const char *bssid = NULL;
-	const char *ip_address = NULL;
-	const char *supplicant_state = NULL;
-	const char *security = NULL;
-
-	if (argc > 1) {
-		warnx("bad value %s", argv[1]);
-		return (1);
-	}
+	struct supplicant_status *status;
 
 	if (wpa_ctrl_request(ctrl, "STATUS", strlen("STATUS"), reply,
 		&reply_len, NULL) != 0) {
 		warnx("failed to disconnect");
-		return (1);
+		return (NULL);
 	}
-
 	reply[reply_len] = '\0';
+
+	if ((status = calloc(1, sizeof(*status))) == NULL)
+		return (NULL);
 
 	for (char *brkn, *line = strtok_r(reply, "\n", &brkn); line != NULL;
 	    line = strtok_r(NULL, "\n", &brkn)) {
@@ -791,28 +784,61 @@ cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 		/* key=value */
 		char *key = strtok_r(line, "=", &brkt);
 		char *value = strtok_r(NULL, "=", &brkt);
+		char **status_key = strcmp(key, "bssid") == 0 ? &status->bssid :
+		    strcmp(key, "ssid") == 0		      ? &status->ssid :
+		    strcmp(key, "ip_address") == 0 ? &status->ip_address :
+		    strcmp(key, "wpa_state") == 0  ? &status->state :
+		    strcmp(key, "key_mgmt") == 0   ? &status->security :
+						     NULL;
 
-		if (strcmp(key, "bssid") == 0)
-			bssid = value;
-		else if (strcmp(key, "ssid") == 0)
-			ssid = value;
-		else if (strcmp(key, "ip_address") == 0)
-			ip_address = value;
-		else if (strcmp(key, "wpa_state") == 0)
-			supplicant_state = value;
+		if (status_key != NULL &&
+		    (*status_key = strdup(value)) == NULL) {
+			free_supplicant_status(status);
+			return (NULL);
+		}
 	}
 
-	printf("%21s: %s\n", "wpa_supplicant Status", supplicant_state);
-	if (bssid != NULL) {
-		printf("%21s: %s\n", "Connected BSSID", bssid);
-		printf("%21s: %d\n", "Frequency", get_bss_freq(ctrl, bssid));
+	return (status);
+}
+
+void
+free_supplicant_status(struct supplicant_status *status)
+{
+	free(status->state);
+	free(status->bssid);
+	free(status->ssid);
+	free(status->ip_address);
+	free(status->security);
+	free(status);
+}
+
+int
+cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	struct supplicant_status *status = NULL;
+
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
 	}
-	if (ssid != NULL)
-		printf("%21s: %s\n", "Connected SSID", ssid);
-	if (ip_address != NULL)
-		printf("%21s: %s\n", "IP Address", ip_address);
-	if (security != NULL)
-		printf("%21s: %s\n", "Security", security);
+
+	if ((status = get_supplicant_status(ctrl)) == NULL) {
+		warnx("failed retrieve wpa_supplicant status");
+		return (1);
+	}
+
+	printf("%21s: %s\n", "wpa_supplicant Status", status->state);
+	if (status->bssid != NULL) {
+		printf("%21s: %s\n", "Connected BSSID", status->bssid);
+		printf("%21s: %d\n", "Frequency",
+		    get_bss_freq(ctrl, status->bssid));
+	}
+	if (status->ssid != NULL)
+		printf("%21s: %s\n", "Connected SSID", status->ssid);
+	if (status->ip_address != NULL)
+		printf("%21s: %s\n", "IP Address", status->ip_address);
+	if (status->security != NULL)
+		printf("%21s: %s\n", "Security", status->security);
 
 	return (0);
 }

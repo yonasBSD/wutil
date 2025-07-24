@@ -42,6 +42,17 @@ struct scan_result {
 
 STAILQ_HEAD(scan_results, scan_result);
 
+struct supplicant_status {
+	char *state;
+	char *bssid;
+	char *ssid;
+	char *ip_address;
+	char *security;
+};
+
+struct supplicant_status *get_supplicant_status(struct wpa_ctrl *);
+void free_supplicant_status(struct supplicant_status *);
+
 typedef int (*wpa_cmd_handler_f)(struct wpa_ctrl *ctrl, int argc, char **argv);
 
 struct wpa_command {
