@@ -15,21 +15,8 @@
 
 #include <stdio.h>
 #include <wpa_ctrl.h>
+
 #include "usage.h"
-
-struct wifi_network {
-	char *ssid;
-	char *bssid;
-	char *capabilities;
-	int channel;
-	int data_rate;
-	int signal_dbm;
-	int noise_dbm;
-	int beacon_interval;
-	STAILQ_ENTRY(wifi_network) next;
-};
-
-STAILQ_HEAD(wifi_network_list, wifi_network);
 
 struct known_network {
 	int id;
@@ -64,15 +51,6 @@ struct wpa_command {
 
 int template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
     size_t cmds_len, usage_f usage_handler);
-
-void scan_and_wait_ioctl(int route_socket, const char *iface);
-struct wifi_network_list *get_scan_results_ioctl(int route_socket,
-    const char *ifname);
-void free_wifi_network(struct wifi_network *network);
-void free_wifi_network_list(struct wifi_network_list *);
-
-int set_ssid(const char *ifname, const char *ssid);
-int get_ssid(const char *ifname, char *ssid, int ssid_len);
 
 char *wpa_ctrl_default_path(void);
 int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);

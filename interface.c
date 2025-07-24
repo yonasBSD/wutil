@@ -11,6 +11,7 @@
 
 #include <net/if.h>
 #include <net/if_dl.h>
+#include <net/ethernet.h>
 #include <netinet/in.h>
 
 #include <arpa/inet.h>
@@ -25,7 +26,6 @@
 
 #include "interface.h"
 #include "libifconfig.h"
-#include "usage.h"
 #include "utils.h"
 
 struct interface_command interface_cmds[2] = {
@@ -35,6 +35,10 @@ struct interface_command interface_cmds[2] = {
 
 static char *parse_interface_arg(int argc, char **argv, int max_argc);
 
+static void is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
+    void *udata);
+static enum connection_state get_connection_state(struct ifconfig_handle *lifh,
+    struct ifaddrs *ifa);
 static void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 static void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
@@ -100,6 +104,56 @@ parse_interface_arg(int argc, char **argv, int max_argc)
 	}
 
 	return (argv[2]);
+}
+
+static void
+is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
+{
+	bool *is_af_inet = udata;
+
+	(void)lifh;
+
+	if (is_af_inet == NULL)
+		return;
+
+	if (ifa->ifa_addr->sa_family == AF_INET ||
+	    ifa->ifa_addr->sa_family == AF_INET6) {
+		*is_af_inet = true;
+	}
+}
+
+static enum connection_state
+get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
+{
+	bool is_interface_online = false;
+	struct ifmediareq *ifmr;
+	enum connection_state state = NA;
+	const char *status;
+
+	if (lifh == NULL || ifa == NULL)
+		return (NA);
+
+	ifconfig_foreach_ifaddr(lifh, ifa, is_ifaddr_af_inet,
+	    &is_interface_online);
+
+	if (ifconfig_media_get_mediareq(lifh, ifa->ifa_name, &ifmr) != 0)
+		return (NA);
+
+	status = ifconfig_media_get_status(ifmr);
+	if (strncmp("wlan", ifa->ifa_name, strlen("wlan")) == 0) {
+		state = (ifa->ifa_flags & IFF_UP) == 0 ? DISABLED :
+		    strcmp(status, "associated") == 0 && is_interface_online ?
+							 CONNECTED :
+							 DISCONNECTED;
+	} else if (strcmp(status, "active") == 0) {
+		state = is_interface_online ? CONNECTED : DISCONNECTED;
+	} else {
+		state = UNPLUGGED;
+	}
+
+	free(ifmr);
+
+	return (state);
 }
 
 static void
