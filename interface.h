@@ -19,11 +19,10 @@ struct interface_command {
 	iface_cmd_handler_f handler;
 };
 
-extern struct interface_command interface_cmds[3];
+extern struct interface_command interface_cmds[2];
 
 int cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv);
 int cmd_interface_show(struct ifconfig_handle *lifh, int argc, char **argv);
-int cmd_interface_set(struct ifconfig_handle *lifh, int argc, char **argv);
 
 bool is_wlan_group(struct ifconfig_handle *lifh, const char *ifname);
 int get_iface_parent(const char *ifname, int ifname_len, char *buf,
