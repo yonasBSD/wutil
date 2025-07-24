@@ -9,9 +9,9 @@
 #include <sys/socket.h>
 #include <sys/sysctl.h>
 
+#include <net/ethernet.h>
 #include <net/if.h>
 #include <net/if_dl.h>
-#include <net/ethernet.h>
 #include <netinet/in.h>
 
 #include <arpa/inet.h>
@@ -26,11 +26,26 @@
 
 #include "interface.h"
 #include "libifconfig.h"
-#include "utils.h"
 
 struct interface_command interface_cmds[2] = {
 	{ "list", cmd_interface_list },
 	{ "show", cmd_interface_show },
+};
+
+enum connection_state {
+	CONNECTED,
+	DISCONNECTED,
+	UNPLUGGED,
+	DISABLED,
+	NA,
+};
+
+static const char *connection_state_to_string[] = {
+	[CONNECTED] = "Connected",
+	[DISCONNECTED] = "Disconnected",
+	[UNPLUGGED] = "Unplugged",
+	[DISABLED] = "Disabled",
+	[NA] = "N/A",
 };
 
 static char *parse_interface_arg(int argc, char **argv, int max_argc);
