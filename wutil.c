@@ -16,9 +16,9 @@
 #include <unistd.h>
 #include <wpa_ctrl.h>
 
-#include "ieee80211.h"
 #include "interface.h"
 #include "usage.h"
+#include "wifi.h"
 
 typedef int (*cmd_handler_f)(int argc, char **argv);
 

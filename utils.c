@@ -35,8 +35,8 @@
 #include <strings.h>
 #include <unistd.h>
 
-#include "ieee80211.h"
 #include "utils.h"
+#include "wifi.h"
 
 static int configure_ip(const char *ifname,
     struct network_configuration *config);

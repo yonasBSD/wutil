@@ -1,7 +1,7 @@
 PROGS=	wutil wutui
 
-SRCS.wutil=	wutil.c usage.c utils.c ieee80211.c interface.c
-SRCS.wutui=	wutui.c usage.c utils.c ieee80211.c interface.c
+SRCS.wutil=	wutil.c usage.c utils.c wifi.c interface.c
+SRCS.wutui=	wutui.c usage.c utils.c wifi.c interface.c
 
 LDADD=	-lifconfig -l80211 -lwpa_client
 

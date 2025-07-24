@@ -20,8 +20,8 @@
 #include <unistd.h>
 
 #include "ctl_seq.h"
-#include "ieee80211.h"
 #include "utils.h"
+#include "wifi.h"
 
 static int fetch_size(void);
 static void render(void);
