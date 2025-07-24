@@ -60,6 +60,9 @@ static void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 static void get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata);
+static bool is_wlan_group(struct ifconfig_handle *lifh, const char *ifname);
+static int get_iface_parent(const char *ifname, int ifname_len, char *buf,
+    int buf_len);
 
 int
 cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv)
@@ -292,7 +295,7 @@ get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
 		memcpy(ea, LLADDR(sdl), ETHER_ADDR_LEN);
 }
 
-bool
+static bool
 is_wlan_group(struct ifconfig_handle *lifh, const char *ifname)
 {
 	struct ifgroupreq ifgr;
@@ -316,7 +319,7 @@ is_wlan_group(struct ifconfig_handle *lifh, const char *ifname)
 	return (false);
 }
 
-int
+static int
 get_iface_parent(const char *ifname, int ifname_len, char *buf, int buf_len)
 { /* assumes ifname[ifname_len] == '\0' */
 	char name[32];
