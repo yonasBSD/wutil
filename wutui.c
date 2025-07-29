@@ -10,6 +10,7 @@
 #include <err.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,6 +40,9 @@ static void cook_tty(void);
 static void uncook_tty(void);
 static void enter_alt_buffer(void);
 static void leave_alt_buffer(void);
+
+void die(const char *, ...);
+void diex(const char *, ...);
 
 int
 main(int argc, char *argv[])
@@ -153,13 +157,34 @@ enter_alt_buffer(void)
 {
 	if (dprintf(wutui.tty,
 		ALT_BUF_ON CURSOR_HIDE ERASE_IN_DISPLAY(ERASE_ENTIRE)
-		    CURSOR_MOVE(1, 1)) < 0) {
-		err(EXIT_FAILURE, "dprintf");
-	}
+		    CURSOR_MOVE(1, 1)) < 0)
+		die("dprintf");
 }
 
 static void
 leave_alt_buffer(void)
 {
 	dprintf(wutui.tty, ALT_BUF_OFF CURSOR_SHOW);
+}
+
+void
+die(const char *fmt, ...)
+{
+	leave_alt_buffer();
+
+	va_list ap;
+	va_start(ap, fmt);
+	verr(EXIT_FAILURE, fmt, ap);
+	va_end(ap);
+}
+
+void
+diex(const char *fmt, ...)
+{
+	leave_alt_buffer();
+
+	va_list ap;
+	va_start(ap, fmt);
+	verrx(EXIT_FAILURE, fmt, ap);
+	va_end(ap);
 }
