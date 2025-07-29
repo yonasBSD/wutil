@@ -36,6 +36,9 @@ static void parse_args(int argc, char *argv[], const char **ctrl_path);
 static void init_wutui(const char *ctrl_path);
 static void deinit_wutui(void);
 
+static int fetch_cursor_position(short *row, short *col);
+static int fetch_winsize(void);
+
 static void cook_tty(void);
 static void uncook_tty(void);
 static void enter_alt_buffer(void);
@@ -112,6 +115,9 @@ init_wutui(const char *ctrl_path)
 		err(EXIT_FAILURE, "tcgetattr()");
 
 	uncook_tty();
+
+	if (fetch_winsize() == -1)
+		err(EXIT_FAILURE, "failed to fetch terminal winsize");
 }
 
 static void
@@ -124,6 +130,42 @@ deinit_wutui(void)
 	close(wutui.kq);
 
 	wpa_ctrl_close(wutui.ctrl);
+}
+
+static int
+fetch_cursor_position(short *row, short *col)
+{
+	char buf[32] = "";
+
+	if (dprintf(wutui.tty, CURSOR_POS) < 0)
+		return (-1);
+
+	/* Reply: ESC[<row>;<col>R */
+	for (size_t i = 0; i < sizeof(buf) - 1; i++) {
+		if (read(wutui.tty, &buf[i], 1) != 1 || buf[i] == 'R')
+			break;
+	}
+
+	if (buf[0] != CSI[0] || buf[1] != CSI[1] ||
+	    sscanf(&buf[2], "%hd;%hd", row, col) != 2)
+		return (-1);
+
+	return (0);
+}
+
+static int
+fetch_winsize(void)
+{
+	if (ioctl(wutui.tty, TIOCGWINSZ, &wutui.winsize) == -1 ||
+	    wutui.winsize.ws_col == 0) {
+		if (dprintf(wutui.tty, CURSOR_FORWARD(999) CURSOR_DOWN(999)) <
+		    0)
+			return (-1);
+		return (fetch_cursor_position(&wutui.winsize.ws_row,
+		    &wutui.winsize.ws_col));
+	}
+
+	return (0);
 }
 
 static void
