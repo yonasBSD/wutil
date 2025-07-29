@@ -7,25 +7,65 @@
 #ifndef CTL_SEQ_H
 #define CTL_SEQ_H
 
-#define ESC "\x1B"
-#define CSI ESC "["
-#define ON  "h"
-#define OFF "l"
+#define STR(x)		   #x
+#define XSTR(x)		   STR(x)
 
-static const char ALT_BUFFER_ON[] = CSI "?1049" ON;
-static const char ALT_BUFFER_OFF[] = CSI "?1049" OFF;
-static const char CLEAR_SCREEN[] = CSI "2J";
-static const char CURSOR_HOME[] = CSI "H";
-static const char CURSOR_SHOW[] = CSI "?25" ON;
-static const char CURSOR_HIDE[] = CSI "?25" OFF;
-static const char BOLD[] = CSI "1m";
-static const char RESET[] = CSI "0m";
-static const char FG_GREEN[] = CSI "32m";
-static const char FG_WHITE[] = CSI "37m";
-static const char FG_YELLOW[] = CSI "33m";
-static const char BG_BLACK[] = CSI "40m";
-static const char BG_GRAY[] = CSI "100m";
-static const char UNDERLINE[] = CSI "4m";
-static const char NO_UNDERLINE[] = CSI "24m";
+#define ESC		   "\x1B"
+#define CSI		   ESC "["
+
+#define DEC_SET(x)	   CSI "?" XSTR(x) "h"
+#define DEC_RESET(x)	   CSI "?" XSTR(x) "l"
+
+#define CURSOR_SHOW	   DEC_SET(25)
+#define CURSOR_HIDE	   DEC_RESET(25)
+
+#define ALT_BUF_ON	   DEC_SET(1049)
+#define ALT_BUF_OFF	   DEC_RESET(1049)
+
+#define CURSOR_UP(x)	   CSI XSTR(x) "A"
+#define CURSOR_DOWN(x)	   CSI XSTR(x) "B"
+#define CURSOR_FORWARD(x)  CSI XSTR(x) "C"
+#define CURSOR_BACK(x)	   CSI XSTR(x) "D"
+
+#define SAVE_CURSOR_POS	   CSI "s"
+#define RESTORE_CURSOR_POS CSI "u"
+
+#define STATUS_REPORT(x)   CSI XSTR(x) "n"
+#define CURSOR_POS	   STATUS_REPORT(6)
+
+#define CURSOR_MOVE(x, y)  CSI XSTR(x) ";" XSTR(y) "H"
+#define CURSOR_MOVE_FMT \
+	CSI "%d"        \
+	    ";"         \
+	    "%d"        \
+	    "H"
+
+#define ERASE_IN_DISPLAY(x) CSI XSTR(x) "J"
+#define ERASE_IN_LINE(x)    CSI XSTR(x) "K"
+#define ERASE_TO_END	    0
+#define ERASE_TO_BEGINNING  1
+#define ERASE_ENTIRE	    2
+
+#define SGR(x)		    CSI XSTR(x) "m"
+#define RESET_SGR	    SGR(0)
+#define BOLD		    SGR(1)
+#define INVERT		    SGR(7)
+
+#define BLACK		    0
+#define RED		    1
+#define GREEN		    2
+#define YELLOW		    3
+#define BLUE		    4
+#define MAGENTA		    5
+#define CYAN		    6
+#define WHITE		    7
+
+#define FG		    3
+#define BG		    4
+#define FG_BRIGHT	    9
+#define BG_BRIGHT	    10
+
+#define CAT(A, B)	    A##B
+#define COLOR(type, color)  SGR(CAT(type, color))
 
 #endif /* !CTL_SEQ_H */
