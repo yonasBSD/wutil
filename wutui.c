@@ -10,6 +10,7 @@
 #include <err.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,6 +39,7 @@ static void deinit_wutui(void);
 
 static int fetch_cursor_position(short *row, short *col);
 static int fetch_winsize(void);
+static void on_sig_winch(int signo);
 
 static void cook_tty(void);
 static void uncook_tty(void);
@@ -99,8 +101,15 @@ static void
 init_wutui(const char *ctrl_path)
 {
 	wutui.tty = wutui.kq = -1;
+	struct sigaction sa = { 0 };
 
 	atexit(deinit_wutui);
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sa.sa_handler = on_sig_winch;
+	if (sigaction(SIGWINCH, &sa, 0) == -1)
+		err(EXIT_FAILURE, "sigaction SIGWINCH");
 
 	if ((wutui.ctrl = wpa_ctrl_open(ctrl_path)) == NULL) {
 		err(EXIT_FAILURE,
@@ -166,6 +175,15 @@ fetch_winsize(void)
 	}
 
 	return (0);
+}
+
+static void
+on_sig_winch(int signo)
+{
+	(void)signo;
+
+	if (fetch_winsize() == -1)
+		die("failed to fetch terminal winsize");
 }
 
 static void
