@@ -21,6 +21,7 @@
 #include <wpa_ctrl.h>
 
 #include "ctl_seq.h"
+#include "ctrl_seq.h"
 #include "usage.h"
 #include "wifi.h"
 

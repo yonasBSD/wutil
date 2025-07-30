@@ -4,13 +4,14 @@
  * Copyright (c) 2025, Muhammad Saheed <saheed@FreeBSD.org>
  */
 
-#ifndef CTL_SEQ_H
-#define CTL_SEQ_H
+#ifndef CTRL_SEQ_H
+#define CTRL_SEQ_H
 
 #define STR(x)		   #x
 #define XSTR(x)		   STR(x)
 
 #define ESC		   "\x1B"
+#define ESC_CHAR	   '\x1B'
 #define CSI		   ESC "["
 
 #define DEC_SET(x)	   CSI "?" XSTR(x) "h"
@@ -47,6 +48,7 @@
 #define ERASE_ENTIRE	    2
 
 #define SGR(x)		    CSI XSTR(x) "m"
+#define SGR_FMT		    CSI "%dm"
 #define RESET_SGR	    SGR(0)
 #define BOLD		    SGR(1)
 #define INVERT		    SGR(7)
@@ -67,5 +69,7 @@
 
 #define CAT(A, B)	    A##B
 #define COLOR(type, color)  SGR(CAT(type, color))
+#define DEFAULT_FG	    COLOR(FG, 9)
+#define DEFAULT_BG	    COLOR(BG, 9)
 
-#endif /* !CTL_SEQ_H */
+#endif /* !CTRL_SEQ_H */
