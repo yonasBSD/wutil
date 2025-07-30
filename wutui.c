@@ -4,7 +4,9 @@
  * Copyright (c) 2025, Muhammad Saheed <saheed@FreeBSD.org>
  */
 
+#include <sys/types.h>
 #include <sys/event.h>
+#include <sys/sbuf.h>
 #include <sys/socket.h>
 
 #include <err.h>
@@ -43,8 +45,8 @@ static int fetch_cursor_position(short *row, short *col);
 static int fetch_winsize(void);
 static void on_sig_winch(int signo);
 
-static void cook_tty(void);
-static void uncook_tty(void);
+static void disable_raw_mode(void);
+static void enter_raw_mode(void);
 static void enter_alt_buffer(void);
 static void leave_alt_buffer(void);
 
@@ -69,6 +71,9 @@ main(int argc, char *argv[])
 	}
 
 	init_wutui(ctrl_path);
+	enter_raw_mode();
+	enter_alt_buffer();
+
 	event_loop();
 
 	return (EXIT_SUCCESS);
@@ -140,8 +145,6 @@ init_wutui(const char *ctrl_path)
 	if (tcgetattr(wutui.tty, &wutui.cooked) == -1)
 		err(EXIT_FAILURE, "tcgetattr()");
 
-	uncook_tty();
-
 	if (fetch_winsize() == -1)
 		err(EXIT_FAILURE, "failed to fetch terminal winsize");
 }
@@ -150,7 +153,7 @@ static void
 deinit_wutui(void)
 {
 	if (wutui.tty != -1)
-		cook_tty();
+		disable_raw_mode();
 
 	close(wutui.tty);
 	close(wutui.kq);
@@ -199,8 +202,9 @@ event_loop(void)
 
 			buf[len] = '\0';
 			dprintf(wutui.tty,
-			    COLOR(BG_BRIGHT, RED) COLOR(FG, YELLOW) ERASE_IN_LINE(
-				ERASE_TO_BEGINNING) "%s\r\n" RESET_SGR,
+			    COLOR(BG_BRIGHT, RED) COLOR(FG, YELLOW)
+				ERASE_IN_LINE(
+				    ERASE_TO_BEGINNING) "%s\r\n" RESET_SGR,
 			    buf);
 		}
 	}
@@ -251,16 +255,14 @@ on_sig_winch(int signo)
 }
 
 static void
-cook_tty(void)
+disable_raw_mode(void)
 {
 	if (tcsetattr(wutui.tty, TCSAFLUSH, &wutui.cooked) == -1)
 		err(EXIT_FAILURE, "tcsetattr()");
-
-	leave_alt_buffer();
 }
 
 static void
-uncook_tty(void)
+enter_raw_mode(void)
 {
 	struct termios raw = wutui.cooked;
 
@@ -272,8 +274,6 @@ uncook_tty(void)
 
 	if (tcsetattr(wutui.tty, TCSAFLUSH, &raw) == -1)
 		err(EXIT_FAILURE, "tcsetattr()");
-
-	enter_alt_buffer();
 }
 
 static void
@@ -334,6 +334,7 @@ process_keypress(void)
 
 	switch (c) {
 	case 'q':
+		leave_alt_buffer();
 		exit(EXIT_SUCCESS);
 		break;
 	default:
