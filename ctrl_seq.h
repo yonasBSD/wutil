@@ -7,39 +7,35 @@
 #ifndef CTRL_SEQ_H
 #define CTRL_SEQ_H
 
-#define STR(x)		   #x
-#define XSTR(x)		   STR(x)
+#define STR(x)		    #x
+#define XSTR(x)		    STR(x)
 
-#define ESC		   "\x1B"
-#define ESC_CHAR	   '\x1B'
-#define CSI		   ESC "["
+#define ESC		    "\x1B"
+#define ESC_CHAR	    '\x1B'
+#define CSI		    ESC "["
 
-#define DEC_SET(x)	   CSI "?" XSTR(x) "h"
-#define DEC_RESET(x)	   CSI "?" XSTR(x) "l"
+#define DEC_SET(x)	    CSI "?" XSTR(x) "h"
+#define DEC_RESET(x)	    CSI "?" XSTR(x) "l"
 
-#define CURSOR_SHOW	   DEC_SET(25)
-#define CURSOR_HIDE	   DEC_RESET(25)
+#define CURSOR_SHOW	    DEC_SET(25)
+#define CURSOR_HIDE	    DEC_RESET(25)
 
-#define ALT_BUF_ON	   DEC_SET(1049)
-#define ALT_BUF_OFF	   DEC_RESET(1049)
+#define ALT_BUF_ON	    DEC_SET(1049)
+#define ALT_BUF_OFF	    DEC_RESET(1049)
 
-#define CURSOR_UP(x)	   CSI XSTR(x) "A"
-#define CURSOR_DOWN(x)	   CSI XSTR(x) "B"
-#define CURSOR_FORWARD(x)  CSI XSTR(x) "C"
-#define CURSOR_BACK(x)	   CSI XSTR(x) "D"
+#define CURSOR_UP(x)	    CSI XSTR(x) "A"
+#define CURSOR_DOWN(x)	    CSI XSTR(x) "B"
+#define CURSOR_FORWARD(x)   CSI XSTR(x) "C"
+#define CURSOR_BACK(x)	    CSI XSTR(x) "D"
 
-#define SAVE_CURSOR_POS	   CSI "s"
-#define RESTORE_CURSOR_POS CSI "u"
+#define SAVE_CURSOR_POS	    CSI "s"
+#define RESTORE_CURSOR_POS  CSI "u"
 
-#define STATUS_REPORT(x)   CSI XSTR(x) "n"
-#define CURSOR_POS	   STATUS_REPORT(6)
+#define STATUS_REPORT(x)    CSI XSTR(x) "n"
+#define CURSOR_POS	    STATUS_REPORT(6)
 
-#define CURSOR_MOVE(x, y)  CSI XSTR(x) ";" XSTR(y) "H"
-#define CURSOR_MOVE_FMT \
-	CSI "%d"        \
-	    ";"         \
-	    "%d"        \
-	    "H"
+#define CURSOR_MOVE(x, y)   CSI XSTR(x) ";" XSTR(y) "H"
+#define CURSOR_MOVE_FMT	    CSI "%d;%dH"
 
 #define ERASE_IN_DISPLAY(x) CSI XSTR(x) "J"
 #define ERASE_IN_LINE(x)    CSI XSTR(x) "K"
