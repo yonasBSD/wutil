@@ -43,6 +43,7 @@ static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
 static enum security known_network_security(struct wpa_ctrl *ctrl, int nwid);
 static bool is_hidden_network(struct wpa_ctrl *ctrl, int nwid);
 static int get_network_priority(struct wpa_ctrl *ctrl, int nwid);
+static int remove_network(struct wpa_ctrl *ctrl, int nwid);
 
 #define WPA_MAX_REPLY_SIZE   4096
 #define WPA_BIN_REPLY_SIZE   2	/* sizeof("0") or sizeof("1") */
@@ -725,6 +726,7 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 
 		if (config_ret != 0) {
 			warnx("failed to configure SSID");
+			remove_network(ctrl, nwid);
 			return (1);
 		}
 	}
@@ -1089,14 +1091,25 @@ cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 	return (0);
 }
 
+static int
+remove_network(struct wpa_ctrl *ctrl, int nwid)
+{
+	char reply[WPA_ACK_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "REMOVE_NETWORK %d",
+		nwid) != 0)
+		return (1);
+
+	return (0);
+}
+
 int
 cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
 	struct known_network *nw, *nw_tmp;
 	struct known_networks *nws = NULL;
 	const char *ssid;
-	char reply[WPA_MAX_REPLY_SIZE];
-	size_t reply_len = sizeof(reply) - 1;
 
 	if (argc < 2) {
 		warnx("<network> not provided");
@@ -1125,8 +1138,7 @@ cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "REMOVE_NETWORK %d",
-		nw->id) != 0) {
+	if (remove_network(ctrl, nw->id) != 0) {
 		warnx("failed to forget network %s", ssid);
 		free_known_networks(nws);
 		return (1);
