@@ -60,6 +60,9 @@ main(int argc, char *argv[])
 {
 	const char *ctrl_path = wpa_ctrl_default_path();
 
+	if (!isatty(STDIN_FILENO))
+		errx(EXIT_FAILURE, "not a TTY");
+
 	parse_args(argc, argv, &ctrl_path);
 	if (ctrl_path == NULL) {
 		errx(EXIT_FAILURE,
