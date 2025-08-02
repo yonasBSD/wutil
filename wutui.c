@@ -27,7 +27,7 @@
 #include "wifi.h"
 
 struct wutui {
-	int tty, kq;
+	int tty, wpa_fd, kq;
 	struct termios cooked;
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
@@ -40,6 +40,7 @@ static void parse_args(int argc, char *argv[], const char **ctrl_path);
 static void init_wutui(const char *ctrl_path);
 static void deinit_wutui(void);
 static void event_loop(void);
+static void render_tui(void);
 
 static int fetch_cursor_position(short *row, short *col);
 static int fetch_winsize(void);
@@ -54,7 +55,8 @@ void die(const char *, ...);
 void diex(const char *, ...);
 
 static int read_key(void);
-static void process_keypress(void);
+static void handle_input(void);
+static void handle_wpa_event(void);
 
 int
 main(int argc, char *argv[])
@@ -114,8 +116,9 @@ parse_args(int argc, char *argv[], const char **ctrl_path)
 static void
 init_wutui(const char *ctrl_path)
 {
-	wutui.tty = wutui.kq = -1;
 	struct sigaction sa = { 0 };
+
+	wutui.wpa_fd = wutui.tty = wutui.kq = -1;
 
 	atexit(deinit_wutui);
 
@@ -135,6 +138,9 @@ init_wutui(const char *ctrl_path)
 		err(EXIT_FAILURE,
 		    "failed to register to wpa_ctrl event monitor");
 	}
+
+	if ((wutui.wpa_fd = wpa_ctrl_get_fd(wutui.ctrl)) == -1)
+		err(EXIT_FAILURE, "invalid wpa_ctrl socket");
 
 	if ((wutui.kq = kqueue()) == -1)
 		err(EXIT_FAILURE, "kqueue()");
@@ -165,21 +171,20 @@ deinit_wutui(void)
 static void
 event_loop(void)
 {
-	int wpa_fd = wpa_ctrl_get_fd(wutui.ctrl);
 	struct kevent events[2], tevent;
 
-	if (wpa_fd == -1)
-		die("invalid wpa_ctrl socket");
-
 	EV_SET(&events[0], wutui.tty, EVFILT_READ, EV_ADD, 0, 0, NULL);
-	EV_SET(&events[1], wpa_fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+	EV_SET(&events[1], wutui.wpa_fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
 
 	if (kevent(wutui.kq, events, 2, NULL, 0, NULL) == -1)
 		die("kevent register");
 
 	for (;;) {
-		int nev = kevent(wutui.kq, NULL, 0, &tevent, 1, NULL);
+		int nev = -1;
 
+		render_tui();
+
+		nev = kevent(wutui.kq, NULL, 0, &tevent, 1, NULL);
 		if (nev == -1) {
 			if (errno == EINTR)
 				continue;
@@ -189,25 +194,25 @@ event_loop(void)
 		if (nev > 0 && tevent.flags & EV_ERROR)
 			diex("event error: %s", strerror(tevent.data));
 
-		if (tevent.ident == (uintptr_t)wutui.tty) {
-			process_keypress();
-		} else if (tevent.ident == (uintptr_t)wpa_fd) {
-			char buf[4096];
-			int len = recv(wpa_fd, buf, sizeof(buf) - 1, 0);
-
-			if (len == -1)
-				die("recv(wpa_fd)");
-			else if (len == 0)
-				die("wpa ctrl interface socket closed");
-
-			buf[len] = '\0';
-			dprintf(wutui.tty,
-			    COLOR(BG_BRIGHT, RED) COLOR(FG, YELLOW)
-				ERASE_IN_LINE(
-				    ERASE_TO_BEGINNING) "%s\r\n" RESET_SGR,
-			    buf);
-		}
+		if (tevent.ident == (uintptr_t)wutui.tty)
+			handle_input();
+		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
+			handle_wpa_event();
 	}
+}
+
+static void
+render_tui(void)
+{
+	struct sbuf *sb = sbuf_new_auto();
+
+	if (sbuf_finish(sb) != 0)
+		die("sbuf failed");
+
+	if (write(wutui.tty, sbuf_data(sb), sbuf_len(sb)) != sbuf_len(sb))
+		die("write");
+
+	sbuf_delete(sb);
 }
 
 static int
@@ -328,7 +333,7 @@ read_key(void)
 }
 
 static void
-process_keypress(void)
+handle_input(void)
 {
 	int c = read_key();
 
@@ -342,4 +347,22 @@ process_keypress(void)
 		    ERASE_IN_LINE(ERASE_TO_BEGINNING) "key: %c\r\n", c);
 		break;
 	}
+}
+
+static void
+handle_wpa_event(void)
+{
+	char buf[4096];
+	int len = recv(wutui.wpa_fd, buf, sizeof(buf) - 1, 0);
+
+	if (len == -1)
+		die("recv(wpa_fd)");
+	else if (len == 0)
+		die("wpa ctrl interface socket closed");
+
+	buf[len] = '\0';
+	dprintf(wutui.tty,
+	    COLOR(BG_BRIGHT, RED) COLOR(FG, YELLOW)
+		ERASE_IN_LINE(ERASE_TO_BEGINNING) "%s\r\n" RESET_SGR,
+	    buf);
 }

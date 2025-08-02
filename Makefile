@@ -3,7 +3,7 @@ PROGS=	wutil wutui
 SRCS.wutil=	wutil.c usage.c wifi.c interface.c
 SRCS.wutui=	wutui.c usage.c wifi.c interface.c
 
-LDADD=	-lifconfig -l80211 -lwpa_client
+LDADD=	-lifconfig -l80211 -lwpa_client -lsbuf
 
 MAN=	wutil.1
 
