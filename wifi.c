@@ -39,9 +39,6 @@ static int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
     const char *identity, const char *password);
 static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
     const char *identity, const char *password);
-static enum security known_network_security(struct wpa_ctrl *ctrl, int nwid);
-static bool is_hidden_network(struct wpa_ctrl *ctrl, int nwid);
-static int get_network_priority(struct wpa_ctrl *ctrl, int nwid);
 static int remove_network(struct wpa_ctrl *ctrl, int nwid);
 
 #define WPA_MAX_REPLY_SIZE   4096
@@ -961,7 +958,7 @@ template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 	return (ret);
 }
 
-static enum security
+enum security
 known_network_security(struct wpa_ctrl *ctrl, int nwid)
 {
 	char reply[WPA_MAX_REPLY_SIZE];
@@ -977,7 +974,7 @@ known_network_security(struct wpa_ctrl *ctrl, int nwid)
 						SEC_NA);
 }
 
-static bool
+bool
 is_hidden_network(struct wpa_ctrl *ctrl, int nwid)
 {
 	char reply[WPA_BIN_REPLY_SIZE];
@@ -990,7 +987,7 @@ is_hidden_network(struct wpa_ctrl *ctrl, int nwid)
 	return (reply[0] == '1');
 }
 
-static int
+int
 get_network_priority(struct wpa_ctrl *ctrl, int nwid)
 {
 	int priority;

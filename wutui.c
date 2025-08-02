@@ -294,13 +294,47 @@ render_wifi_info(struct sbuf *sb)
 static void
 render_known_networks(struct sbuf *sb)
 {
-	for (int i = 0; i < 14; i++)
+	struct known_network *nw, *nw_tmp;
+	struct known_networks *nws = get_known_networks(wutui.ctrl);
+	int i = 0;
+
+	if (nws == NULL)
+		diex("failed to retrieve known networks");
+
+	sbuf_printf(sb,
+	    "%*s│  %-*s  Security  Hidden  Priority  Auto Connect  │\r\n",
+	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
+
+	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+		if (i == 13)
+			break;
+		i++;
+
+		sbuf_printf(sb, "%*s│ %s%-*s  %-*s  %-*s  %*d  %-*s  │\r\n",
+		    MARGIN, "", nw->state == KN_CURRENT ? ">" : " ",
+		    IEEE80211_NWID_LEN, nw->ssid, (int)sizeof("Security") - 1,
+		    security_to_string[known_network_security(wutui.ctrl,
+			nw->id)],
+		    (int)sizeof("Hidden") - 1,
+		    is_hidden_network(wutui.ctrl, nw->id) ? "Yes" : "No",
+		    (int)sizeof("Priority") - 1,
+		    get_network_priority(wutui.ctrl, nw->id),
+		    (int)sizeof("Auto Connect") - 1,
+		    nw->state == KN_ENABLED	? "Yes" :
+			nw->state == KN_CURRENT ? "Current" :
+						  "No");
+	}
+
+	for (; i != 13; i++)
 		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
+
+	free_known_networks(nws);
 }
 
 static void
 render_network_scan(struct sbuf *sb)
 {
+
 	for (int i = 0; i < 14; i++)
 		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
 }
