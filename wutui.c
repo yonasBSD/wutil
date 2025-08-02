@@ -306,7 +306,8 @@ render_known_networks(struct sbuf *sb)
 		diex("failed to retrieve known networks");
 
 	sbuf_printf(sb,
-	    "%*s│  %-*s  Security  Hidden  Priority  Auto Connect  │\r\n",
+	    BOLD
+	    "%*s│  %-*s  Security  Hidden  Priority  Auto Connect  │\r\n" RESET_SGR,
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
 	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
@@ -348,7 +349,8 @@ render_network_scan(struct sbuf *sb)
 		diex("failed to retrieve scan results");
 
 	sbuf_printf(sb,
-	    "%*s│  %-*s      Security      Signal      Frequency   │\r\n",
+	    BOLD
+	    "%*s│  %-*s      Security      Signal      Frequency   │\r\n" RESET_SGR,
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
 	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
@@ -377,7 +379,7 @@ heading(struct sbuf *sb, const char *text, bool is_top)
 	const char *right_corner = is_top ? "╮" : "┤";
 
 	sbuf_printf(sb, "%*s%s", MARGIN, "", left_corner);
-	sbuf_printf(sb, "─┐%s┌", text);
+	sbuf_printf(sb, "─┐" BOLD "%s" RESET_SGR "┌", text);
 	for (int i = 0; i < MAX_COLS - 2 - len; i++)
 		sbuf_cat(sb, "─");
 	sbuf_printf(sb, "%s\r\n", right_corner);
