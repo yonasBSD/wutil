@@ -27,6 +27,10 @@
 #define CURSOR_DOWN(x)	    CSI XSTR(x) "B"
 #define CURSOR_FORWARD(x)   CSI XSTR(x) "C"
 #define CURSOR_BACK(x)	    CSI XSTR(x) "D"
+#define CURSOR_UP_FMT	    CSI "%dA"
+#define CURSOR_DOWN_FMT	    CSI "%dB"
+#define CURSOR_FORWARD_FMT  CSI "%dC"
+#define CURSOR_BACK_FMT	    CSI "%dD"
 
 #define SAVE_CURSOR_POS	    CSI "s"
 #define RESTORE_CURSOR_POS  CSI "u"

@@ -5,6 +5,7 @@
  */
 
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/event.h>
 #include <sys/sbuf.h>
 #include <sys/socket.h>
@@ -35,14 +36,25 @@ struct wutui {
 
 static struct wutui wutui;
 
+static const int MAX_COLS = 80;
+static const int MAX_ROWS = 36;
+
+#define MARGIN ((wutui.winsize.ws_col - MAX_COLS) / 2)
+
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
 static void init_wutui(const char *ctrl_path);
 static void deinit_wutui(void);
 static void event_loop(void);
-static void render_tui(void);
 
-static int fetch_cursor_position(short *row, short *col);
+static void render_tui(void);
+static void render_wifi_info(struct sbuf *sb);
+static void render_known_networks(struct sbuf *sb);
+static void render_network_scan(struct sbuf *sb);
+
+static void heading(struct sbuf *sb, const char *text, bool is_top);
+
+static int fetch_cursor_position(unsigned short *row, unsigned short *col);
 static int fetch_winsize(void);
 static void on_sig_winch(int signo);
 
@@ -120,7 +132,8 @@ init_wutui(const char *ctrl_path)
 
 	wutui.wpa_fd = wutui.tty = wutui.kq = -1;
 
-	atexit(deinit_wutui);
+	if (atexit(deinit_wutui) != 0)
+		err(EXIT_FAILURE, "atexit");
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
@@ -206,6 +219,42 @@ render_tui(void)
 {
 	struct sbuf *sb = sbuf_new_auto();
 
+	sbuf_cat(sb, ERASE_IN_DISPLAY(ERASE_ENTIRE) CURSOR_MOVE(1, 1));
+
+	if (wutui.winsize.ws_col < MAX_COLS ||
+	    wutui.winsize.ws_row < MAX_ROWS) {
+		const char warning[] = "Terminal size too small";
+		int warning_len = sizeof(warning) - 1;
+		int vertical_offset = (wutui.winsize.ws_row - 1) / 2;
+		int text_offset = (wutui.winsize.ws_col - warning_len) / 2;
+
+		vertical_offset = MAX(vertical_offset, 0);
+		text_offset = MAX(text_offset, 0);
+
+		sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
+		sbuf_printf(sb, "%*s" BOLD "%s" RESET_SGR, text_offset, "",
+		    warning);
+	} else {
+		int vertical_offset = (wutui.winsize.ws_row - MAX_ROWS) / 2;
+
+		vertical_offset = MAX(vertical_offset, 0);
+		sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset + 1);
+
+		heading(sb, "WiFi Info", true);
+		render_wifi_info(sb);
+
+		heading(sb, "Known Networks", false);
+		render_known_networks(sb);
+
+		heading(sb, "Network Scan", false);
+		render_network_scan(sb);
+
+		sbuf_printf(sb, "%*s╰", MARGIN, "");
+		for (int i = 0; i < MAX_COLS - 2; i++)
+			sbuf_cat(sb, "─");
+		sbuf_cat(sb, "╯");
+	}
+
 	if (sbuf_finish(sb) != 0)
 		die("sbuf failed");
 
@@ -215,8 +264,43 @@ render_tui(void)
 	sbuf_delete(sb);
 }
 
+static void
+render_wifi_info(struct sbuf *sb)
+{
+	for (int i = 0; i < 2; i++)
+		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
+}
+
+static void
+render_known_networks(struct sbuf *sb)
+{
+	for (int i = 0; i < 14; i++)
+		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
+}
+
+static void
+render_network_scan(struct sbuf *sb)
+{
+	for (int i = 0; i < 14; i++)
+		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
+}
+
+static void
+heading(struct sbuf *sb, const char *text, bool is_top)
+{
+	int len = strlen(text) + 3; /* == len(─┐%s┌) */
+	const char *left_corner = is_top ? "╭" : "├";
+	const char *right_corner = is_top ? "╮" : "┤";
+
+	sbuf_printf(sb, "%*s%s", MARGIN, "", left_corner);
+	sbuf_printf(sb, "─┐%s┌", text);
+	for (int i = 0; i < MAX_COLS - 2 - len; i++)
+		sbuf_cat(sb, "─");
+	sbuf_printf(sb, "%s\r\n", right_corner);
+}
+
 static int
-fetch_cursor_position(short *row, short *col)
+fetch_cursor_position(unsigned short *row, unsigned short *col)
 {
 	char buf[32] = "";
 
@@ -284,9 +368,7 @@ enter_raw_mode(void)
 static void
 enter_alt_buffer(void)
 {
-	if (dprintf(wutui.tty,
-		ALT_BUF_ON CURSOR_HIDE ERASE_IN_DISPLAY(ERASE_ENTIRE)
-		    CURSOR_MOVE(1, 1)) < 0)
+	if (dprintf(wutui.tty, ALT_BUF_ON CURSOR_HIDE) < 0)
 		die("dprintf");
 }
 
@@ -343,8 +425,6 @@ handle_input(void)
 		exit(EXIT_SUCCESS);
 		break;
 	default:
-		dprintf(wutui.tty,
-		    ERASE_IN_LINE(ERASE_TO_BEGINNING) "key: %c\r\n", c);
 		break;
 	}
 }
@@ -361,8 +441,4 @@ handle_wpa_event(void)
 		die("wpa ctrl interface socket closed");
 
 	buf[len] = '\0';
-	dprintf(wutui.tty,
-	    COLOR(BG_BRIGHT, RED) COLOR(FG, YELLOW)
-		ERASE_IN_LINE(ERASE_TO_BEGINNING) "%s\r\n" RESET_SGR,
-	    buf);
 }

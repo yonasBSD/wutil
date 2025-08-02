@@ -48,7 +48,7 @@ static struct command commands[] = {
 static int
 cmd_interface(int argc, char *argv[])
 {
-	struct interface_command *cmd;
+	struct interface_command *cmd = NULL;
 	struct ifconfig_handle *lifh;
 	int ret = 0;
 
