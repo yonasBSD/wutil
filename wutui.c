@@ -297,6 +297,10 @@ render_known_networks(struct sbuf *sb)
 	struct known_network *nw, *nw_tmp;
 	struct known_networks *nws = get_known_networks(wutui.ctrl);
 	int i = 0;
+	const int SECURITY_LEN = sizeof("Security") - 1;
+	const int HIDDEN_LEN = sizeof("Hidden") - 1;
+	const int PRIORITY_LEN = sizeof("Priority") - 1;
+	const int AUTO_CONNECT_LEN = sizeof("Auto Connect") - 1;
 
 	if (nws == NULL)
 		diex("failed to retrieve known networks");
@@ -312,14 +316,13 @@ render_known_networks(struct sbuf *sb)
 
 		sbuf_printf(sb, "%*s│ %s%-*s  %-*s  %-*s  %*d  %-*s  │\r\n",
 		    MARGIN, "", nw->state == KN_CURRENT ? ">" : " ",
-		    IEEE80211_NWID_LEN, nw->ssid, (int)sizeof("Security") - 1,
+		    IEEE80211_NWID_LEN, nw->ssid, SECURITY_LEN,
 		    security_to_string[known_network_security(wutui.ctrl,
 			nw->id)],
-		    (int)sizeof("Hidden") - 1,
+		    HIDDEN_LEN,
 		    is_hidden_network(wutui.ctrl, nw->id) ? "Yes" : "No",
-		    (int)sizeof("Priority") - 1,
-		    get_network_priority(wutui.ctrl, nw->id),
-		    (int)sizeof("Auto Connect") - 1,
+		    PRIORITY_LEN, get_network_priority(wutui.ctrl, nw->id),
+		    AUTO_CONNECT_LEN,
 		    nw->state == KN_ENABLED	? "Yes" :
 			nw->state == KN_CURRENT ? "Current" :
 						  "No");
@@ -334,9 +337,36 @@ render_known_networks(struct sbuf *sb)
 static void
 render_network_scan(struct sbuf *sb)
 {
+	struct scan_result *sr, *sr_tmp;
+	struct scan_results *srs = get_scan_results(wutui.ctrl);
+	int i = 0;
+	const int SECURITY_LEN = sizeof("Security") - 1;
+	const int SIGNAL_LEN = sizeof("Signal") - 1;
+	const int FREQ_LEN = sizeof("5180") - 1;
 
-	for (int i = 0; i < 14; i++)
+	if (srs == NULL)
+		diex("failed to retrieve scan results");
+
+	sbuf_printf(sb,
+	    "%*s│  %-*s      Security      Signal      Frequency   │\r\n",
+	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
+
+	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+		if (i == 13)
+			break;
+		i++;
+
+		sbuf_printf(sb,
+		    "%*s│  %-*s      %-*s      %*d      %-*d MHz    │\r\n",
+		    MARGIN, "", IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
+		    security_to_string[sr->security], SIGNAL_LEN, sr->signal,
+		    FREQ_LEN, sr->freq);
+	}
+
+	for (; i != 13; i++)
 		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
+
+	free_scan_results(srs);
 }
 
 static void
