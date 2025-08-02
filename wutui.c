@@ -267,8 +267,28 @@ render_tui(void)
 static void
 render_wifi_info(struct sbuf *sb)
 {
-	for (int i = 0; i < 2; i++)
-		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
+	struct supplicant_status *status = get_supplicant_status(wutui.ctrl);
+	int freq = 0;
+	const int FREQ_LEN = sizeof("5180") - 1;
+	/* wpa state with max len*/
+	const int WPA_STATE_LEN = sizeof("INTERFACE_DISABLED") - 1;
+	const int IP_LEN = sizeof("255.255.255.255") - 1;
+
+	if (status == NULL)
+		diex("failed retrieve wpa_supplicant status");
+
+	if (status->bssid != NULL)
+		freq = get_bss_freq(wutui.ctrl, status->bssid);
+
+	sbuf_printf(sb,
+	    "%*s│  SSID:      %-*s    Frequency:  %*d MHz         │\r\n",
+	    MARGIN, "", IEEE80211_NWID_LEN,
+	    status->ssid == NULL ? "N/A" : status->ssid, FREQ_LEN, freq);
+	sbuf_printf(sb,
+	    "%*s│  WPA State: %-*s                  IP Address: %-*s  │\r\n",
+	    MARGIN, "", WPA_STATE_LEN,
+	    status->state == NULL ? "N/A" : status->state, IP_LEN,
+	    status->ip_address == NULL ? "N/A" : status->ip_address);
 }
 
 static void

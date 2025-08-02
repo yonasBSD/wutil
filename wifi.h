@@ -52,6 +52,7 @@ struct supplicant_status {
 
 struct supplicant_status *get_supplicant_status(struct wpa_ctrl *);
 void free_supplicant_status(struct supplicant_status *);
+int get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid);
 
 typedef int (*wpa_cmd_handler_f)(struct wpa_ctrl *ctrl, int argc, char **argv);
 

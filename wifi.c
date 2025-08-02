@@ -31,7 +31,6 @@
 #include "usage.h"
 #include "wifi.h"
 
-static int get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid);
 static int wpa_ctrl_requestf(struct wpa_ctrl *ctrl, char *reply,
     size_t *reply_len, const char *fmt, ...);
 static int wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply,
@@ -744,7 +743,7 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 	return (0);
 }
 
-static int
+int
 get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid)
 {
 	char reply[sizeof("freq=") + WPA_INT32_REPLY_SIZE];
@@ -829,18 +828,18 @@ cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	printf("%21s: %s\n", "wpa_supplicant Status", status->state);
+	printf("%15s: %s\n", "WPA State", status->state);
+	if (status->ssid != NULL)
+		printf("%15s: %s\n", "Connected SSID", status->ssid);
 	if (status->bssid != NULL) {
-		printf("%21s: %s\n", "Connected BSSID", status->bssid);
-		printf("%21s: %d\n", "Frequency",
+		printf("%15s: %s\n", "Connected BSSID", status->bssid);
+		printf("%15s: %d MHz\n", "Frequency",
 		    get_bss_freq(ctrl, status->bssid));
 	}
-	if (status->ssid != NULL)
-		printf("%21s: %s\n", "Connected SSID", status->ssid);
 	if (status->ip_address != NULL)
-		printf("%21s: %s\n", "IP Address", status->ip_address);
+		printf("%15s: %s\n", "IP Address", status->ip_address);
 	if (status->security != NULL)
-		printf("%21s: %s\n", "Security", status->security);
+		printf("%15s: %s\n", "Security", status->security);
 
 	return (0);
 }
