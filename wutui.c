@@ -349,12 +349,9 @@ render_known_networks(struct sbuf *sb)
 			INVERT :
 			"",
 		    nw->state == KN_CURRENT ? ">" : " ", IEEE80211_NWID_LEN,
-		    nw->ssid, SECURITY_LEN,
-		    security_to_string[known_network_security(wutui.ctrl,
-			nw->id)],
-		    HIDDEN_LEN,
-		    is_hidden_network(wutui.ctrl, nw->id) ? "Yes" : "No",
-		    PRIORITY_LEN, nw->priority, AUTO_CONNECT_LEN,
+		    nw->ssid, SECURITY_LEN, security_to_string[nw->security],
+		    HIDDEN_LEN, nw->hidden ? "Yes" : "No", PRIORITY_LEN,
+		    nw->priority, AUTO_CONNECT_LEN,
 		    nw->state == KN_ENABLED	? "Yes" :
 			nw->state == KN_CURRENT ? "Current" :
 						  "No",

@@ -287,6 +287,8 @@ get_known_networks(struct wpa_ctrl *ctrl)
 
 		nw->id = id;
 		nw->priority = get_network_priority(ctrl, nw->id);
+		nw->hidden = is_hidden_network(ctrl, nw->id);
+		nw->security = known_network_security(ctrl, nw->id);
 
 		if (ssid != NULL)
 			strlcpy(nw->ssid, ssid, sizeof(nw->ssid));
@@ -1102,9 +1104,8 @@ cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
 		printf("%c %-*s %-8s %-6s %8d\n",
 		    nw->state == KN_CURRENT ? '>' : ' ', IEEE80211_NWID_LEN,
-		    nw->ssid,
-		    security_to_string[known_network_security(ctrl, nw->id)],
-		    is_hidden_network(ctrl, nw->id) ? "Yes" : "", nw->priority);
+		    nw->ssid, security_to_string[nw->security],
+		    nw->hidden ? "Yes" : "", nw->priority);
 	}
 
 	free_known_networks(nws);
@@ -1147,10 +1148,8 @@ cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 	}
 
 	printf("%12s: %s\n", "Network SSID", nw->ssid);
-	printf("%12s: %s\n", "Security",
-	    security_to_string[known_network_security(ctrl, nw->id)]);
-	printf("%12s: %s\n", "Hidden",
-	    is_hidden_network(ctrl, nw->id) ? "Yes" : "No");
+	printf("%12s: %s\n", "Security", security_to_string[nw->security]);
+	printf("%12s: %s\n", "Hidden", nw->hidden ? "Yes" : "No");
 	printf("%12s: %d\n", "Priority", nw->priority);
 	printf("%12s: %s\n", "Autoconnect",
 	    nw->state == KN_DISABLED ? "No" : "Yes");

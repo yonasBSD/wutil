@@ -18,8 +18,12 @@
 
 #include "usage.h"
 
+enum security { SEC_OPEN = 0, SEC_EAP, SEC_PSK, SEC_NA };
+
 struct known_network {
 	int id, priority;
+	bool hidden;
+	enum security security;
 	enum { KN_ENABLED = 0, KN_DISABLED, KN_CURRENT } state;
 	char ssid[IEEE80211_NWID_LEN + 1];
 	struct ether_addr bssid;
@@ -27,8 +31,6 @@ struct known_network {
 };
 
 TAILQ_HEAD(known_networks, known_network);
-
-enum security { SEC_OPEN = 0, SEC_EAP, SEC_PSK, SEC_NA };
 
 extern const char *security_to_string[];
 
