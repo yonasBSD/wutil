@@ -67,11 +67,13 @@ int template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 char *wpa_ctrl_default_path(void);
 int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
+int scan_results_len(struct scan_results *);
 void free_scan_results(struct scan_results *head);
 int scan_and_wait(struct wpa_ctrl *ctrl);
 
 struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
 void free_known_networks(struct known_networks *nws);
+int known_networks_len(struct known_networks *);
 enum security known_network_security(struct wpa_ctrl *ctrl, int nwid);
 bool is_hidden_network(struct wpa_ctrl *ctrl, int nwid);
 int get_network_priority(struct wpa_ctrl *ctrl, int nwid);

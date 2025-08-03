@@ -7,6 +7,7 @@
 #include <sys/param.h>
 #include <sys/event.h>
 #include <sys/ioccom.h>
+#include <sys/queue.h>
 #include <sys/sockio.h>
 
 #include <net/ethernet.h>
@@ -302,6 +303,18 @@ get_known_networks(struct wpa_ctrl *ctrl)
 	return (nws);
 }
 
+int
+known_networks_len(struct known_networks *kns)
+{
+	int len = 0;
+	struct known_network *kn, *kn_tmp;
+
+	STAILQ_FOREACH_SAFE(kn, kns, next, kn_tmp)
+		len++;
+
+	return (len);
+}
+
 void
 free_known_networks(struct known_networks *nws)
 {
@@ -377,6 +390,18 @@ get_scan_results(struct wpa_ctrl *ctrl)
 	}
 
 	return (srs);
+}
+
+int
+scan_results_len(struct scan_results *srs)
+{
+	int len = 0;
+	struct scan_result *sr, *sr_tmp;
+
+	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp)
+		len++;
+
+	return (len);
 }
 
 void

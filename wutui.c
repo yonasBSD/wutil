@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/event.h>
+#include <sys/queue.h>
 #include <sys/sbuf.h>
 #include <sys/socket.h>
 
@@ -32,17 +33,26 @@ struct wutui {
 	struct termios cooked;
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
+	enum { SECTION_KN = 0, SECTION_NS } current_section;
+	int kn_current_row, ns_current_row;
 	struct supplicant_status *status;
 	struct scan_results *scan_results;
+	int scan_results_len;
 	struct known_networks *known_networks;
+	int known_networks_len;
 };
 
 static struct wutui wutui;
 
 static const int MAX_COLS = 80;
 static const int MAX_ROWS = 36;
+static const int KN_ENTRIES = 13;
+static const int NS_ENTRIES = 13;
 
-#define MARGIN ((wutui.winsize.ws_col - MAX_COLS) / 2)
+#define MARGIN		       ((wutui.winsize.ws_col - MAX_COLS) / 2)
+
+#define WRAPPED_INCR(var, max) ((var) = ((var) + 1) % (max))
+#define WRAPPED_DECR(var, max) ((var) = ((var) - 1 + (max)) % (max))
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
@@ -156,9 +166,11 @@ init_wutui(const char *ctrl_path)
 
 	if ((wutui.known_networks = get_known_networks(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve known networks");
+	wutui.known_networks_len = known_networks_len(wutui.known_networks);
 
 	if ((wutui.scan_results = get_scan_results(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve scan results");
+	wutui.scan_results_len = scan_results_len(wutui.scan_results);
 
 	if (wpa_ctrl_attach(wutui.ctrl) != 0) {
 		err(EXIT_FAILURE,
@@ -257,13 +269,8 @@ render_tui(void)
 		vertical_offset = MAX(vertical_offset, 0);
 		sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset + 1);
 
-		heading(sb, "WiFi Info", true);
 		render_wifi_info(sb);
-
-		heading(sb, "Known Networks", false);
 		render_known_networks(sb);
-
-		heading(sb, "Network Scan", false);
 		render_network_scan(sb);
 
 		sbuf_printf(sb, "%*s╰", MARGIN, "");
@@ -293,6 +300,7 @@ render_wifi_info(struct sbuf *sb)
 	if (wutui.status->bssid != NULL)
 		freq = get_bss_freq(wutui.ctrl, wutui.status->bssid);
 
+	heading(sb, "WiFi Info", true);
 	sbuf_printf(sb,
 	    "%*s│  SSID:      %-*s    Frequency:  %*d MHz         │\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN,
@@ -316,6 +324,10 @@ render_known_networks(struct sbuf *sb)
 	const int PRIORITY_LEN = sizeof("Priority") - 1;
 	const int AUTO_CONNECT_LEN = sizeof("Auto Connect") - 1;
 
+	heading(sb,
+	    wutui.current_section == SECTION_KN ? "<Known Networks>" :
+						  "Known Networks",
+	    false);
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
 		BLUE) "%-*s  Security  Hidden  Priority  Auto Connect" RESET_SGR
@@ -323,13 +335,18 @@ render_known_networks(struct sbuf *sb)
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
 	STAILQ_FOREACH_SAFE(nw, wutui.known_networks, next, nw_tmp) {
-		if (i == 13)
+		if (i == KN_ENTRIES)
 			break;
-		i++;
 
-		sbuf_printf(sb, "%*s│ %s%-*s  %-*s  %-*s  %*d  %-*s  %s\r\n",
-		    MARGIN, "", nw->state == KN_CURRENT ? ">" : " ",
-		    IEEE80211_NWID_LEN, nw->ssid, SECURITY_LEN,
+		sbuf_printf(sb,
+		    "%*s│ %s%s%-*s  %-*s  %-*s  %*d  %-*s " RESET_SGR " %s\r\n",
+		    MARGIN, "",
+		    wutui.current_section == SECTION_KN &&
+			    i == wutui.kn_current_row ?
+			INVERT :
+			"",
+		    nw->state == KN_CURRENT ? ">" : " ", IEEE80211_NWID_LEN,
+		    nw->ssid, SECURITY_LEN,
 		    security_to_string[known_network_security(wutui.ctrl,
 			nw->id)],
 		    HIDDEN_LEN,
@@ -340,9 +357,11 @@ render_known_networks(struct sbuf *sb)
 			nw->state == KN_CURRENT ? "Current" :
 						  "No",
 		    i == 12 ? "↓" : "█");
+
+		i++;
 	}
 
-	for (; i != 13; i++)
+	for (; i != KN_ENTRIES; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
 		    i == 12 ? "↓" : "█");
 }
@@ -356,6 +375,10 @@ render_network_scan(struct sbuf *sb)
 	const int SIGNAL_LEN = sizeof("Signal") - 1;
 	const int FREQ_LEN = sizeof("5180") - 1;
 
+	heading(sb,
+	    wutui.current_section == SECTION_NS ? "<Network Scan>" :
+						  "Network Scan",
+	    false);
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
 		BLUE) "%-*s      Security      Signal      Frequency" RESET_SGR
@@ -363,22 +386,28 @@ render_network_scan(struct sbuf *sb)
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
 	STAILQ_FOREACH_SAFE(sr, wutui.scan_results, next, sr_tmp) {
-		if (i == 13)
+		if (i == NS_ENTRIES)
 			break;
-		i++;
 
 		sbuf_printf(sb,
 		    "%*s│ "
 		    "%s"
 		    " %-*s      %-*s       %-*s       %-*d MHz   " RESET_SGR
 		    " %s\r\n",
-		    MARGIN, "", i == 1 ? INVERT : "", IEEE80211_NWID_LEN,
-		    sr->ssid, SECURITY_LEN, security_to_string[sr->security],
-		    SIGNAL_LEN, signal_bars(sr->signal), FREQ_LEN, sr->freq,
+		    MARGIN, "",
+		    wutui.current_section == SECTION_NS &&
+			    i == wutui.ns_current_row ?
+			INVERT :
+			"",
+		    IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
+		    security_to_string[sr->security], SIGNAL_LEN,
+		    signal_bars(sr->signal), FREQ_LEN, sr->freq,
 		    i == 12 ? "↓" : "█");
+
+		i++;
 	}
 
-	for (; i != 13; i++)
+	for (; i != NS_ENTRIES; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
 		    i == 12 ? "↓" : "█");
 }
@@ -535,6 +564,27 @@ handle_input(void)
 	case 'q':
 		leave_alt_buffer();
 		exit(EXIT_SUCCESS);
+		break;
+	case '\t':
+		wutui.current_section = !wutui.current_section;
+		break;
+	case 'j':
+		if (wutui.current_section == SECTION_KN) {
+			WRAPPED_INCR(wutui.kn_current_row,
+			    wutui.known_networks_len);
+		} else {
+			WRAPPED_INCR(wutui.ns_current_row,
+			    wutui.scan_results_len);
+		}
+		break;
+	case 'k':
+		if (wutui.current_section == SECTION_KN) {
+			WRAPPED_DECR(wutui.kn_current_row,
+			    wutui.known_networks_len);
+		} else {
+			WRAPPED_DECR(wutui.ns_current_row,
+			    wutui.scan_results_len);
+		}
 		break;
 	default:
 		break;
