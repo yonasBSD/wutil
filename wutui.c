@@ -53,6 +53,7 @@ static void render_known_networks(struct sbuf *sb);
 static void render_network_scan(struct sbuf *sb);
 
 static void heading(struct sbuf *sb, const char *text, bool is_top);
+static const char *signal_bars(int dbm);
 
 static int fetch_cursor_position(unsigned short *row, unsigned short *col);
 static int fetch_winsize(void);
@@ -359,10 +360,10 @@ render_network_scan(struct sbuf *sb)
 		i++;
 
 		sbuf_printf(sb,
-		    "%*s│  %-*s      %-*s      %*d      %-*d MHz    │\r\n",
+		    "%*s│  %-*s      %-*s       %-*s       %-*d MHz    │\r\n",
 		    MARGIN, "", IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
-		    security_to_string[sr->security], SIGNAL_LEN, sr->signal,
-		    FREQ_LEN, sr->freq);
+		    security_to_string[sr->security], SIGNAL_LEN,
+		    signal_bars(sr->signal), FREQ_LEN, sr->freq);
 	}
 
 	for (; i != 13; i++)
@@ -383,6 +384,20 @@ heading(struct sbuf *sb, const char *text, bool is_top)
 	for (int i = 0; i < MAX_COLS - 2 - len; i++)
 		sbuf_cat(sb, "─");
 	sbuf_printf(sb, "%s\r\n", right_corner);
+}
+
+static const char *
+signal_bars(int dbm)
+{
+	if (dbm >= -50)
+		return ("▂▄▆█");
+	if (dbm >= -60)
+		return ("▂▄▆▁");
+	if (dbm >= -70)
+		return ("▂▄▁▁");
+	if (dbm >= -80)
+		return ("▂▁▁▁");
+	return ("▁▁▁▁");
 }
 
 static int
