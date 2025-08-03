@@ -332,11 +332,13 @@ render_known_networks(struct sbuf *sb)
 	const int HIDDEN_LEN = sizeof("Hidden") - 1;
 	const int PRIORITY_LEN = sizeof("Priority") - 1;
 	const int AUTO_CONNECT_LEN = sizeof("Auto Connect") - 1;
-	struct known_network *kn, *kn_tmp;
+	struct known_network *kn;
 
-	wutui.kn_offset = wutui.current_kn < wutui.kn_offset ?
-	    wutui.current_kn :
-	    wutui.current_kn - KN_ENTRIES + 1;
+	if (wutui.current_kn < wutui.kn_offset)
+		wutui.kn_offset = wutui.current_kn;
+	if (wutui.current_kn >= wutui.kn_offset + KN_ENTRIES)
+		wutui.kn_offset = wutui.current_kn - KN_ENTRIES + 1;
+
 	scrollbar = get_scrollbar_pos(wutui.kn_offset, wutui.kns_len,
 	    KN_ENTRIES);
 
@@ -348,12 +350,15 @@ render_known_networks(struct sbuf *sb)
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
 		BLUE) "%-*s  Security  Hidden  Priority  Auto Connect" RESET_SGR
-		      "  ↑\r\n",
-	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
+		      "  %s\r\n",
+	    MARGIN, "", IEEE80211_NWID_LEN, "SSID",
+	    right_corner_block(-1, KN_ENTRIES, scrollbar));
 
-	TAILQ_FOREACH_SAFE(kn, wutui.kns, next, kn_tmp) {
-		if (i == KN_ENTRIES)
-			break;
+	for (kn = TAILQ_FIRST(wutui.kns), i = 0;
+	    kn != NULL && i < KN_ENTRIES + wutui.kn_offset;
+	    kn = TAILQ_NEXT(kn, next), i++) {
+		if (i < wutui.kn_offset)
+			continue;
 
 		sbuf_printf(sb,
 		    "%*s│ %s%s%-*s  %-*s  %-*s  %*d  %-*s " RESET_SGR " %s\r\n",
@@ -369,14 +374,14 @@ render_known_networks(struct sbuf *sb)
 		    kn->state == KN_ENABLED	? "Yes" :
 			kn->state == KN_CURRENT ? "Current" :
 						  "No",
-		    right_corner_block(i, KN_ENTRIES, scrollbar));
-
-		i++;
+		    right_corner_block(i - wutui.kn_offset, KN_ENTRIES,
+			scrollbar));
 	}
 
-	for (; i != KN_ENTRIES; i++)
+	for (; i < KN_ENTRIES + wutui.kn_offset; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
-		    right_corner_block(i, KN_ENTRIES, scrollbar));
+		    right_corner_block(i - wutui.kn_offset, KN_ENTRIES,
+			scrollbar));
 }
 
 static void
@@ -386,11 +391,13 @@ render_network_scan(struct sbuf *sb)
 	const int SECURITY_LEN = sizeof("Security") - 1;
 	const int SIGNAL_LEN = sizeof("Signal") - 1;
 	const int FREQ_LEN = sizeof("5180") - 1;
-	struct scan_result *sr, *sr_tmp;
+	struct scan_result *sr;
 
-	wutui.sr_offset = wutui.current_sr < wutui.sr_offset ?
-	    wutui.current_sr :
-	    wutui.current_sr - SR_ENTRIES + 1;
+	if (wutui.current_sr < wutui.sr_offset)
+		wutui.sr_offset = wutui.current_sr;
+	if (wutui.current_sr >= wutui.sr_offset + SR_ENTRIES)
+		wutui.sr_offset = wutui.current_sr - SR_ENTRIES + 1;
+
 	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs_len,
 	    SR_ENTRIES);
 
@@ -401,12 +408,15 @@ render_network_scan(struct sbuf *sb)
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
 		BLUE) "%-*s      Security      Signal      Frequency" RESET_SGR
-		      "   ↑\r\n",
-	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
+		      "   %s\r\n",
+	    MARGIN, "", IEEE80211_NWID_LEN, "SSID",
+	    right_corner_block(-1, SR_ENTRIES, scrollbar));
 
-	TAILQ_FOREACH_SAFE(sr, wutui.srs, next, sr_tmp) {
-		if (i == SR_ENTRIES)
-			break;
+	for (sr = TAILQ_FIRST(wutui.srs), i = 0;
+	    sr != NULL && i < SR_ENTRIES + wutui.sr_offset;
+	    sr = TAILQ_NEXT(sr, next), i++) {
+		if (i < wutui.sr_offset)
+			continue;
 
 		sbuf_printf(sb,
 		    "%*s│ %s %-*s      %-*s       %-*s       %-*d MHz   " RESET_SGR
@@ -419,14 +429,14 @@ render_network_scan(struct sbuf *sb)
 		    IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
 		    security_to_string[sr->security], SIGNAL_LEN,
 		    signal_bars(sr->signal), FREQ_LEN, sr->freq,
-		    right_corner_block(i, SR_ENTRIES, scrollbar));
-
-		i++;
+		    right_corner_block(i - wutui.sr_offset, SR_ENTRIES,
+			scrollbar));
 	}
 
-	for (; i != SR_ENTRIES; i++)
+	for (; i < SR_ENTRIES + wutui.sr_offset; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
-		    right_corner_block(i, SR_ENTRIES, scrollbar));
+		    right_corner_block(i - wutui.sr_offset, SR_ENTRIES,
+			scrollbar));
 }
 
 static void
@@ -460,7 +470,11 @@ signal_bars(int dbm)
 static const char *
 right_corner_block(int pos, int max_entries, int scrollbar)
 {
-	return (pos == max_entries - 1 ? "↓" : pos == scrollbar ? "█" : " ");
+	return (scrollbar == -1	       ? "│" :
+		pos == -1	       ? "↑" :
+		pos == max_entries - 1 ? "↓" :
+		pos == scrollbar       ? "█" :
+					 " ");
 }
 
 static int
