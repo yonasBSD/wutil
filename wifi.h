@@ -19,7 +19,7 @@
 #include "usage.h"
 
 struct known_network {
-	int id;
+	int id, priority;
 	enum { KN_ENABLED = 0, KN_DISABLED, KN_CURRENT } state;
 	char ssid[IEEE80211_NWID_LEN + 1];
 	struct ether_addr bssid;
