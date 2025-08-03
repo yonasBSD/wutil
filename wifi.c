@@ -802,6 +802,9 @@ get_supplicant_status(struct wpa_ctrl *ctrl)
 void
 free_supplicant_status(struct supplicant_status *status)
 {
+	if (status == NULL)
+		return;
+
 	free(status->state);
 	free(status->bssid);
 	free(status->ssid);
@@ -837,6 +840,8 @@ cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 		printf("%15s: %s\n", "IP Address", status->ip_address);
 	if (status->security != NULL)
 		printf("%15s: %s\n", "Security", status->security);
+
+	free_supplicant_status(status);
 
 	return (0);
 }

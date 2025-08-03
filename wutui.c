@@ -32,6 +32,9 @@ struct wutui {
 	struct termios cooked;
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
+	struct supplicant_status *status;
+	struct scan_results *scan_results;
+	struct known_networks *known_networks;
 };
 
 static struct wutui wutui;
@@ -148,6 +151,15 @@ init_wutui(const char *ctrl_path)
 		    ctrl_path);
 	}
 
+	if ((wutui.status = get_supplicant_status(wutui.ctrl)) == NULL)
+		errx(EXIT_FAILURE, "failed retrieve wpa_supplicant status");
+
+	if ((wutui.known_networks = get_known_networks(wutui.ctrl)) == NULL)
+		errx(EXIT_FAILURE, "failed to retrieve known networks");
+
+	if ((wutui.scan_results = get_scan_results(wutui.ctrl)) == NULL)
+		errx(EXIT_FAILURE, "failed to retrieve scan results");
+
 	if (wpa_ctrl_attach(wutui.ctrl) != 0) {
 		err(EXIT_FAILURE,
 		    "failed to register to wpa_ctrl event monitor");
@@ -177,6 +189,10 @@ deinit_wutui(void)
 
 	close(wutui.tty);
 	close(wutui.kq);
+
+	free_supplicant_status(wutui.status);
+	free_known_networks(wutui.known_networks);
+	free_scan_results(wutui.scan_results);
 
 	wpa_ctrl_detach(wutui.ctrl);
 	wpa_ctrl_close(wutui.ctrl);
@@ -268,55 +284,50 @@ render_tui(void)
 static void
 render_wifi_info(struct sbuf *sb)
 {
-	struct supplicant_status *status = get_supplicant_status(wutui.ctrl);
 	int freq = 0;
 	const int FREQ_LEN = sizeof("5180") - 1;
 	/* wpa state with max len*/
 	const int WPA_STATE_LEN = sizeof("INTERFACE_DISABLED") - 1;
 	const int IP_LEN = sizeof("255.255.255.255") - 1;
 
-	if (status == NULL)
-		diex("failed retrieve wpa_supplicant status");
-
-	if (status->bssid != NULL)
-		freq = get_bss_freq(wutui.ctrl, status->bssid);
+	if (wutui.status->bssid != NULL)
+		freq = get_bss_freq(wutui.ctrl, wutui.status->bssid);
 
 	sbuf_printf(sb,
 	    "%*s│  SSID:      %-*s    Frequency:  %*d MHz         │\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN,
-	    status->ssid == NULL ? "N/A" : status->ssid, FREQ_LEN, freq);
+	    wutui.status->ssid == NULL ? "N/A" : wutui.status->ssid, FREQ_LEN,
+	    freq);
 	sbuf_printf(sb,
 	    "%*s│  WPA State: %-*s                  IP Address: %-*s  │\r\n",
 	    MARGIN, "", WPA_STATE_LEN,
-	    status->state == NULL ? "N/A" : status->state, IP_LEN,
-	    status->ip_address == NULL ? "N/A" : status->ip_address);
+	    wutui.status->state == NULL ? "N/A" : wutui.status->state, IP_LEN,
+	    wutui.status->ip_address == NULL ? "N/A" :
+					       wutui.status->ip_address);
 }
 
 static void
 render_known_networks(struct sbuf *sb)
 {
 	struct known_network *nw, *nw_tmp;
-	struct known_networks *nws = get_known_networks(wutui.ctrl);
 	int i = 0;
 	const int SECURITY_LEN = sizeof("Security") - 1;
 	const int HIDDEN_LEN = sizeof("Hidden") - 1;
 	const int PRIORITY_LEN = sizeof("Priority") - 1;
 	const int AUTO_CONNECT_LEN = sizeof("Auto Connect") - 1;
 
-	if (nws == NULL)
-		diex("failed to retrieve known networks");
-
 	sbuf_printf(sb,
-	    BOLD
-	    "%*s│  %-*s  Security  Hidden  Priority  Auto Connect  │\r\n" RESET_SGR,
+	    "%*s│  " BOLD COLOR(FG,
+		BLUE) "%-*s  Security  Hidden  Priority  Auto Connect" RESET_SGR
+		      "  ↑\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
-	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+	STAILQ_FOREACH_SAFE(nw, wutui.known_networks, next, nw_tmp) {
 		if (i == 13)
 			break;
 		i++;
 
-		sbuf_printf(sb, "%*s│ %s%-*s  %-*s  %-*s  %*d  %-*s  │\r\n",
+		sbuf_printf(sb, "%*s│ %s%-*s  %-*s  %-*s  %*d  %-*s  %s\r\n",
 		    MARGIN, "", nw->state == KN_CURRENT ? ">" : " ",
 		    IEEE80211_NWID_LEN, nw->ssid, SECURITY_LEN,
 		    security_to_string[known_network_security(wutui.ctrl,
@@ -327,49 +338,49 @@ render_known_networks(struct sbuf *sb)
 		    AUTO_CONNECT_LEN,
 		    nw->state == KN_ENABLED	? "Yes" :
 			nw->state == KN_CURRENT ? "Current" :
-						  "No");
+						  "No",
+		    i == 12 ? "↓" : "█");
 	}
 
 	for (; i != 13; i++)
-		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
-
-	free_known_networks(nws);
+		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
+		    i == 12 ? "↓" : "█");
 }
 
 static void
 render_network_scan(struct sbuf *sb)
 {
 	struct scan_result *sr, *sr_tmp;
-	struct scan_results *srs = get_scan_results(wutui.ctrl);
 	int i = 0;
 	const int SECURITY_LEN = sizeof("Security") - 1;
 	const int SIGNAL_LEN = sizeof("Signal") - 1;
 	const int FREQ_LEN = sizeof("5180") - 1;
 
-	if (srs == NULL)
-		diex("failed to retrieve scan results");
-
 	sbuf_printf(sb,
-	    BOLD
-	    "%*s│  %-*s      Security      Signal      Frequency   │\r\n" RESET_SGR,
+	    "%*s│  " BOLD COLOR(FG,
+		BLUE) "%-*s      Security      Signal      Frequency" RESET_SGR
+		      "   ↑\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
-	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+	STAILQ_FOREACH_SAFE(sr, wutui.scan_results, next, sr_tmp) {
 		if (i == 13)
 			break;
 		i++;
 
 		sbuf_printf(sb,
-		    "%*s│  %-*s      %-*s       %-*s       %-*d MHz    │\r\n",
-		    MARGIN, "", IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
-		    security_to_string[sr->security], SIGNAL_LEN,
-		    signal_bars(sr->signal), FREQ_LEN, sr->freq);
+		    "%*s│ "
+		    "%s"
+		    " %-*s      %-*s       %-*s       %-*d MHz   " RESET_SGR
+		    " %s\r\n",
+		    MARGIN, "", i == 1 ? INVERT : "", IEEE80211_NWID_LEN,
+		    sr->ssid, SECURITY_LEN, security_to_string[sr->security],
+		    SIGNAL_LEN, signal_bars(sr->signal), FREQ_LEN, sr->freq,
+		    i == 12 ? "↓" : "█");
 	}
 
 	for (; i != 13; i++)
-		sbuf_printf(sb, "%*s│%*s│\r\n", MARGIN, "", MAX_COLS - 2, "");
-
-	free_scan_results(srs);
+		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
+		    i == 12 ? "↓" : "█");
 }
 
 static void
