@@ -23,10 +23,10 @@ struct known_network {
 	enum { KN_ENABLED = 0, KN_DISABLED, KN_CURRENT } state;
 	char ssid[IEEE80211_NWID_LEN + 1];
 	struct ether_addr bssid;
-	STAILQ_ENTRY(known_network) next;
+	TAILQ_ENTRY(known_network) next;
 };
 
-STAILQ_HEAD(known_networks, known_network);
+TAILQ_HEAD(known_networks, known_network);
 
 enum security { SEC_OPEN = 0, SEC_EAP, SEC_PSK, SEC_NA };
 
@@ -37,10 +37,10 @@ struct scan_result {
 	struct ether_addr bssid;
 	char ssid[IEEE80211_NWID_LEN + 1];
 	enum security security;
-	STAILQ_ENTRY(scan_result) next;
+	TAILQ_ENTRY(scan_result) next;
 };
 
-STAILQ_HEAD(scan_results, scan_result);
+TAILQ_HEAD(scan_results, scan_result);
 
 struct supplicant_status {
 	char *state;
@@ -67,6 +67,7 @@ int template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 char *wpa_ctrl_default_path(void);
 int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
+void remove_hidden_networks(struct scan_results *srs);
 int scan_results_len(struct scan_results *);
 void free_scan_results(struct scan_results *head);
 int scan_and_wait(struct wpa_ctrl *ctrl);

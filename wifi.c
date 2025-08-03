@@ -258,7 +258,7 @@ get_known_networks(struct wpa_ctrl *ctrl)
 		return (NULL);
 	}
 
-	STAILQ_INIT(nws);
+	TAILQ_INIT(nws);
 
 	reply[reply_len] = '\0';
 
@@ -297,7 +297,7 @@ get_known_networks(struct wpa_ctrl *ctrl)
 				nw->state = KN_DISABLED;
 		}
 
-		STAILQ_INSERT_TAIL(nws, nw, next);
+		TAILQ_INSERT_TAIL(nws, nw, next);
 	}
 
 	return (nws);
@@ -309,7 +309,7 @@ known_networks_len(struct known_networks *kns)
 	int len = 0;
 	struct known_network *kn, *kn_tmp;
 
-	STAILQ_FOREACH_SAFE(kn, kns, next, kn_tmp)
+	TAILQ_FOREACH_SAFE(kn, kns, next, kn_tmp)
 		len++;
 
 	return (len);
@@ -323,7 +323,7 @@ free_known_networks(struct known_networks *nws)
 	if (nws == NULL)
 		return;
 
-	STAILQ_FOREACH_SAFE(nw, nws, next, tmp)
+	TAILQ_FOREACH_SAFE(nw, nws, next, tmp)
 		free(nw);
 
 	free(nws);
@@ -346,7 +346,7 @@ get_scan_results(struct wpa_ctrl *ctrl)
 		return (NULL);
 	}
 
-	STAILQ_INIT(srs);
+	TAILQ_INIT(srs);
 
 	reply[reply_len] = '\0';
 
@@ -386,7 +386,7 @@ get_scan_results(struct wpa_ctrl *ctrl)
 								      SEC_OPEN;
 		}
 
-		STAILQ_INSERT_TAIL(srs, sr, next);
+		TAILQ_INSERT_TAIL(srs, sr, next);
 	}
 
 	return (srs);
@@ -398,7 +398,7 @@ scan_results_len(struct scan_results *srs)
 	int len = 0;
 	struct scan_result *sr, *sr_tmp;
 
-	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp)
+	TAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp)
 		len++;
 
 	return (len);
@@ -412,7 +412,7 @@ free_scan_results(struct scan_results *srs)
 	if (srs == NULL)
 		return;
 
-	STAILQ_FOREACH_SAFE(sr, srs, next, tmp)
+	TAILQ_FOREACH_SAFE(sr, srs, next, tmp)
 		free(sr);
 
 	free(srs);
@@ -517,7 +517,7 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 
 	printf("%-*s %-8s %-9s %-8s\n", IEEE80211_NWID_LEN, "SSID", "Signal",
 	    "Frequency", "Security");
-	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+	TAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
 		printf("%-*s %4d dBm %5d MHz %-8s\n", IEEE80211_NWID_LEN,
 		    sr->ssid, sr->signal, sr->freq,
 		    security_to_string[sr->security]);
@@ -568,7 +568,7 @@ configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
 		goto cleanup;
 	}
 
-	STAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+	TAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
 		if (strcmp(sr->ssid, ssid) == 0)
 			break;
 	}
@@ -724,7 +724,7 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
 		if (strcmp(nw->ssid, ssid) == 0) {
 			nwid = nw->id;
 			break;
@@ -1055,7 +1055,7 @@ cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 
 	printf("  %-*s %-8s %-6s %-8s\n", IEEE80211_NWID_LEN, "SSID",
 	    "Security", "Hidden", "Priority");
-	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
 		printf("%c %-*s %-8s %-6s %8d\n",
 		    nw->state == KN_CURRENT ? '>' : ' ', IEEE80211_NWID_LEN,
 		    nw->ssid,
@@ -1092,7 +1092,7 @@ cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
 		if (strcmp(nw->ssid, ssid) == 0)
 			break;
 	}
@@ -1153,7 +1153,7 @@ cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
 		if (strcmp(nw->ssid, ssid) == 0)
 			break;
 	}
@@ -1250,7 +1250,7 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	STAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
 		if (strcmp(nw->ssid, ssid) == 0)
 			break;
 	}

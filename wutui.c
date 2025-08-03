@@ -334,7 +334,7 @@ render_known_networks(struct sbuf *sb)
 		      "  ↑\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
-	STAILQ_FOREACH_SAFE(nw, wutui.known_networks, next, nw_tmp) {
+	TAILQ_FOREACH_SAFE(nw, wutui.known_networks, next, nw_tmp) {
 		if (i == KN_ENTRIES)
 			break;
 
@@ -385,7 +385,7 @@ render_network_scan(struct sbuf *sb)
 		      "   ↑\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
-	STAILQ_FOREACH_SAFE(sr, wutui.scan_results, next, sr_tmp) {
+	TAILQ_FOREACH_SAFE(sr, wutui.scan_results, next, sr_tmp) {
 		if (i == NS_ENTRIES)
 			break;
 
