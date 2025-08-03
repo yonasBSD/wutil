@@ -170,6 +170,7 @@ init_wutui(const char *ctrl_path)
 
 	if ((wutui.scan_results = get_scan_results(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve scan results");
+	remove_hidden_networks(wutui.scan_results);
 	wutui.scan_results_len = scan_results_len(wutui.scan_results);
 
 	if (wpa_ctrl_attach(wutui.ctrl) != 0) {

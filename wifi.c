@@ -392,6 +392,19 @@ get_scan_results(struct wpa_ctrl *ctrl)
 	return (srs);
 }
 
+void
+remove_hidden_networks(struct scan_results *srs)
+{
+	struct scan_result *sr, *sr_tmp;
+
+	TAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+		if (sr->ssid[0] == '\0') {
+			TAILQ_REMOVE(srs, sr, next);
+			free(sr);
+		}
+	}
+}
+
 int
 scan_results_len(struct scan_results *srs)
 {
@@ -514,6 +527,8 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 		warnx("failed to retrieve scan results");
 		return (1);
 	}
+
+	remove_hidden_networks(srs);
 
 	printf("%-*s %-8s %-9s %-8s\n", IEEE80211_NWID_LEN, "SSID", "Signal",
 	    "Frequency", "Security");
