@@ -8,6 +8,7 @@
 #include <sys/param.h>
 #include <sys/event.h>
 #include <sys/queue.h>
+#include <sys/queue_mergesort.h>
 #include <sys/sbuf.h>
 #include <sys/socket.h>
 

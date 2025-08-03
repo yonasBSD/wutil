@@ -8,6 +8,7 @@
 #include <sys/event.h>
 #include <sys/ioccom.h>
 #include <sys/queue.h>
+#include <sys/queue_mergesort.h>
 #include <sys/sockio.h>
 
 #include <net/ethernet.h>
@@ -41,6 +42,8 @@ static int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
 static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
     const char *identity, const char *password);
 static int remove_network(struct wpa_ctrl *ctrl, int nwid);
+static int scan_result_cmp(const struct scan_result *a,
+    const struct scan_result *b, void *thunk);
 
 #define WPA_MAX_REPLY_SIZE   4096
 #define WPA_BIN_REPLY_SIZE   2	/* sizeof("0") or sizeof("1") */
@@ -389,7 +392,17 @@ get_scan_results(struct wpa_ctrl *ctrl)
 		TAILQ_INSERT_TAIL(srs, sr, next);
 	}
 
+	TAILQ_MERGESORT(srs, NULL, scan_result_cmp, scan_result, next);
+
 	return (srs);
+}
+
+static int
+scan_result_cmp(const struct scan_result *a, const struct scan_result *b,
+    void *thunk)
+{
+	(void)thunk;
+	return (b->signal - a->signal);
 }
 
 void
