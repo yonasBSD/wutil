@@ -30,6 +30,13 @@
 #include "usage.h"
 #include "wifi.h"
 
+struct notification {
+	char *msg;
+	TAILQ_ENTRY(notification) next;
+};
+
+TAILQ_HEAD(notifications, notification);
+
 struct wutui {
 	int tty, wpa_fd, kq;
 	struct termios cooked;
@@ -43,12 +50,15 @@ struct wutui {
 	int srs_len;
 	struct known_networks *kns;
 	int kns_len;
+	struct notifications *notifications;
 };
 
 enum wutui_key {
 	ARROW_UP = 127,
 	ARROW_DOWN,
 };
+
+enum timers { TIMER_NOTIFATIONS_CLENAUP };
 
 static struct wutui wutui;
 
@@ -66,6 +76,8 @@ static const int SR_ENTRIES = 13;
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
+void free_notifactions(struct notifications *);
+
 static void init_wutui(const char *ctrl_path);
 static void deinit_wutui(void);
 static void event_loop(void);
@@ -74,6 +86,9 @@ static void render_tui(void);
 static void render_wifi_info(struct sbuf *sb);
 static void render_known_networks(struct sbuf *sb);
 static void render_network_scan(struct sbuf *sb);
+
+static void render_notifications(struct sbuf *sb);
+static int render_notification(struct sbuf *sb, const char *msg, int pos);
 
 static void heading(struct sbuf *sb, const char *text, bool is_top);
 static const char *signal_bars(int dbm);
@@ -94,6 +109,7 @@ void die(const char *, ...);
 void diex(const char *, ...);
 
 static int read_key(void);
+static void handle_notifications_cleanup(void);
 static void handle_input(void);
 static void handle_wpa_event(void);
 
@@ -152,6 +168,22 @@ parse_args(int argc, char *argv[], const char **ctrl_path)
 	}
 }
 
+void
+free_notifactions(struct notifications *ns)
+{
+	struct notification *n, *n_tmp;
+
+	if (ns == NULL)
+		return;
+
+	TAILQ_FOREACH_SAFE(n, ns, next, n_tmp) {
+		free(n->msg);
+		free(n);
+	}
+
+	free(ns);
+}
+
 static void
 init_wutui(const char *ctrl_path)
 {
@@ -167,6 +199,11 @@ init_wutui(const char *ctrl_path)
 	sa.sa_handler = on_sig_winch;
 	if (sigaction(SIGWINCH, &sa, 0) == -1)
 		err(EXIT_FAILURE, "sigaction SIGWINCH");
+
+	wutui.notifications = malloc(sizeof(struct notifications));
+	if (wutui.notifications == NULL)
+		err(EXIT_FAILURE, "malloc");
+	TAILQ_INIT(wutui.notifications);
 
 	if ((wutui.ctrl = wpa_ctrl_open(ctrl_path)) == NULL) {
 		err(EXIT_FAILURE,
@@ -213,6 +250,8 @@ deinit_wutui(void)
 	if (wutui.tty != -1)
 		disable_raw_mode();
 
+	free_notifactions(wutui.notifications);
+
 	close(wutui.tty);
 	close(wutui.kq);
 
@@ -227,12 +266,14 @@ deinit_wutui(void)
 static void
 event_loop(void)
 {
-	struct kevent events[2], tevent;
+	struct kevent events[3], tevent;
 
 	EV_SET(&events[0], wutui.tty, EVFILT_READ, EV_ADD, 0, 0, NULL);
 	EV_SET(&events[1], wutui.wpa_fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+	EV_SET(&events[2], TIMER_NOTIFATIONS_CLENAUP, EVFILT_TIMER, EV_ADD, 0,
+	    3000, NULL);
 
-	if (kevent(wutui.kq, events, 2, NULL, 0, NULL) == -1)
+	if (kevent(wutui.kq, events, 3, NULL, 0, NULL) == -1)
 		die("kevent register");
 
 	for (;;) {
@@ -250,7 +291,9 @@ event_loop(void)
 		if (nev > 0 && tevent.flags & EV_ERROR)
 			diex("event error: %s", strerror(tevent.data));
 
-		if (tevent.ident == (uintptr_t)wutui.tty)
+		if (tevent.ident == TIMER_NOTIFATIONS_CLENAUP)
+			handle_notifications_cleanup();
+		else if (tevent.ident == (uintptr_t)wutui.tty)
 			handle_input();
 		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
 			handle_wpa_event();
@@ -291,6 +334,8 @@ render_tui(void)
 		for (int i = 0; i < MAX_COLS - 2; i++)
 			sbuf_cat(sb, "─");
 		sbuf_cat(sb, "╯");
+
+		render_notifications(sb);
 	}
 
 	if (sbuf_finish(sb) != 0)
@@ -437,6 +482,45 @@ render_network_scan(struct sbuf *sb)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
 		    right_corner_block(i - wutui.sr_offset, SR_ENTRIES,
 			scrollbar));
+}
+
+static void
+render_notifications(struct sbuf *sb)
+{
+	struct notification *notif, *notif_tmp;
+	int pos = 1;
+
+	TAILQ_FOREACH_REVERSE_SAFE(notif, wutui.notifications, notifications,
+	    next, notif_tmp) {
+		pos = render_notification(sb, notif->msg, pos);
+		if (pos >= MAX_ROWS)
+			break;
+	}
+}
+
+static int
+render_notification(struct sbuf *sb, const char *msg, int pos)
+{
+	int len = strlen(msg);
+	int box_width = len + 4;
+	int start_col = wutui.winsize.ws_col - box_width + 1;
+
+	sbuf_cat(sb, COLOR(FG, YELLOW));
+	sbuf_cat(sb, CURSOR_MOVE(2, 1));
+	sbuf_printf(sb, CURSOR_MOVE_FMT "╭", pos, start_col);
+	for (int i = 0; i < len + 2; i++)
+		sbuf_cat(sb, "─");
+	sbuf_cat(sb, "╮\r\n");
+
+	sbuf_printf(sb, CURSOR_MOVE_FMT "│ %s │\r\n", ++pos, start_col, msg);
+
+	sbuf_printf(sb, CURSOR_MOVE_FMT "╰", ++pos, start_col);
+	for (int i = 0; i < len + 2; i++)
+		sbuf_cat(sb, "─");
+	sbuf_cat(sb, "╯\r\n");
+	sbuf_cat(sb, RESET_SGR);
+
+	return (pos + 1);
 }
 
 static void
@@ -626,6 +710,19 @@ read_key(void)
 }
 
 static void
+handle_notifications_cleanup(void)
+{
+	struct notification *first = TAILQ_FIRST(wutui.notifications);
+
+	if (first == NULL)
+		return;
+
+	TAILQ_REMOVE_HEAD(wutui.notifications, next);
+	free(first->msg);
+	free(first);
+}
+
+static void
 handle_input(void)
 {
 	int c = read_key();
@@ -664,11 +761,21 @@ handle_wpa_event(void)
 {
 	char buf[4096];
 	int len = recv(wutui.wpa_fd, buf, sizeof(buf) - 1, 0);
+	struct notification *notification = NULL;
 
 	if (len == -1)
 		die("recv(wpa_fd)");
 	else if (len == 0)
 		die("wpa ctrl interface socket closed");
-
 	buf[len] = '\0';
+
+	if ((notification = malloc(sizeof(*notification))) == NULL)
+		die("malloc");
+
+	if ((notification->msg = strdup(buf)) == NULL) {
+		free(notification);
+		die("strdup");
+	}
+
+	TAILQ_INSERT_TAIL(wutui.notifications, notification, next);
 }
