@@ -43,6 +43,11 @@ struct wutui {
 	int known_networks_len;
 };
 
+enum wutui_key {
+	ARROW_UP = 127,
+	ARROW_DOWN,
+};
+
 static struct wutui wutui;
 
 static const int MAX_COLS = 80;
@@ -553,6 +558,24 @@ read_key(void)
 			die("read");
 	}
 
+	if (c == ESC_CHAR) {
+		char seq[3];
+
+		if (read(wutui.tty, &seq[0], 1) != 1)
+			return (c);
+		if (read(wutui.tty, &seq[1], 1) != 1)
+			return (c);
+
+		if (seq[0] == CSI[1]) {
+			switch (seq[1]) {
+			case 'A':
+				return (ARROW_UP);
+			case 'B':
+				return (ARROW_DOWN);
+			}
+		}
+	}
+
 	return (c);
 }
 
@@ -569,6 +592,7 @@ handle_input(void)
 	case '\t':
 		wutui.current_section = !wutui.current_section;
 		break;
+	case ARROW_DOWN:
 	case 'j':
 		if (wutui.current_section == SECTION_KN) {
 			WRAPPED_INCR(wutui.kn_current_row,
@@ -578,6 +602,7 @@ handle_input(void)
 			    wutui.scan_results_len);
 		}
 		break;
+	case ARROW_UP:
 	case 'k':
 		if (wutui.current_section == SECTION_KN) {
 			WRAPPED_DECR(wutui.kn_current_row,
