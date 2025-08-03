@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <math.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -35,12 +36,13 @@ struct wutui {
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
 	enum { SECTION_KN = 0, SECTION_NS } current_section;
-	int kn_current_row, ns_current_row;
+	int current_kn, current_sr;
+	int kn_offset, sr_offset;
 	struct supplicant_status *status;
-	struct scan_results *scan_results;
-	int scan_results_len;
-	struct known_networks *known_networks;
-	int known_networks_len;
+	struct scan_results *srs;
+	int srs_len;
+	struct known_networks *kns;
+	int kns_len;
 };
 
 enum wutui_key {
@@ -53,12 +55,14 @@ static struct wutui wutui;
 static const int MAX_COLS = 80;
 static const int MAX_ROWS = 36;
 static const int KN_ENTRIES = 13;
-static const int NS_ENTRIES = 13;
+static const int SR_ENTRIES = 13;
 
-#define MARGIN		       ((wutui.winsize.ws_col - MAX_COLS) / 2)
+#define MARGIN			   ((wutui.winsize.ws_col - MAX_COLS) / 2)
 
-#define WRAPPED_INCR(var, max) ((var) = ((var) + 1) % (max))
-#define WRAPPED_DECR(var, max) ((var) = ((var) - 1 + (max)) % (max))
+#define WRAPPED_INCR(var, max)	   ((var) = ((var) + 1) % (max))
+#define WRAPPED_DECR(var, max)	   ((var) = ((var) - 1 + (max)) % (max))
+
+#define CLAMP(val, minval, maxval) MAX((minval), MIN((val), (maxval)))
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
@@ -73,6 +77,9 @@ static void render_network_scan(struct sbuf *sb);
 
 static void heading(struct sbuf *sb, const char *text, bool is_top);
 static const char *signal_bars(int dbm);
+
+static const char *right_corner_block(int pos, int max_entries, int scrollbar);
+static int get_scrollbar_pos(int offset, int entries, int max_entries);
 
 static int fetch_cursor_position(unsigned short *row, unsigned short *col);
 static int fetch_winsize(void);
@@ -170,14 +177,14 @@ init_wutui(const char *ctrl_path)
 	if ((wutui.status = get_supplicant_status(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed retrieve wpa_supplicant status");
 
-	if ((wutui.known_networks = get_known_networks(wutui.ctrl)) == NULL)
+	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve known networks");
-	wutui.known_networks_len = known_networks_len(wutui.known_networks);
+	wutui.kns_len = known_networks_len(wutui.kns);
 
-	if ((wutui.scan_results = get_scan_results(wutui.ctrl)) == NULL)
+	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve scan results");
-	remove_hidden_networks(wutui.scan_results);
-	wutui.scan_results_len = scan_results_len(wutui.scan_results);
+	remove_hidden_networks(wutui.srs);
+	wutui.srs_len = scan_results_len(wutui.srs);
 
 	if (wpa_ctrl_attach(wutui.ctrl) != 0) {
 		err(EXIT_FAILURE,
@@ -210,8 +217,8 @@ deinit_wutui(void)
 	close(wutui.kq);
 
 	free_supplicant_status(wutui.status);
-	free_known_networks(wutui.known_networks);
-	free_scan_results(wutui.scan_results);
+	free_known_networks(wutui.kns);
+	free_scan_results(wutui.srs);
 
 	wpa_ctrl_detach(wutui.ctrl);
 	wpa_ctrl_close(wutui.ctrl);
@@ -320,24 +327,31 @@ render_wifi_info(struct sbuf *sb)
 static void
 render_known_networks(struct sbuf *sb)
 {
-	struct known_network *nw, *nw_tmp;
-	int i = 0;
+	int i = 0, scrollbar = -1;
 	const int SECURITY_LEN = sizeof("Security") - 1;
 	const int HIDDEN_LEN = sizeof("Hidden") - 1;
 	const int PRIORITY_LEN = sizeof("Priority") - 1;
 	const int AUTO_CONNECT_LEN = sizeof("Auto Connect") - 1;
+	struct known_network *kn, *kn_tmp;
+
+	wutui.kn_offset = wutui.current_kn < wutui.kn_offset ?
+	    wutui.current_kn :
+	    wutui.current_kn - KN_ENTRIES + 1;
+	scrollbar = get_scrollbar_pos(wutui.kn_offset, wutui.kns_len,
+	    KN_ENTRIES);
 
 	heading(sb,
 	    wutui.current_section == SECTION_KN ? "<Known Networks>" :
 						  "Known Networks",
 	    false);
+
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
 		BLUE) "%-*s  Security  Hidden  Priority  Auto Connect" RESET_SGR
 		      "  ↑\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
-	TAILQ_FOREACH_SAFE(nw, wutui.known_networks, next, nw_tmp) {
+	TAILQ_FOREACH_SAFE(kn, wutui.kns, next, kn_tmp) {
 		if (i == KN_ENTRIES)
 			break;
 
@@ -345,34 +359,40 @@ render_known_networks(struct sbuf *sb)
 		    "%*s│ %s%s%-*s  %-*s  %-*s  %*d  %-*s " RESET_SGR " %s\r\n",
 		    MARGIN, "",
 		    wutui.current_section == SECTION_KN &&
-			    i == wutui.kn_current_row ?
+			    i == wutui.current_kn ?
 			INVERT :
 			"",
-		    nw->state == KN_CURRENT ? ">" : " ", IEEE80211_NWID_LEN,
-		    nw->ssid, SECURITY_LEN, security_to_string[nw->security],
-		    HIDDEN_LEN, nw->hidden ? "Yes" : "No", PRIORITY_LEN,
-		    nw->priority, AUTO_CONNECT_LEN,
-		    nw->state == KN_ENABLED	? "Yes" :
-			nw->state == KN_CURRENT ? "Current" :
+		    kn->state == KN_CURRENT ? ">" : " ", IEEE80211_NWID_LEN,
+		    kn->ssid, SECURITY_LEN, security_to_string[kn->security],
+		    HIDDEN_LEN, kn->hidden ? "Yes" : "No", PRIORITY_LEN,
+		    kn->priority, AUTO_CONNECT_LEN,
+		    kn->state == KN_ENABLED	? "Yes" :
+			kn->state == KN_CURRENT ? "Current" :
 						  "No",
-		    i == KN_ENTRIES - 1 ? "↓" : "█");
+		    right_corner_block(i, KN_ENTRIES, scrollbar));
 
 		i++;
 	}
 
 	for (; i != KN_ENTRIES; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
-		    i == KN_ENTRIES - 1 ? "↓" : "█");
+		    right_corner_block(i, KN_ENTRIES, scrollbar));
 }
 
 static void
 render_network_scan(struct sbuf *sb)
 {
-	struct scan_result *sr, *sr_tmp;
-	int i = 0;
+	int i = 0, scrollbar = -1;
 	const int SECURITY_LEN = sizeof("Security") - 1;
 	const int SIGNAL_LEN = sizeof("Signal") - 1;
 	const int FREQ_LEN = sizeof("5180") - 1;
+	struct scan_result *sr, *sr_tmp;
+
+	wutui.sr_offset = wutui.current_sr < wutui.sr_offset ?
+	    wutui.current_sr :
+	    wutui.current_sr - SR_ENTRIES + 1;
+	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs_len,
+	    SR_ENTRIES);
 
 	heading(sb,
 	    wutui.current_section == SECTION_NS ? "<Network Scan>" :
@@ -384,31 +404,29 @@ render_network_scan(struct sbuf *sb)
 		      "   ↑\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID");
 
-	TAILQ_FOREACH_SAFE(sr, wutui.scan_results, next, sr_tmp) {
-		if (i == NS_ENTRIES)
+	TAILQ_FOREACH_SAFE(sr, wutui.srs, next, sr_tmp) {
+		if (i == SR_ENTRIES)
 			break;
 
 		sbuf_printf(sb,
-		    "%*s│ "
-		    "%s"
-		    " %-*s      %-*s       %-*s       %-*d MHz   " RESET_SGR
+		    "%*s│ %s %-*s      %-*s       %-*s       %-*d MHz   " RESET_SGR
 		    " %s\r\n",
 		    MARGIN, "",
 		    wutui.current_section == SECTION_NS &&
-			    i == wutui.ns_current_row ?
+			    i == wutui.current_sr ?
 			INVERT :
 			"",
 		    IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
 		    security_to_string[sr->security], SIGNAL_LEN,
 		    signal_bars(sr->signal), FREQ_LEN, sr->freq,
-		    i == NS_ENTRIES - 1 ? "↓" : "█");
+		    right_corner_block(i, SR_ENTRIES, scrollbar));
 
 		i++;
 	}
 
-	for (; i != NS_ENTRIES; i++)
+	for (; i != SR_ENTRIES; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
-		    i == NS_ENTRIES - 1 ? "↓" : "█");
+		    right_corner_block(i, SR_ENTRIES, scrollbar));
 }
 
 static void
@@ -437,6 +455,27 @@ signal_bars(int dbm)
 	if (dbm >= -80)
 		return ("▂▁▁▁");
 	return ("▁▁▁▁");
+}
+
+static const char *
+right_corner_block(int pos, int max_entries, int scrollbar)
+{
+	return (pos == max_entries - 1 ? "↓" : pos == scrollbar ? "█" : " ");
+}
+
+static int
+get_scrollbar_pos(int offset, int entries, int max_entries)
+{
+	int pos;
+	double scroll_ratio;
+
+	if (entries <= max_entries)
+		return (-1);
+
+	scroll_ratio = (double)offset / (entries - max_entries);
+	pos = round(scroll_ratio * max_entries);
+
+	return (CLAMP(pos, 0, max_entries - 1 /* down arrow */ - 1));
 }
 
 static int
@@ -588,21 +627,17 @@ handle_input(void)
 	case ARROW_DOWN:
 	case 'j':
 		if (wutui.current_section == SECTION_KN) {
-			WRAPPED_INCR(wutui.kn_current_row,
-			    wutui.known_networks_len);
+			WRAPPED_INCR(wutui.current_kn, wutui.kns_len);
 		} else {
-			WRAPPED_INCR(wutui.ns_current_row,
-			    wutui.scan_results_len);
+			WRAPPED_INCR(wutui.current_sr, wutui.srs_len);
 		}
 		break;
 	case ARROW_UP:
 	case 'k':
 		if (wutui.current_section == SECTION_KN) {
-			WRAPPED_DECR(wutui.kn_current_row,
-			    wutui.known_networks_len);
+			WRAPPED_DECR(wutui.current_kn, wutui.kns_len);
 		} else {
-			WRAPPED_DECR(wutui.ns_current_row,
-			    wutui.scan_results_len);
+			WRAPPED_DECR(wutui.current_sr, wutui.srs_len);
 		}
 		break;
 	default:
