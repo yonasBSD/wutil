@@ -862,6 +862,10 @@ get_supplicant_status(struct wpa_ctrl *ctrl)
 		}
 	}
 
+	status->freq = 0;
+	if (status->bssid != NULL)
+		status->freq = get_bss_freq(ctrl, status->bssid);
+
 	return (status);
 }
 
@@ -899,8 +903,7 @@ cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 		printf("%15s: %s\n", "Connected SSID", status->ssid);
 	if (status->bssid != NULL) {
 		printf("%15s: %s\n", "Connected BSSID", status->bssid);
-		printf("%15s: %d MHz\n", "Frequency",
-		    get_bss_freq(ctrl, status->bssid));
+		printf("%15s: %d MHz\n", "Frequency", status->freq);
 	}
 	if (status->ip_address != NULL)
 		printf("%15s: %s\n", "IP Address", status->ip_address);

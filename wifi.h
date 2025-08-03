@@ -43,6 +43,7 @@ struct scan_result {
 TAILQ_HEAD(scan_results, scan_result);
 
 struct supplicant_status {
+	int freq;
 	char *state;
 	char *bssid;
 	char *ssid;

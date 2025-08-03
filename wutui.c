@@ -298,21 +298,17 @@ render_tui(void)
 static void
 render_wifi_info(struct sbuf *sb)
 {
-	int freq = 0;
 	const int FREQ_LEN = sizeof("5180") - 1;
 	/* wpa state with max len*/
 	const int WPA_STATE_LEN = sizeof("INTERFACE_DISABLED") - 1;
 	const int IP_LEN = sizeof("255.255.255.255") - 1;
-
-	if (wutui.status->bssid != NULL)
-		freq = get_bss_freq(wutui.ctrl, wutui.status->bssid);
 
 	heading(sb, "WiFi Info", true);
 	sbuf_printf(sb,
 	    "%*s│  SSID:      %-*s    Frequency:  %*d MHz         │\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN,
 	    wutui.status->ssid == NULL ? "N/A" : wutui.status->ssid, FREQ_LEN,
-	    freq);
+	    wutui.status->freq);
 	sbuf_printf(sb,
 	    "%*s│  WPA State: %-*s                  IP Address: %-*s  │\r\n",
 	    MARGIN, "", WPA_STATE_LEN,
@@ -362,14 +358,14 @@ render_known_networks(struct sbuf *sb)
 		    nw->state == KN_ENABLED	? "Yes" :
 			nw->state == KN_CURRENT ? "Current" :
 						  "No",
-		    i == 12 ? "↓" : "█");
+		    i == KN_ENTRIES - 1 ? "↓" : "█");
 
 		i++;
 	}
 
 	for (; i != KN_ENTRIES; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
-		    i == 12 ? "↓" : "█");
+		    i == KN_ENTRIES - 1 ? "↓" : "█");
 }
 
 static void
@@ -408,14 +404,14 @@ render_network_scan(struct sbuf *sb)
 		    IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
 		    security_to_string[sr->security], SIGNAL_LEN,
 		    signal_bars(sr->signal), FREQ_LEN, sr->freq,
-		    i == 12 ? "↓" : "█");
+		    i == NS_ENTRIES - 1 ? "↓" : "█");
 
 		i++;
 	}
 
 	for (; i != NS_ENTRIES; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", MAX_COLS - 2, "",
-		    i == 12 ? "↓" : "█");
+		    i == NS_ENTRIES - 1 ? "↓" : "█");
 }
 
 static void
