@@ -84,6 +84,7 @@ int known_networks_len(struct known_networks *);
 enum security known_network_security(struct wpa_ctrl *ctrl, int nwid);
 bool is_hidden_network(struct wpa_ctrl *ctrl, int nwid);
 int get_network_priority(struct wpa_ctrl *ctrl, int nwid);
+int set_autoconnect(struct wpa_ctrl *ctrl, int nwid, bool enable);
 
 int add_network(struct wpa_ctrl *ctrl, const char *ssid);
 int configure_psk(struct wpa_ctrl *ctrl, int, const char *psk);

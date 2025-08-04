@@ -1179,7 +1179,9 @@ cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 	printf("%12s: %s\n", "Hidden", nw->hidden ? "Yes" : "No");
 	printf("%12s: %d\n", "Priority", nw->priority);
 	printf("%12s: %s\n", "Autoconnect",
-	    nw->state == KN_DISABLED ? "No" : "Yes");
+	    nw->state == KN_CURRENT	? "Current" :
+		nw->state == KN_ENABLED ? "Yes" :
+					  "No");
 
 	free_known_networks(nws);
 
@@ -1242,6 +1244,16 @@ cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 	free_known_networks(nws);
 
 	return (0);
+}
+
+int
+set_autoconnect(struct wpa_ctrl *ctrl, int nwid, bool enable)
+{
+	char reply[WPA_ACK_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
+
+	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "%s_NETWORK %d",
+	    enable ? "ENABLE" : "DISABLE", nwid));
 }
 
 int
@@ -1331,8 +1343,7 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 	}
 
 	if (autoconnect != UNCHANGED &&
-	    wpa_ctrl_ack_request(ctrl, reply, &reply_len, "%s_NETWORK %d",
-		autoconnect == YES ? "ENABLE" : "DISABLE", nw->id) != 0) {
+	    set_autoconnect(ctrl, autoconnect, nw->id) != 0) {
 		warnx("failed to set priority");
 		ret = 1;
 		goto cleanup;

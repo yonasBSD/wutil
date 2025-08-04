@@ -31,6 +31,13 @@
 #include "usage.h"
 #include "wifi.h"
 
+#define WRAPPED_INCR(var, max)	   ((var) = ((var) + 1) % (max))
+#define WRAPPED_DECR(var, max)	   ((var) = ((var) - 1 + (max)) % (max))
+
+#define CLAMP(val, minval, maxval) MAX((minval), MIN((val), (maxval)))
+
+#define WPA_EVENT_ASSOCIATED	   "Associated with"
+
 struct notification {
 	char *msg;
 	TAILQ_ENTRY(notification) next;
@@ -44,8 +51,9 @@ struct wutui {
 	struct termios cooked;
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
-	enum { SECTION_KN = 0, SECTION_NS } current_section;
-	int current_kn, current_sr;
+	enum { SECTION_KN = 0, SECTION_NS } section;
+	int current_kn_index, current_sr;
+	struct known_network *current_kn;
 	int kn_offset, sr_offset;
 	struct supplicant_status *status;
 	struct scan_results *srs;
@@ -79,12 +87,7 @@ static const int MAX_ROWS = 34;
 static const int KN_ENTRIES = 13;
 static const int SR_ENTRIES = 13;
 
-#define MARGIN			   (MAX((wutui.winsize.ws_col - MAX_COLS) / 2, 0))
-
-#define WRAPPED_INCR(var, max)	   ((var) = ((var) + 1) % (max))
-#define WRAPPED_DECR(var, max)	   ((var) = ((var) - 1 + (max)) % (max))
-
-#define CLAMP(val, minval, maxval) MAX((minval), MIN((val), (maxval)))
+#define MARGIN (MAX((wutui.winsize.ws_col - MAX_COLS) / 2, 0))
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
@@ -244,6 +247,7 @@ init_wutui(const char *ctrl_path)
 	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve known networks");
 	wutui.kns_len = known_networks_len(wutui.kns);
+	wutui.current_kn = TAILQ_FIRST(wutui.kns);
 
 	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve scan results");
@@ -408,17 +412,16 @@ render_known_networks(struct sbuf *sb)
 	const int AUTO_CONNECT_LEN = sizeof("Auto Connect") - 1;
 	struct known_network *kn;
 
-	if (wutui.current_kn < wutui.kn_offset)
-		wutui.kn_offset = wutui.current_kn;
-	if (wutui.current_kn >= wutui.kn_offset + KN_ENTRIES)
-		wutui.kn_offset = wutui.current_kn - KN_ENTRIES + 1;
+	if (wutui.current_kn_index < wutui.kn_offset)
+		wutui.kn_offset = wutui.current_kn_index;
+	if (wutui.current_kn_index >= wutui.kn_offset + KN_ENTRIES)
+		wutui.kn_offset = wutui.current_kn_index - KN_ENTRIES + 1;
 
 	scrollbar = get_scrollbar_pos(wutui.kn_offset, wutui.kns_len,
 	    KN_ENTRIES);
 
 	heading(sb,
-	    wutui.current_section == SECTION_KN ? "<Known Networks>" :
-						  "Known Networks",
+	    wutui.section == SECTION_KN ? "<Known Networks>" : "Known Networks",
 	    false, MARGIN, MAX_COLS);
 
 	sbuf_printf(sb,
@@ -438,8 +441,7 @@ render_known_networks(struct sbuf *sb)
 		    "%*s│ %s%s%-*s  %-*s  %-*s  %*d  %-*s " REMOVE_INVERT
 		    " %s\r\n",
 		    MARGIN, "",
-		    wutui.current_section == SECTION_KN &&
-			    i == wutui.current_kn ?
+		    wutui.section == SECTION_KN && i == wutui.current_kn_index ?
 			INVERT :
 			"",
 		    kn->state == KN_CURRENT ? ">" : " ", IEEE80211_NWID_LEN,
@@ -477,8 +479,7 @@ render_network_scan(struct sbuf *sb)
 	    SR_ENTRIES);
 
 	heading(sb,
-	    wutui.current_section == SECTION_NS ? "<Network Scan>" :
-						  "Network Scan",
+	    wutui.section == SECTION_NS ? "<Network Scan>" : "Network Scan",
 	    false, MARGIN, MAX_COLS);
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
@@ -497,8 +498,7 @@ render_network_scan(struct sbuf *sb)
 		    "%*s│ %s %-*s      %-*s       %-*s       %-*d MHz   " REMOVE_INVERT
 		    " %s\r\n",
 		    MARGIN, "",
-		    wutui.current_section == SECTION_NS &&
-			    i == wutui.current_sr ?
+		    wutui.section == SECTION_NS && i == wutui.current_sr ?
 			INVERT :
 			"",
 		    IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
@@ -838,10 +838,12 @@ handle_input(void)
 	int c = read_key();
 
 	switch (c) {
-	case 'r':
-		if (auto_connect(wutui.ctrl) != 0)
-			die("failed to auto connect");
-		update_supplicant_status();
+	case 'a':
+		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
+			set_autoconnect(wutui.ctrl, wutui.current_kn->id,
+			    wutui.current_kn->state != KN_ENABLED);
+			update_known_networks();
+		}
 		break;
 	case 'd':
 		if (disconnect(wutui.ctrl) != 0)
@@ -853,16 +855,25 @@ handle_input(void)
 		break;
 	case ARROW_DOWN:
 	case 'j':
-		if (wutui.current_section == SECTION_KN) {
-			WRAPPED_INCR(wutui.current_kn, wutui.kns_len);
+		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
+			WRAPPED_INCR(wutui.current_kn_index, wutui.kns_len);
+			wutui.current_kn = TAILQ_NEXT(wutui.current_kn, next);
+			wutui.current_kn = wutui.current_kn == NULL ?
+			    TAILQ_FIRST(wutui.kns) :
+			    wutui.current_kn;
 		} else {
 			WRAPPED_INCR(wutui.current_sr, wutui.srs_len);
 		}
 		break;
 	case ARROW_UP:
 	case 'k':
-		if (wutui.current_section == SECTION_KN) {
-			WRAPPED_DECR(wutui.current_kn, wutui.kns_len);
+		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
+			WRAPPED_DECR(wutui.current_kn_index, wutui.kns_len);
+			wutui.current_kn = TAILQ_PREV(wutui.current_kn,
+			    known_networks, next);
+			wutui.current_kn = wutui.current_kn == NULL ?
+			    TAILQ_LAST(wutui.kns, known_networks) :
+			    wutui.current_kn;
 		} else {
 			WRAPPED_DECR(wutui.current_sr, wutui.srs_len);
 		}
@@ -871,6 +882,11 @@ handle_input(void)
 		leave_alt_buffer();
 		exit(EXIT_SUCCESS);
 		break;
+	case 'r':
+		if (auto_connect(wutui.ctrl) != 0)
+			die("failed to auto connect");
+		update_supplicant_status();
+		break;
 	case 's':
 		scan(wutui.ctrl);
 		break;
@@ -878,7 +894,7 @@ handle_input(void)
 		clear_notifactions(wutui.notifications);
 		break;
 	case '\t':
-		wutui.current_section = !wutui.current_section;
+		wutui.section = !wutui.section;
 		break;
 	default:
 		break;
@@ -905,7 +921,8 @@ handle_wpa_event(void)
 		update_scan_results();
 	} else if (strstr(buf, WPA_EVENT_NETWORK_ADDED) != NULL ||
 	    strstr(buf, WPA_EVENT_NETWORK_REMOVED) != NULL ||
-	    strstr(buf, WPA_EVENT_NETWORK_NOT_FOUND) != NULL) {
+	    strstr(buf, WPA_EVENT_NETWORK_NOT_FOUND) != NULL ||
+	    strstr(buf, WPA_EVENT_ASSOCIATED) != NULL) {
 		update_known_networks();
 	} else {
 		update_supplicant_status();
@@ -936,11 +953,12 @@ update_scan_results(void)
 static void
 update_known_networks(void)
 {
-	wutui.current_kn = 0;
+	wutui.current_kn_index = 0;
 	free_known_networks(wutui.kns);
 	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
 		diex("failed to retrieve known networks");
 	wutui.kns_len = known_networks_len(wutui.kns);
+	wutui.current_kn = TAILQ_FIRST(wutui.kns);
 }
 
 static void
