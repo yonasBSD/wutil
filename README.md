@@ -33,4 +33,4 @@ Usage:  wutil help
 ```
 $ ./wutui
 ```
-![04-09-2025-000549](https://github.com/user-attachments/assets/f564c27b-1abd-46ab-ab2b-d4b56cd122e4)
+<img width="1694" height="1279" alt="image" src="https://github.com/user-attachments/assets/b100b134-fa9d-45cc-8e96-3115a3b55012" />
