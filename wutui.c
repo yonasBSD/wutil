@@ -530,7 +530,7 @@ render_help(struct sbuf *sb)
 		{ "f", "Forget network" },
 		{ "a", "Toggle auto connect" },
 		{ "<C-a>", "Increase priority" },
-		{ "<C-d>", "Decrease priority" },
+		{ "<C-x>", "Decrease priority" },
 	};
 	struct keybinding ns_keys[] = {
 		{ "s", "Trigger Scan" },
@@ -840,8 +840,9 @@ handle_input(void)
 	switch (c) {
 	case 'a':
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
-			set_autoconnect(wutui.ctrl, wutui.current_kn->id,
-			    wutui.current_kn->state != KN_ENABLED);
+			if (set_autoconnect(wutui.ctrl, wutui.current_kn->id,
+				wutui.current_kn->state != KN_ENABLED) != 0)
+				die("failed to set autoconnect");
 			update_known_networks();
 		}
 		break;
@@ -889,6 +890,22 @@ handle_input(void)
 		break;
 	case 's':
 		scan(wutui.ctrl);
+		break;
+	case CTRL('a'):
+		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
+			if (set_priority(wutui.ctrl, wutui.current_kn->id,
+				wutui.current_kn->priority + 1) != 0)
+				die("failed to set priority");
+			update_known_networks();
+		}
+		break;
+	case CTRL('x'):
+		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
+			if (set_priority(wutui.ctrl, wutui.current_kn->id,
+				wutui.current_kn->priority - 1) != 0)
+				die("failed to set priority");
+			update_known_networks();
+		}
 		break;
 	case CTRL('l'):
 		clear_notifactions(wutui.notifications);

@@ -1257,14 +1257,22 @@ set_autoconnect(struct wpa_ctrl *ctrl, int nwid, bool enable)
 }
 
 int
+set_priority(struct wpa_ctrl *ctrl, int nwid, int priority)
+{
+	char reply[WPA_ACK_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
+
+	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
+	    "SET_NETWORK %d priority %d", nwid, priority));
+}
+
+int
 cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
 	int opt, ret = 0;
 	int priority = 0;
-	bool set_priority = false;
+	bool change_priority = false;
 	enum { UNCHANGED, YES, NO } autoconnect = UNCHANGED;
-	char reply[WPA_ACK_REPLY_SIZE];
-	size_t reply_len = sizeof(reply) - 1;
 	char *endptr;
 	const char *ssid;
 	struct known_network *nw, *nw_tmp;
@@ -1298,7 +1306,7 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 				    optarg);
 				return (-1);
 			}
-			set_priority = true;
+			change_priority = true;
 			break;
 		case '?':
 		default:
@@ -1349,9 +1357,7 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 		goto cleanup;
 	}
 
-	if (set_priority &&
-	    wpa_ctrl_ack_request(ctrl, reply, &reply_len,
-		"SET_NETWORK %d priority %d", nw->id, priority) != 0) {
+	if (change_priority && set_priority(ctrl, nw->id, priority) != 0) {
 		warnx("failed to set priority");
 		ret = 1;
 		goto cleanup;
