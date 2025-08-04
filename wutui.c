@@ -540,6 +540,7 @@ render_help(struct sbuf *sb)
 
 	sbuf_cat(sb, CURSOR_MOVE(1, 1));
 	sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
+	sbuf_cat(sb, COLOR(FG, MAGENTA));
 
 	heading(sb, "Help", true, help_margin, max_help_cols);
 	for (size_t i = 0; i < nitems(general_keys); i++) {
@@ -563,6 +564,7 @@ render_help(struct sbuf *sb)
 	}
 
 	divider(sb, true, help_margin, max_help_cols);
+	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
 }
 
 static void
