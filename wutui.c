@@ -553,23 +553,26 @@ render_help(struct sbuf *sb)
 
 	heading(sb, "Help", true, help_margin, max_help_cols);
 	for (size_t i = 0; i < nitems(general_keys); i++) {
-		sbuf_printf(sb, CURSOR_FORWARD_FMT "│  %-*s %-*s  │\r\n",
-		    help_margin, max_key_len, general_keys[i].keys,
-		    max_desc_len, general_keys[i].desc);
+		if (help_margin > 0)
+			sbuf_printf(sb, CURSOR_FORWARD_FMT, help_margin);
+		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
+		    general_keys[i].keys, max_desc_len, general_keys[i].desc);
 	}
 
 	heading(sb, "Known Networks", false, help_margin, max_help_cols);
 	for (size_t i = 0; i < nitems(kn_keys); i++) {
-		sbuf_printf(sb, CURSOR_FORWARD_FMT "│  %-*s %-*s  │\r\n",
-		    help_margin, max_key_len, kn_keys[i].keys, max_desc_len,
-		    kn_keys[i].desc);
+		if (help_margin > 0)
+			sbuf_printf(sb, CURSOR_FORWARD_FMT, help_margin);
+		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
+		    kn_keys[i].keys, max_desc_len, kn_keys[i].desc);
 	}
 
 	heading(sb, "Network Scan", false, help_margin, max_help_cols);
 	for (size_t i = 0; i < nitems(ns_keys); i++) {
-		sbuf_printf(sb, CURSOR_FORWARD_FMT "│  %-*s %-*s  │\r\n",
-		    help_margin, max_key_len, ns_keys[i].keys, max_desc_len,
-		    ns_keys[i].desc);
+		if (help_margin > 0)
+			sbuf_printf(sb, CURSOR_FORWARD_FMT, help_margin);
+		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
+		    ns_keys[i].keys, max_desc_len, ns_keys[i].desc);
 	}
 
 	divider(sb, true, help_margin, max_help_cols);
@@ -623,7 +626,9 @@ heading(struct sbuf *sb, const char *text, bool rounded, int margin,
 	const char *left_corner = rounded ? "╭" : "├";
 	const char *right_corner = rounded ? "╮" : "┤";
 
-	sbuf_printf(sb, CURSOR_FORWARD_FMT "%s", margin, left_corner);
+	if (margin > 0)
+		sbuf_printf(sb, CURSOR_FORWARD_FMT, margin);
+	sbuf_printf(sb, "%s", left_corner);
 	sbuf_printf(sb, "─┐" BOLD "%s" NORMAL_INTENSITY "┌", text);
 	for (int i = 0; i < max_cols - 2 - len; i++)
 		sbuf_cat(sb, "─");
@@ -636,7 +641,9 @@ divider(struct sbuf *sb, bool rounded, int margin, int max_cols)
 	const char *left_corner = rounded ? "╰" : "├";
 	const char *right_corner = rounded ? "╯" : "┤";
 
-	sbuf_printf(sb, CURSOR_FORWARD_FMT "%s", margin, left_corner);
+	if (margin > 0)
+		sbuf_printf(sb, CURSOR_FORWARD_FMT, margin);
+	sbuf_printf(sb, "%s", left_corner);
 	for (int i = 0; i < max_cols - 2; i++)
 		sbuf_cat(sb, "─");
 	sbuf_printf(sb, "%s", right_corner);
