@@ -52,8 +52,9 @@ struct wutui {
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
 	enum { SECTION_KN = 0, SECTION_NS } section;
-	int current_kn_index, current_sr;
+	int current_kn_index, current_sr_index;
 	struct known_network *current_kn;
+	struct scan_result *current_sr;
 	int kn_offset, sr_offset;
 	struct supplicant_status *status;
 	struct scan_results *srs;
@@ -76,7 +77,7 @@ struct keybinding {
 };
 
 static const int timers[] = {
-	[TIMER_NOTIFICATION_CLEANUP] = 3 /* seconds */,
+	[TIMER_NOTIFICATION_CLEANUP] = 5 /* seconds */,
 	[TIMER_PERIODIC_SCAN] = 30,
 };
 
@@ -256,6 +257,7 @@ init_wutui(const char *ctrl_path)
 		errx(EXIT_FAILURE, "failed to retrieve scan results");
 	remove_hidden_networks(wutui.srs);
 	wutui.srs_len = scan_results_len(wutui.srs);
+	wutui.current_sr = TAILQ_FIRST(wutui.srs);
 
 	if (wpa_ctrl_attach(wutui.ctrl) != 0) {
 		err(EXIT_FAILURE,
@@ -472,10 +474,10 @@ render_network_scan(struct sbuf *sb)
 	const int FREQ_LEN = sizeof("5180") - 1;
 	struct scan_result *sr;
 
-	if (wutui.current_sr < wutui.sr_offset)
-		wutui.sr_offset = wutui.current_sr;
-	if (wutui.current_sr >= wutui.sr_offset + SR_ENTRIES)
-		wutui.sr_offset = wutui.current_sr - SR_ENTRIES + 1;
+	if (wutui.current_sr_index < wutui.sr_offset)
+		wutui.sr_offset = wutui.current_sr_index;
+	if (wutui.current_sr_index >= wutui.sr_offset + SR_ENTRIES)
+		wutui.sr_offset = wutui.current_sr_index - SR_ENTRIES + 1;
 
 	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs_len,
 	    SR_ENTRIES);
@@ -500,7 +502,7 @@ render_network_scan(struct sbuf *sb)
 		    "%*s│ %s %-*s      %-*s       %-*s       %-*d MHz   " REMOVE_INVERT
 		    " %s\r\n",
 		    MARGIN, "",
-		    wutui.section == SECTION_NS && i == wutui.current_sr ?
+		    wutui.section == SECTION_NS && i == wutui.current_sr_index ?
 			INVERT :
 			"",
 		    IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
@@ -895,6 +897,25 @@ handle_input(void)
 			update_known_networks();
 		}
 		break;
+	case 'c':
+		if (wutui.section == SECTION_NS && wutui.current_sr != NULL) {
+			int nwid = -1;
+			struct known_network *nw, *nw_tmp;
+
+			TAILQ_FOREACH_SAFE(nw, wutui.kns, next, nw_tmp) {
+				if (strcmp(nw->ssid, wutui.current_sr->ssid) ==
+				    0) {
+					nwid = nw->id;
+					break;
+				}
+			}
+
+			if (nwid != -1 && select_network(wutui.ctrl, nwid) != 0) {
+				diex("failed to select network: %s",
+				    wutui.current_sr->ssid);
+			}
+		}
+		break;
 	case 'd':
 		if (disconnect(wutui.ctrl) != 0)
 			die("failed to disconnect");
@@ -921,8 +942,13 @@ handle_input(void)
 			wutui.current_kn = wutui.current_kn == NULL ?
 			    TAILQ_FIRST(wutui.kns) :
 			    wutui.current_kn;
-		} else {
-			WRAPPED_INCR(wutui.current_sr, wutui.srs_len);
+		} else if (wutui.section == SECTION_NS &&
+		    wutui.current_sr != NULL) {
+			WRAPPED_INCR(wutui.current_sr_index, wutui.srs_len);
+			wutui.current_sr = TAILQ_NEXT(wutui.current_sr, next);
+			wutui.current_sr = wutui.current_sr == NULL ?
+			    TAILQ_FIRST(wutui.srs) :
+			    wutui.current_sr;
 		}
 		break;
 	case ARROW_UP:
@@ -934,8 +960,14 @@ handle_input(void)
 			wutui.current_kn = wutui.current_kn == NULL ?
 			    TAILQ_LAST(wutui.kns, known_networks) :
 			    wutui.current_kn;
-		} else {
-			WRAPPED_DECR(wutui.current_sr, wutui.srs_len);
+		} else if (wutui.section == SECTION_NS &&
+		    wutui.current_sr != NULL) {
+			WRAPPED_DECR(wutui.current_sr_index, wutui.srs_len);
+			wutui.current_sr = TAILQ_PREV(wutui.current_sr,
+			    scan_results, next);
+			wutui.current_sr = wutui.current_sr == NULL ?
+			    TAILQ_LAST(wutui.srs, scan_results) :
+			    wutui.current_sr;
 		}
 		break;
 	case 'q':
@@ -1018,21 +1050,24 @@ static void
 update_scan_results(void)
 {
 	free_scan_results(wutui.srs);
-	wutui.current_sr = 0;
 	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
 		diex("failed to retrieve scan results");
 	remove_hidden_networks(wutui.srs);
 	wutui.srs_len = scan_results_len(wutui.srs);
+
+	wutui.current_sr_index = 0;
+	wutui.current_sr = TAILQ_FIRST(wutui.srs);
 }
 
 static void
 update_known_networks(void)
 {
-	wutui.current_kn_index = 0;
 	free_known_networks(wutui.kns);
 	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
 		diex("failed to retrieve known networks");
 	wutui.kns_len = known_networks_len(wutui.kns);
+
+	wutui.current_kn_index = 0;
 	wutui.current_kn = TAILQ_FIRST(wutui.kns);
 }
 

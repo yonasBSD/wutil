@@ -822,7 +822,7 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 	}
 
 	if (select_network(ctrl, nwid) != 0) {
-		warnx("failed to select network");
+		warnx("failed to select network: %s", ssid);
 		return (1);
 	}
 
