@@ -41,7 +41,6 @@ static int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
     const char *identity, const char *password);
 static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
     const char *identity, const char *password);
-static int remove_network(struct wpa_ctrl *ctrl, int nwid);
 static int known_networks_cmp(struct known_network *a, struct known_network *b,
     void *thunk);
 static int scan_result_cmp(const struct scan_result *a,
@@ -1188,7 +1187,7 @@ cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 	return (0);
 }
 
-static int
+int
 remove_network(struct wpa_ctrl *ctrl, int nwid)
 {
 	char reply[WPA_ACK_REPLY_SIZE];

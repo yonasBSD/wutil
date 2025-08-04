@@ -851,6 +851,16 @@ handle_input(void)
 			die("failed to disconnect");
 		update_supplicant_status();
 		break;
+	case 'f':
+		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
+			if (remove_network(wutui.ctrl, wutui.current_kn->id) !=
+			    0) {
+				die("failed to remove network: %s",
+				    wutui.current_kn->ssid);
+			}
+			update_known_networks();
+		}
+		break;
 	case 'h':
 		wutui.show_help = !wutui.show_help;
 		break;

@@ -86,6 +86,7 @@ bool is_hidden_network(struct wpa_ctrl *ctrl, int nwid);
 int get_network_priority(struct wpa_ctrl *ctrl, int nwid);
 int set_autoconnect(struct wpa_ctrl *ctrl, int nwid, bool enable);
 int set_priority(struct wpa_ctrl *ctrl, int nwid, int priority);
+int remove_network(struct wpa_ctrl *ctrl, int nwid);
 
 int add_network(struct wpa_ctrl *ctrl, const char *ssid);
 int configure_psk(struct wpa_ctrl *ctrl, int, const char *psk);
