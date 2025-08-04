@@ -623,7 +623,7 @@ heading(struct sbuf *sb, const char *text, bool rounded, int margin,
 	const char *left_corner = rounded ? "╭" : "├";
 	const char *right_corner = rounded ? "╮" : "┤";
 
-	sbuf_printf(sb, "%*s%s", margin, "", left_corner);
+	sbuf_printf(sb, CURSOR_FORWARD_FMT "%s", margin, left_corner);
 	sbuf_printf(sb, "─┐" BOLD "%s" NORMAL_INTENSITY "┌", text);
 	for (int i = 0; i < max_cols - 2 - len; i++)
 		sbuf_cat(sb, "─");
@@ -636,7 +636,7 @@ divider(struct sbuf *sb, bool rounded, int margin, int max_cols)
 	const char *left_corner = rounded ? "╰" : "├";
 	const char *right_corner = rounded ? "╯" : "┤";
 
-	sbuf_printf(sb, "%*s%s", margin, "", left_corner);
+	sbuf_printf(sb, CURSOR_FORWARD_FMT "%s", margin, left_corner);
 	for (int i = 0; i < max_cols - 2; i++)
 		sbuf_cat(sb, "─");
 	sbuf_printf(sb, "%s", right_corner);
