@@ -519,7 +519,7 @@ render_help(struct sbuf *sb)
 {
 	struct keybinding general_keys[] = {
 		{ "h", "Toggle help" },
-		{ "a", "Auto connect known AP" },
+		{ "r", "Auto connect known AP" },
 		{ "d", "Disconnect current AP" },
 		{ "j/<Down>", "Move down" },
 		{ "k/<Up>", "Move up" },
@@ -838,7 +838,7 @@ handle_input(void)
 	int c = read_key();
 
 	switch (c) {
-	case 'a':
+	case 'r':
 		if (auto_connect(wutui.ctrl) != 0)
 			die("failed to auto connect");
 		update_supplicant_status();
