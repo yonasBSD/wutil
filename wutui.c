@@ -68,7 +68,7 @@ static const int timers[] = {
 static struct wutui wutui;
 
 static const int MAX_COLS = 80;
-static const int MAX_ROWS = 36;
+static const int MAX_ROWS = 34;
 static const int KN_ENTRIES = 13;
 static const int SR_ENTRIES = 13;
 
@@ -339,7 +339,7 @@ render_tui(void)
 		int vertical_offset = (wutui.winsize.ws_row - MAX_ROWS) / 2;
 
 		vertical_offset = MAX(vertical_offset, 0);
-		sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset + 1);
+		sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
 
 		render_wifi_info(sb);
 		render_known_networks(sb);
