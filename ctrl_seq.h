@@ -51,7 +51,9 @@
 #define SGR_FMT		    CSI "%dm"
 #define RESET_SGR	    SGR(0)
 #define BOLD		    SGR(1)
+#define NORMAL_INTENSITY    SGR(22)
 #define INVERT		    SGR(7)
+#define REMOVE_INVERT	    SGR(27)
 
 #define BLACK		    0
 #define RED		    1
@@ -61,6 +63,7 @@
 #define MAGENTA		    5
 #define CYAN		    6
 #define WHITE		    7
+#define DEFAULT_COLOR	    9
 
 #define FG		    3
 #define BG		    4

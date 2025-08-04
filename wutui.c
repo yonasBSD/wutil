@@ -340,7 +340,8 @@ render_tui(void)
 		int msg_offset = MAX((wutui.winsize.ws_col - msg_len) / 2, 0);
 
 		sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
-		sbuf_printf(sb, "%*s" BOLD "%s" RESET_SGR, msg_offset, "", msg);
+		sbuf_printf(sb, "%*s" BOLD "%s" NORMAL_INTENSITY, msg_offset,
+		    "", msg);
 	} else {
 		int vertical_offset = (wutui.winsize.ws_row - MAX_ROWS) / 2;
 
@@ -415,8 +416,8 @@ render_known_networks(struct sbuf *sb)
 
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
-		BLUE) "%-*s  Security  Hidden  Priority  Auto Connect" RESET_SGR
-		      "  %s\r\n",
+		BLUE) "%-*s  Security  Hidden  Priority  Auto Connect" NORMAL_INTENSITY
+		COLOR(FG, DEFAULT_COLOR) "  %s\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID",
 	    right_corner_block(-1, KN_ENTRIES, scrollbar));
 
@@ -427,7 +428,8 @@ render_known_networks(struct sbuf *sb)
 			continue;
 
 		sbuf_printf(sb,
-		    "%*s│ %s%s%-*s  %-*s  %-*s  %*d  %-*s " RESET_SGR " %s\r\n",
+		    "%*s│ %s%s%-*s  %-*s  %-*s  %*d  %-*s " REMOVE_INVERT
+		    " %s\r\n",
 		    MARGIN, "",
 		    wutui.current_section == SECTION_KN &&
 			    i == wutui.current_kn ?
@@ -473,8 +475,8 @@ render_network_scan(struct sbuf *sb)
 	    false, MARGIN, MAX_COLS);
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
-		BLUE) "%-*s      Security      Signal      Frequency" RESET_SGR
-		      "   %s\r\n",
+		BLUE) "%-*s      Security      Signal      Frequency" NORMAL_INTENSITY
+		COLOR(FG, DEFAULT_COLOR) "   %s\r\n",
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID",
 	    right_corner_block(-1, SR_ENTRIES, scrollbar));
 
@@ -485,7 +487,7 @@ render_network_scan(struct sbuf *sb)
 			continue;
 
 		sbuf_printf(sb,
-		    "%*s│ %s %-*s      %-*s       %-*s       %-*d MHz   " RESET_SGR
+		    "%*s│ %s %-*s      %-*s       %-*s       %-*d MHz   " REMOVE_INVERT
 		    " %s\r\n",
 		    MARGIN, "",
 		    wutui.current_section == SECTION_NS &&
@@ -597,7 +599,7 @@ render_notification(struct sbuf *sb, const char *msg, int pos)
 	for (int i = 0; i < len + 2; i++)
 		sbuf_cat(sb, "─");
 	sbuf_cat(sb, "╯\r\n");
-	sbuf_cat(sb, RESET_SGR);
+	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
 
 	return (pos + 1);
 }
@@ -611,7 +613,7 @@ heading(struct sbuf *sb, const char *text, bool rounded, int margin,
 	const char *right_corner = rounded ? "╮" : "┤";
 
 	sbuf_printf(sb, CURSOR_FORWARD_FMT "%s", margin, left_corner);
-	sbuf_printf(sb, "─┐" BOLD "%s" RESET_SGR "┌", text);
+	sbuf_printf(sb, "─┐" BOLD "%s" NORMAL_INTENSITY "┌", text);
 	for (int i = 0; i < max_cols - 2 - len; i++)
 		sbuf_cat(sb, "─");
 	sbuf_printf(sb, "%s\r\n", right_corner);
