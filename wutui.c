@@ -639,7 +639,7 @@ divider(struct sbuf *sb, bool rounded, int margin, int max_cols)
 	sbuf_printf(sb, CURSOR_FORWARD_FMT "%s", margin, left_corner);
 	for (int i = 0; i < max_cols - 2; i++)
 		sbuf_cat(sb, "─");
-	sbuf_printf(sb, "%s\r\n", right_corner);
+	sbuf_printf(sb, "%s", right_corner);
 }
 
 static const char *
