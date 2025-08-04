@@ -58,7 +58,7 @@ enum wutui_key {
 	ARROW_DOWN,
 };
 
-enum timers { TIMER_NOTIFATIONS_CLENAUP };
+enum timers { TIMER_NOTIFICATION_CLEANUP };
 
 static struct wutui wutui;
 
@@ -109,7 +109,7 @@ void die(const char *, ...);
 void diex(const char *, ...);
 
 static int read_key(void);
-static void handle_notifications_cleanup(void);
+static void handle_notification_cleanup(void);
 static void handle_input(void);
 static void handle_wpa_event(void);
 
@@ -267,13 +267,14 @@ static void
 event_loop(void)
 {
 	struct kevent events[3], tevent;
+	int nchanges = sizeof(events) / sizeof(*events);
 
 	EV_SET(&events[0], wutui.tty, EVFILT_READ, EV_ADD, 0, 0, NULL);
 	EV_SET(&events[1], wutui.wpa_fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-	EV_SET(&events[2], TIMER_NOTIFATIONS_CLENAUP, EVFILT_TIMER, EV_ADD, 0,
-	    3000, NULL);
+	EV_SET(&events[2], TIMER_NOTIFICATION_CLEANUP, EVFILT_TIMER, EV_ADD, 0,
+	    2000, NULL);
 
-	if (kevent(wutui.kq, events, 3, NULL, 0, NULL) == -1)
+	if (kevent(wutui.kq, events, nchanges, NULL, 0, NULL) == -1)
 		die("kevent register");
 
 	for (;;) {
@@ -291,8 +292,8 @@ event_loop(void)
 		if (nev > 0 && tevent.flags & EV_ERROR)
 			diex("event error: %s", strerror(tevent.data));
 
-		if (tevent.ident == TIMER_NOTIFATIONS_CLENAUP)
-			handle_notifications_cleanup();
+		if (tevent.ident == TIMER_NOTIFICATION_CLEANUP)
+			handle_notification_cleanup();
 		else if (tevent.ident == (uintptr_t)wutui.tty)
 			handle_input();
 		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
@@ -710,7 +711,7 @@ read_key(void)
 }
 
 static void
-handle_notifications_cleanup(void)
+handle_notification_cleanup(void)
 {
 	struct notification *first = TAILQ_FIRST(wutui.notifications);
 
@@ -757,6 +758,35 @@ handle_input(void)
 }
 
 static void
+update_scan_results(void)
+{
+	free_scan_results(wutui.srs);
+	wutui.current_sr = 0;
+	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
+		diex("failed to retrieve scan results");
+	remove_hidden_networks(wutui.srs);
+	wutui.srs_len = scan_results_len(wutui.srs);
+}
+
+static void
+update_known_networks(void)
+{
+	wutui.current_kn = 0;
+	free_known_networks(wutui.kns);
+	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
+		diex("failed to retrieve known networks");
+	wutui.kns_len = known_networks_len(wutui.kns);
+}
+
+static void
+update_supplicant_status(void)
+{
+	free_supplicant_status(wutui.status);
+	if ((wutui.status = get_supplicant_status(wutui.ctrl)) == NULL)
+		diex("failed retrieve wpa_supplicant status");
+}
+
+static void
 handle_wpa_event(void)
 {
 	char buf[4096];
@@ -768,6 +798,19 @@ handle_wpa_event(void)
 	else if (len == 0)
 		die("wpa ctrl interface socket closed");
 	buf[len] = '\0';
+
+	if (strstr(buf, WPA_EVENT_SCAN_RESULTS) != NULL ||
+	    strstr(buf, WPA_EVENT_BSS_ADDED) != NULL ||
+	    strstr(buf, WPA_EVENT_BSS_REMOVED) != NULL ||
+	    strstr(buf, WPA_EVENT_NETWORK_NOT_FOUND) != NULL) {
+		update_scan_results();
+	} else if (strstr(buf, WPA_EVENT_NETWORK_ADDED) != NULL ||
+	    strstr(buf, WPA_EVENT_NETWORK_REMOVED) != NULL ||
+	    strstr(buf, WPA_EVENT_NETWORK_NOT_FOUND) != NULL) {
+		update_known_networks();
+	} else {
+		update_supplicant_status();
+	}
 
 	if ((notification = malloc(sizeof(*notification))) == NULL)
 		die("malloc");
