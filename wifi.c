@@ -137,15 +137,27 @@ wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout)
 }
 
 int
-scan_and_wait(struct wpa_ctrl *ctrl)
+scan(struct wpa_ctrl *ctrl)
 {
 	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "SCAN") != 0) {
+		warnx("failed to initiate scan");
+		return (1);
+	}
+
+	return (0);
+}
+
+int
+scan_and_wait(struct wpa_ctrl *ctrl)
+{
 	int wpa_fd = wpa_ctrl_get_fd(ctrl);
 	int ret = 0;
 	struct timespec timeout = { .tv_sec = 5, .tv_nsec = 0 };
 
-	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "SCAN") != 0) {
+	if (scan(ctrl) != 0) {
 		warnx("failed to initiate scan");
 		return (1);
 	}

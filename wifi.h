@@ -73,6 +73,7 @@ struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
 void remove_hidden_networks(struct scan_results *srs);
 int scan_results_len(struct scan_results *);
 void free_scan_results(struct scan_results *head);
+int scan(struct wpa_ctrl *ctrl);
 int scan_and_wait(struct wpa_ctrl *ctrl);
 
 struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
