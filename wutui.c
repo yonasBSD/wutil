@@ -88,6 +88,7 @@ static const int SR_ENTRIES = 13;
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
+void clear_notifactions(struct notifications *);
 void free_notifactions(struct notifications *);
 
 static void init_wutui(const char *ctrl_path);
@@ -189,18 +190,24 @@ parse_args(int argc, char *argv[], const char **ctrl_path)
 }
 
 void
-free_notifactions(struct notifications *ns)
+clear_notifactions(struct notifications *ns)
 {
 	struct notification *n, *n_tmp;
 
-	if (ns == NULL)
-		return;
-
 	TAILQ_FOREACH_SAFE(n, ns, next, n_tmp) {
+		TAILQ_REMOVE(ns, n, next);
 		free(n->msg);
 		free(n);
 	}
+}
 
+void
+free_notifactions(struct notifications *ns)
+{
+	if (ns == NULL)
+		return;
+
+	clear_notifactions(ns);
 	free(ns);
 }
 
@@ -866,6 +873,9 @@ handle_input(void)
 		break;
 	case 's':
 		scan(wutui.ctrl);
+		break;
+	case CTRL('l'):
+		clear_notifactions(wutui.notifications);
 		break;
 	case '\t':
 		wutui.current_section = !wutui.current_section;
