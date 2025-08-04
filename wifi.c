@@ -584,17 +584,23 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 }
 
 int
-cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
+disconnect(struct wpa_ctrl *ctrl)
 {
 	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
 
+	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "DISCONNECT"));
+}
+
+int
+cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
 	if (argc > 1) {
 		warnx("bad value %s", argv[1]);
 		return (1);
 	}
 
-	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "DISCONNECT") != 0) {
+	if (disconnect(ctrl) != 0) {
 		warnx("failed to disconnect");
 		return (1);
 	}

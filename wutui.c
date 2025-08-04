@@ -516,7 +516,7 @@ render_help(struct sbuf *sb)
 		{ "j/<Down>", "Move down" },
 		{ "k/<Up>", "Move up" },
 		{ "Tab", "Switch between sections" },
-		{ "<C-c>", "Clear notifications" },
+		{ "<C-l>", "Clear notifications" },
 	};
 	struct keybinding kn_keys[] = {
 		{ "f", "Forget network" },
@@ -830,17 +830,15 @@ handle_input(void)
 	int c = read_key();
 
 	switch (c) {
-	case 'q':
-		leave_alt_buffer();
-		exit(EXIT_SUCCESS);
+	case 'd':
+		if (disconnect(wutui.ctrl) != 0)
+			die("failed to disconnect");
+		update_supplicant_status();
 		break;
-	case '\t':
-		wutui.current_section = !wutui.current_section;
-		break;
-	case ARROW_DOWN:
 	case 'h':
 		wutui.show_help = !wutui.show_help;
 		break;
+	case ARROW_DOWN:
 	case 'j':
 		if (wutui.current_section == SECTION_KN) {
 			WRAPPED_INCR(wutui.current_kn, wutui.kns_len);
@@ -856,8 +854,15 @@ handle_input(void)
 			WRAPPED_DECR(wutui.current_sr, wutui.srs_len);
 		}
 		break;
+	case 'q':
+		leave_alt_buffer();
+		exit(EXIT_SUCCESS);
+		break;
 	case 's':
 		scan(wutui.ctrl);
+		break;
+	case '\t':
+		wutui.current_section = !wutui.current_section;
 		break;
 	default:
 		break;
