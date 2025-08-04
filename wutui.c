@@ -47,7 +47,7 @@ TAILQ_HEAD(notifications, notification);
 
 struct wutui {
 	int tty, wpa_fd, kq;
-	bool show_help;
+	bool show_help, is_window_small;
 	struct termios cooked;
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
@@ -125,6 +125,7 @@ static void disable_raw_mode(void);
 static void enter_raw_mode(void);
 static void enter_alt_buffer(void);
 static void leave_alt_buffer(void);
+static void quit(void);
 
 void die(const char *, ...);
 void diex(const char *, ...);
@@ -345,8 +346,7 @@ render_tui(void)
 
 	sbuf_cat(sb, ERASE_IN_DISPLAY(ERASE_ENTIRE) CURSOR_MOVE(1, 1));
 
-	if (wutui.winsize.ws_col < MAX_COLS ||
-	    wutui.winsize.ws_row < MAX_ROWS) {
+	if (wutui.is_window_small) {
 		const char msg[] = "Terminal size too small";
 		int msg_len = sizeof(msg) - 1;
 		int vertical_offset = MAX((wutui.winsize.ws_row - 1) / 2, 0);
@@ -746,6 +746,9 @@ fetch_winsize(void)
 		    &wutui.winsize.ws_col));
 	}
 
+	wutui.is_window_small = wutui.winsize.ws_col < MAX_COLS ||
+	    wutui.winsize.ws_row < MAX_ROWS;
+
 	return (0);
 }
 
@@ -790,6 +793,13 @@ static void
 leave_alt_buffer(void)
 {
 	dprintf(wutui.tty, ALT_BUF_OFF CURSOR_SHOW);
+}
+
+static void
+quit(void)
+{
+	leave_alt_buffer();
+	exit(EXIT_SUCCESS);
 }
 
 void
@@ -870,6 +880,12 @@ handle_input(void)
 {
 	int c = read_key();
 
+	if (wutui.is_window_small) {
+		if (c == 'q')
+			quit();
+		return;
+	}
+
 	switch (c) {
 	case 'a':
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
@@ -923,8 +939,7 @@ handle_input(void)
 		}
 		break;
 	case 'q':
-		leave_alt_buffer();
-		exit(EXIT_SUCCESS);
+		quit();
 		break;
 	case 'r':
 		if (reconnect(wutui.ctrl) != 0)
