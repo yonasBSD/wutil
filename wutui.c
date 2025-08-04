@@ -76,7 +76,7 @@ struct keybinding {
 };
 
 static const int timers[] = {
-	[TIMER_NOTIFICATION_CLEANUP] = 2 /* seconds */,
+	[TIMER_NOTIFICATION_CLEANUP] = 3 /* seconds */,
 	[TIMER_PERIODIC_SCAN] = 30,
 };
 
@@ -104,11 +104,13 @@ static void render_known_networks(struct sbuf *sb);
 static void render_network_scan(struct sbuf *sb);
 static void render_help(struct sbuf *sb);
 
-static void render_notifications(struct sbuf *sb);
 static int render_notification(struct sbuf *sb, const char *msg, int pos);
+static void render_notifications(struct sbuf *sb);
 
 static void heading(struct sbuf *sb, const char *text, bool rounded, int margin,
     int max_cols);
+int word_wrap(struct sbuf *sb, const char *text, int width, int start_col,
+    int pos);
 static void divider(struct sbuf *sb, bool rounded, int margin, int max_cols);
 static const char *signal_bars(int dbm);
 
@@ -579,6 +581,31 @@ render_help(struct sbuf *sb)
 	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
 }
 
+static int
+render_notification(struct sbuf *sb, const char *msg, int pos)
+{
+	int len = strlen(msg);
+	int box_width = MIN(len + 4, MAX_COLS / 2);
+	int start_col = wutui.winsize.ws_col - box_width + 1;
+
+	sbuf_cat(sb, COLOR(FG, YELLOW));
+	sbuf_cat(sb, CURSOR_MOVE(2, 1));
+	sbuf_printf(sb, CURSOR_MOVE_FMT "╭", pos, start_col);
+	for (int i = 0; i < box_width - 2; i++)
+		sbuf_cat(sb, "─");
+	sbuf_cat(sb, "╮\r\n");
+
+	pos = word_wrap(sb, msg, box_width - 4, start_col, pos);
+
+	sbuf_printf(sb, CURSOR_MOVE_FMT "╰", ++pos, start_col);
+	for (int i = 0; i < box_width - 2; i++)
+		sbuf_cat(sb, "─");
+	sbuf_cat(sb, "╯\r\n");
+	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
+
+	return (pos + 1);
+}
+
 static void
 render_notifications(struct sbuf *sb)
 {
@@ -588,34 +615,9 @@ render_notifications(struct sbuf *sb)
 	TAILQ_FOREACH_REVERSE_SAFE(notif, wutui.notifications, notifications,
 	    next, notif_tmp) {
 		pos = render_notification(sb, notif->msg, pos);
-		if (pos >= MAX_ROWS)
+		if (pos * 3 >= MAX_ROWS * 2)
 			break;
 	}
-}
-
-static int
-render_notification(struct sbuf *sb, const char *msg, int pos)
-{
-	int len = strlen(msg);
-	int box_width = len + 4;
-	int start_col = wutui.winsize.ws_col - box_width + 1;
-
-	sbuf_cat(sb, COLOR(FG, YELLOW));
-	sbuf_cat(sb, CURSOR_MOVE(2, 1));
-	sbuf_printf(sb, CURSOR_MOVE_FMT "╭", pos, start_col);
-	for (int i = 0; i < len + 2; i++)
-		sbuf_cat(sb, "─");
-	sbuf_cat(sb, "╮\r\n");
-
-	sbuf_printf(sb, CURSOR_MOVE_FMT "│ %s │\r\n", ++pos, start_col, msg);
-
-	sbuf_printf(sb, CURSOR_MOVE_FMT "╰", ++pos, start_col);
-	for (int i = 0; i < len + 2; i++)
-		sbuf_cat(sb, "─");
-	sbuf_cat(sb, "╯\r\n");
-	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
-
-	return (pos + 1);
 }
 
 static void
@@ -647,6 +649,29 @@ divider(struct sbuf *sb, bool rounded, int margin, int max_cols)
 	for (int i = 0; i < max_cols - 2; i++)
 		sbuf_cat(sb, "─");
 	sbuf_printf(sb, "%s", right_corner);
+}
+
+int
+word_wrap(struct sbuf *sb, const char *text, int width, int start_col, int pos)
+{
+	int text_len = strlen(text);
+	int i = 0;
+
+	while (i < text_len) {
+		int segment = MIN(text_len - i, width);
+		char *space = memrchr(text + i, ' ', segment);
+		int step = space == NULL ? segment : space - (text + i) + 1;
+
+		if (i + segment == text_len)
+			step = segment;
+
+		sbuf_printf(sb, CURSOR_MOVE_FMT, ++pos, start_col);
+		sbuf_printf(sb, "│ %-*.*s │\r\n", width, step, text + i);
+
+		i += step;
+	}
+
+	return (pos);
 }
 
 static const char *
