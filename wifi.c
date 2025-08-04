@@ -584,6 +584,15 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 }
 
 int
+auto_connect(struct wpa_ctrl *ctrl)
+{
+	char reply[WPA_ACK_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
+
+	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "RECONNECT"));
+}
+
+int
 disconnect(struct wpa_ctrl *ctrl)
 {
 	char reply[WPA_ACK_REPLY_SIZE];
