@@ -518,22 +518,23 @@ static void
 render_help(struct sbuf *sb)
 {
 	struct keybinding general_keys[] = {
-		{ "h", "Toggle help" },
-		{ "r", "Reconnect to known AP" },
 		{ "d", "Disconnect current AP" },
+		{ "h", "Toggle help" },
 		{ "j/<Down>", "Move down" },
 		{ "k/<Up>", "Move up" },
+		{ "q", "Quit" },
+		{ "r", "Reconnect to known AP" },
+		{ "s", "Trigger Scan" },
 		{ "Tab", "Switch between sections" },
 		{ "<C-l>", "Clear notifications" },
 	};
 	struct keybinding kn_keys[] = {
-		{ "f", "Forget network" },
 		{ "a", "Toggle auto connect" },
+		{ "f", "Forget network" },
 		{ "<C-a>", "Increase priority" },
 		{ "<C-x>", "Decrease priority" },
 	};
 	struct keybinding ns_keys[] = {
-		{ "s", "Trigger Scan" },
 		{ "c", "Connect to network" },
 	};
 	int max_key_len = sizeof("j/<Down>") - 1;
