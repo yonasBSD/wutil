@@ -83,6 +83,8 @@ struct wutui {
 enum wutui_key {
 	ARROW_UP = 127,
 	ARROW_DOWN,
+	HOME_KEY,
+	END_KEY,
 };
 
 enum kqueue_timer { TIMER_NOTIFICATION_CLEANUP, TIMER_PERIODIC_SCAN };
@@ -1072,11 +1074,38 @@ read_key(void)
 			return (c);
 
 		if (seq[0] == CSI[1]) {
+			if (seq[1] >= '0' && seq[1] <= '9') {
+				if (read(wutui.tty, &seq[2], 1) != 1)
+					return (ESC_CHAR);
+
+				if (seq[2] == '~') {
+					switch (seq[1]) {
+					case '1':
+					case '7':
+						return (HOME_KEY);
+					case '4':
+					case '8':
+						return (END_KEY);
+					}
+				}
+			} else {
+				switch (seq[1]) {
+				case 'A':
+					return (ARROW_UP);
+				case 'B':
+					return (ARROW_DOWN);
+				case 'H':
+					return (HOME_KEY);
+				case 'F':
+					return (END_KEY);
+				}
+			}
+		} else if (seq[0] == 'O') {
 			switch (seq[1]) {
-			case 'A':
-				return (ARROW_UP);
-			case 'B':
-				return (ARROW_DOWN);
+			case 'H':
+				return (HOME_KEY);
+			case 'F':
+				return (END_KEY);
 			}
 		}
 	}
@@ -1184,6 +1213,25 @@ handle_input(void)
 		break;
 	case 's':
 		scan(wutui.ctrl);
+		break;
+	case HOME_KEY:
+		if (wutui.section == SECTION_KN) {
+			wutui.current_kn_index = 0;
+			wutui.current_kn = TAILQ_FIRST(wutui.kns);
+		} else if (wutui.section == SECTION_NS) {
+			wutui.current_sr_index = 0;
+			wutui.current_sr = TAILQ_FIRST(wutui.srs);
+		}
+		break;
+	case END_KEY:
+		if (wutui.section == SECTION_KN) {
+			wutui.current_kn_index = MAX(0, wutui.kns_len - 1);
+			wutui.current_kn = TAILQ_LAST(wutui.kns,
+			    known_networks);
+		} else if (wutui.section == SECTION_NS) {
+			wutui.current_sr_index = MAX(0, wutui.srs_len - 1);
+			wutui.current_sr = TAILQ_LAST(wutui.srs, scan_results);
+		}
 		break;
 	case CTRL('a'):
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
