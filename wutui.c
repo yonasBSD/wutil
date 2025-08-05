@@ -760,6 +760,17 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 			else if (!iscntrl(key) && key < 128)
 				sbuf_putc(input_sb, key);
 			else if (key == '\r' && sbuf_len(input_sb) > min) {
+				if (sbuf_len(input_sb) > max) {
+					char msg[64];
+
+					snprintf(msg, sizeof(msg),
+					    "Input must not exceed %d characters",
+					    max);
+					push_notification(wutui.notifications,
+					    msg);
+					break;
+				}
+
 				input = strdup(sbuf_data(input_sb));
 				if (input == NULL)
 					die("strdup");
