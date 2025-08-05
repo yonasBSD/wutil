@@ -158,7 +158,7 @@ static void enter_alt_buffer(void);
 static void leave_alt_buffer(void);
 static void quit(void);
 
-static void wutui_configure_network(void);
+static int wutui_configure_network(void);
 static void connect_scan_result(void);
 
 void die(const char *, ...);
@@ -981,14 +981,13 @@ quit(void)
 	exit(EXIT_SUCCESS);
 }
 
-static void
+static int
 wutui_configure_network(void)
 {
-	int nwid = -1;
 	char *identity = NULL;
 	char *password = NULL;
+	int nwid = add_network(wutui.ctrl, wutui.current_sr->ssid);
 
-	nwid = add_network(wutui.ctrl, wutui.current_sr->ssid);
 	if (nwid == -1)
 		diex("failed to create new network");
 
@@ -1024,13 +1023,14 @@ wutui_configure_network(void)
 	free(identity);
 	free(password);
 
-	return;
+	return (nwid);
 
 fail:
 	remove_network(wutui.ctrl, nwid);
 	diex("failed configuring network: %s", wutui.current_sr->ssid);
 cancel:
 	remove_network(wutui.ctrl, nwid);
+	return (-1);
 }
 
 static void
@@ -1046,8 +1046,8 @@ connect_scan_result(void)
 		}
 	}
 
-	if (nwid == -1)
-		wutui_configure_network();
+	if (nwid == -1 && (nwid = wutui_configure_network()) == -1)
+		return;
 
 	if (select_network(wutui.ctrl, nwid) != 0)
 		diex("failed to select network: %s", wutui.current_sr->ssid);
