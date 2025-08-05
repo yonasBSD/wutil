@@ -1025,6 +1025,9 @@ connect_scan_result(void)
 
 	if (select_network(wutui.ctrl, nwid) != 0)
 		diex("failed to select network: %s", wutui.current_sr->ssid);
+
+	if (update_config(wutui.ctrl) != 0)
+		die("failed to update config");
 }
 
 void
@@ -1118,6 +1121,9 @@ handle_input(void)
 				die("failed to set autoconnect");
 			update_known_networks();
 		}
+
+		if (update_config(wutui.ctrl) != 0)
+			die("failed to update config");
 		break;
 	case 'c':
 		if (wutui.section == SECTION_NS && wutui.current_sr != NULL)
@@ -1135,6 +1141,10 @@ handle_input(void)
 				die("failed to remove network: %s",
 				    wutui.current_kn->ssid);
 			}
+
+			if (update_config(wutui.ctrl) != 0)
+				die("failed to update config");
+
 			update_known_networks();
 		}
 		break;
@@ -1180,6 +1190,10 @@ handle_input(void)
 			if (set_priority(wutui.ctrl, wutui.current_kn->id,
 				wutui.current_kn->priority + 1) != 0)
 				die("failed to set priority");
+
+			if (update_config(wutui.ctrl) != 0)
+				die("failed to update config");
+
 			update_known_networks();
 		}
 		break;
@@ -1188,6 +1202,10 @@ handle_input(void)
 			if (set_priority(wutui.ctrl, wutui.current_kn->id,
 				wutui.current_kn->priority - 1) != 0)
 				die("failed to set priority");
+
+			if (update_config(wutui.ctrl) != 0)
+				die("failed to update config");
+
 			update_known_networks();
 		}
 		break;
