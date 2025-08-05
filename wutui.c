@@ -99,6 +99,8 @@ static const int SR_ENTRIES = 13;
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
+void pop_notification(struct notifications *ns);
+void push_notification(struct notifications *ns, const char *msg);
 void clear_notifactions(struct notifications *);
 void free_notifactions(struct notifications *);
 
@@ -202,6 +204,35 @@ parse_args(int argc, char *argv[], const char **ctrl_path)
 		usage_tui(stderr);
 		exit(EXIT_FAILURE);
 	}
+}
+
+void
+pop_notification(struct notifications *ns)
+{
+	struct notification *first = TAILQ_FIRST(ns);
+
+	if (first == NULL)
+		return;
+
+	TAILQ_REMOVE_HEAD(ns, next);
+	free(first->msg);
+	free(first);
+}
+
+void
+push_notification(struct notifications *ns, const char *msg)
+{
+	struct notification *notification = NULL;
+
+	if ((notification = malloc(sizeof(*notification))) == NULL)
+		die("malloc");
+
+	if ((notification->msg = strdup(msg)) == NULL) {
+		free(notification);
+		die("strdup");
+	}
+
+	TAILQ_INSERT_TAIL(ns, notification, next);
 }
 
 void
@@ -872,14 +903,7 @@ read_key(void)
 static void
 handle_notification_cleanup(void)
 {
-	struct notification *first = TAILQ_FIRST(wutui.notifications);
-
-	if (first == NULL)
-		return;
-
-	TAILQ_REMOVE_HEAD(wutui.notifications, next);
-	free(first->msg);
-	free(first);
+	pop_notification(wutui.notifications);
 }
 
 static void
@@ -1014,7 +1038,6 @@ handle_wpa_event(void)
 {
 	char buf[4096];
 	int len = recv(wutui.wpa_fd, buf, sizeof(buf) - 1, 0);
-	struct notification *notification = NULL;
 
 	if (len == -1)
 		die("recv(wpa_fd)");
@@ -1036,15 +1059,7 @@ handle_wpa_event(void)
 		update_supplicant_status();
 	}
 
-	if ((notification = malloc(sizeof(*notification))) == NULL)
-		die("malloc");
-
-	if ((notification->msg = strdup(buf)) == NULL) {
-		free(notification);
-		die("strdup");
-	}
-
-	TAILQ_INSERT_TAIL(wutui.notifications, notification, next);
+	push_notification(wutui.notifications, buf);
 }
 
 static void
