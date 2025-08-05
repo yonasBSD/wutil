@@ -98,6 +98,7 @@ void free_notifactions(struct notifications *);
 static void init_wutui(const char *ctrl_path);
 static void deinit_wutui(void);
 static void event_loop(void);
+static void wait_kq(struct kevent *tevent);
 
 static void render_tui(void);
 static void render_wifi_info(struct sbuf *sb);
@@ -302,33 +303,24 @@ deinit_wutui(void)
 static void
 event_loop(void)
 {
-	struct kevent events[4], tevent;
+	struct kevent events[5], tevent;
 	int nchanges = nitems(events);
 
 	EV_SET(&events[0], wutui.tty, EVFILT_READ, EV_ADD, 0, 0, NULL);
 	EV_SET(&events[1], wutui.wpa_fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-	EV_SET(&events[2], TIMER_NOTIFICATION_CLEANUP, EVFILT_TIMER, EV_ADD,
+	EV_SET(&events[2], SIGWINCH, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
+	EV_SET(&events[3], TIMER_NOTIFICATION_CLEANUP, EVFILT_TIMER, EV_ADD,
 	    NOTE_SECONDS, timers[TIMER_NOTIFICATION_CLEANUP], NULL);
-	EV_SET(&events[3], TIMER_PERIODIC_SCAN, EVFILT_TIMER, EV_ADD,
+	EV_SET(&events[4], TIMER_PERIODIC_SCAN, EVFILT_TIMER, EV_ADD,
 	    NOTE_SECONDS, timers[TIMER_PERIODIC_SCAN], NULL);
 
 	if (kevent(wutui.kq, events, nchanges, NULL, 0, NULL) == -1)
 		die("kevent register");
 
 	for (;;) {
-		int nev = -1;
-
 		render_tui();
 
-		nev = kevent(wutui.kq, NULL, 0, &tevent, 1, NULL);
-		if (nev == -1) {
-			if (errno == EINTR)
-				continue;
-			die("kevent wait");
-		}
-
-		if (nev > 0 && tevent.flags & EV_ERROR)
-			diex("event error: %s", strerror(tevent.data));
+		wait_kq(&tevent);
 
 		if (tevent.ident == TIMER_NOTIFICATION_CLEANUP)
 			handle_notification_cleanup();
@@ -339,6 +331,18 @@ event_loop(void)
 		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
 			handle_wpa_event();
 	}
+}
+
+static void
+wait_kq(struct kevent *tevent)
+{
+	int nev = kevent(wutui.kq, NULL, 0, tevent, 1, NULL);
+
+	if (nev == -1)
+		die("kevent wait");
+
+	if (nev > 0 && tevent->flags & EV_ERROR)
+		diex("event error: %s", strerror(tevent->data));
 }
 
 static void

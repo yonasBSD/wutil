@@ -815,7 +815,7 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 		    configure_ssid(ctrl, nwid, ssid, identity, password);
 
 		if (config_ret != 0) {
-			warnx("failed to configure SSID");
+			warnx("failed to configure network: %s", ssid);
 			remove_network(ctrl, nwid);
 			return (1);
 		}
