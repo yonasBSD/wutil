@@ -81,7 +81,9 @@ struct wutui {
 };
 
 enum wutui_key {
-	ARROW_UP = 127,
+	BACKSPACE = 127,
+	DEL_KEY = 1000,
+	ARROW_UP,
 	ARROW_DOWN,
 	HOME_KEY,
 	END_KEY,
@@ -751,7 +753,9 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 
 			if (key == ESC_CHAR)
 				break;
-			else if (key == CTRL('h') && input_sb->s_len != 0)
+			else if ((key == DEL_KEY || key == BACKSPACE ||
+				     key == CTRL('h')) &&
+			    input_sb->s_len != 0)
 				input_sb->s_len--;
 			else if (!iscntrl(key) && key < 128)
 				sbuf_putc(input_sb, key);
@@ -1085,6 +1089,8 @@ read_key(void)
 					case '1':
 					case '7':
 						return (HOME_KEY);
+					case '3':
+						return (DEL_KEY);
 					case '4':
 					case '8':
 						return (END_KEY);
