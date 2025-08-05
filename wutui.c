@@ -85,6 +85,8 @@ enum wutui_key {
 	ARROW_DOWN,
 	HOME_KEY,
 	END_KEY,
+	PAGE_UP,
+	PAGE_DOWN
 };
 
 enum kqueue_timer { TIMER_NOTIFICATION_CLEANUP, TIMER_PERIODIC_SCAN };
@@ -1086,6 +1088,10 @@ read_key(void)
 					case '4':
 					case '8':
 						return (END_KEY);
+					case '5':
+						return (PAGE_UP);
+					case '6':
+						return (PAGE_DOWN);
 					}
 				}
 			} else {
@@ -1231,6 +1237,52 @@ handle_input(void)
 		} else if (wutui.section == SECTION_NS) {
 			wutui.current_sr_index = MAX(0, wutui.srs_len - 1);
 			wutui.current_sr = TAILQ_LAST(wutui.srs, scan_results);
+		}
+		break;
+	case PAGE_UP:
+		if (wutui.section == SECTION_KN) {
+			wutui.current_kn_index = wutui.kn_offset;
+			for (int i = 0; i < KN_ENTRIES &&
+			    wutui.current_kn != TAILQ_FIRST(wutui.kns);
+			    i++) {
+				wutui.current_kn = TAILQ_PREV(wutui.current_kn,
+				    known_networks, next);
+			}
+		} else if (wutui.section == SECTION_NS) {
+			wutui.current_sr_index = wutui.sr_offset;
+			for (int i = 0; i < SR_ENTRIES &&
+			    wutui.current_sr != TAILQ_FIRST(wutui.srs);
+			    i++) {
+				wutui.current_sr = TAILQ_PREV(wutui.current_sr,
+				    scan_results, next);
+			}
+		}
+		break;
+	case PAGE_DOWN:
+		if (wutui.section == SECTION_KN) {
+			wutui.current_kn_index = wutui.kn_offset + KN_ENTRIES -
+			    1;
+			if (wutui.current_kn_index >= wutui.kns_len)
+				wutui.current_kn_index = wutui.kns_len - 1;
+			for (int i = 0; i < KN_ENTRIES &&
+			    wutui.current_kn !=
+				TAILQ_LAST(wutui.kns, known_networks);
+			    i++) {
+				wutui.current_kn = TAILQ_NEXT(wutui.current_kn,
+				    next);
+			}
+		} else if (wutui.section == SECTION_NS) {
+			wutui.current_sr_index = wutui.sr_offset + SR_ENTRIES -
+			    1;
+			if (wutui.current_sr_index >= wutui.srs_len)
+				wutui.current_sr_index = wutui.srs_len - 1;
+			for (int i = 0; i < SR_ENTRIES &&
+			    wutui.current_sr !=
+				TAILQ_LAST(wutui.srs, scan_results);
+			    i++) {
+				wutui.current_sr = TAILQ_NEXT(wutui.current_sr,
+				    next);
+			}
 		}
 		break;
 	case CTRL('a'):
