@@ -31,8 +31,15 @@
 #include "usage.h"
 #include "wifi.h"
 
-#define WRAPPED_INCR(var, max)	   ((var) = ((var) + 1) % (max))
-#define WRAPPED_DECR(var, max)	   ((var) = ((var) - 1 + (max)) % (max))
+#define WRAPPED_INCR(var, max) ((var) = ((var) + 1) % (max))
+#define WRAPPED_DECR(var, max) ((var) = ((var) - 1 + (max)) % (max))
+
+#define TAILQ_CIRCULAR_NEXT(head, elm, field) \
+	(TAILQ_NEXT(elm, field) ? TAILQ_NEXT(elm, field) : TAILQ_FIRST(head))
+
+#define TAILQ_CIRCULAR_PREV(head, headname, elm, field)                        \
+	(TAILQ_PREV(elm, headname, field) ? TAILQ_PREV(elm, headname, field) : \
+					    TAILQ_LAST(head, headname))
 
 #define CLAMP(val, minval, maxval) MAX((minval), MIN((val), (maxval)))
 
@@ -942,36 +949,26 @@ handle_input(void)
 	case 'j':
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
 			WRAPPED_INCR(wutui.current_kn_index, wutui.kns_len);
-			wutui.current_kn = TAILQ_NEXT(wutui.current_kn, next);
-			wutui.current_kn = wutui.current_kn == NULL ?
-			    TAILQ_FIRST(wutui.kns) :
-			    wutui.current_kn;
+			wutui.current_kn = TAILQ_CIRCULAR_NEXT(wutui.kns,
+			    wutui.current_kn, next);
 		} else if (wutui.section == SECTION_NS &&
 		    wutui.current_sr != NULL) {
 			WRAPPED_INCR(wutui.current_sr_index, wutui.srs_len);
-			wutui.current_sr = TAILQ_NEXT(wutui.current_sr, next);
-			wutui.current_sr = wutui.current_sr == NULL ?
-			    TAILQ_FIRST(wutui.srs) :
-			    wutui.current_sr;
+			wutui.current_sr = TAILQ_CIRCULAR_NEXT(wutui.srs,
+			    wutui.current_sr, next);
 		}
 		break;
 	case ARROW_UP:
 	case 'k':
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
 			WRAPPED_DECR(wutui.current_kn_index, wutui.kns_len);
-			wutui.current_kn = TAILQ_PREV(wutui.current_kn,
-			    known_networks, next);
-			wutui.current_kn = wutui.current_kn == NULL ?
-			    TAILQ_LAST(wutui.kns, known_networks) :
-			    wutui.current_kn;
+			wutui.current_kn = TAILQ_CIRCULAR_PREV(wutui.kns,
+			    known_networks, wutui.current_kn, next);
 		} else if (wutui.section == SECTION_NS &&
 		    wutui.current_sr != NULL) {
 			WRAPPED_DECR(wutui.current_sr_index, wutui.srs_len);
-			wutui.current_sr = TAILQ_PREV(wutui.current_sr,
-			    scan_results, next);
-			wutui.current_sr = wutui.current_sr == NULL ?
-			    TAILQ_LAST(wutui.srs, scan_results) :
-			    wutui.current_sr;
+			wutui.current_sr = TAILQ_CIRCULAR_PREV(wutui.srs,
+			    scan_results, wutui.current_sr, next);
 		}
 		break;
 	case 'q':
