@@ -12,6 +12,7 @@
 #include <sys/sbuf.h>
 #include <sys/socket.h>
 
+#include <ctype.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -45,6 +46,12 @@
 
 #define WPA_EVENT_ASSOCIATED	   "Associated with"
 
+#define PSK_MIN			   8
+#define PSK_MAX			   63
+
+#define EAP_MIN			   0
+#define EAP_MAX			   256
+
 struct notification {
 	char *msg;
 	TAILQ_ENTRY(notification) next;
@@ -54,7 +61,9 @@ TAILQ_HEAD(notifications, notification);
 
 struct wutui {
 	int tty, wpa_fd, kq;
-	bool show_help, is_window_small;
+	bool show_help, is_window_small, show_dialog, hide_dialog_text;
+	const char *dialog_title;
+	char *dialog_text;
 	struct termios cooked;
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
@@ -114,15 +123,20 @@ static void render_wifi_info(struct sbuf *sb);
 static void render_known_networks(struct sbuf *sb);
 static void render_network_scan(struct sbuf *sb);
 static void render_help(struct sbuf *sb);
+static void render_dialog(struct sbuf *sb);
 
 static int render_notification(struct sbuf *sb, const char *msg, int pos);
 static void render_notifications(struct sbuf *sb);
+
+static char *input_dialog(const char *title, int min, int max, bool hide_text);
 
 static void heading(struct sbuf *sb, const char *text, bool rounded, int margin,
     int max_cols);
 int word_wrap(struct sbuf *sb, const char *text, int width, int start_col,
     int pos);
 static void divider(struct sbuf *sb, bool rounded, int margin, int max_cols);
+static void draw_margin(struct sbuf *sb, int margin);
+
 static const char *signal_bars(int dbm);
 
 static const char *right_corner_block(int pos, int max_entries, int scrollbar);
@@ -137,6 +151,9 @@ static void enter_raw_mode(void);
 static void enter_alt_buffer(void);
 static void leave_alt_buffer(void);
 static void quit(void);
+
+static void wutui_configure_network(void);
+static void connect_scan_result(void);
 
 void die(const char *, ...);
 void diex(const char *, ...);
@@ -415,6 +432,9 @@ render_tui(void)
 
 		if (wutui.show_help)
 			render_help(sb);
+
+		if (wutui.dialog_title != NULL)
+			render_dialog(sb);
 	}
 
 	if (sbuf_finish(sb) != 0)
@@ -599,29 +619,61 @@ render_help(struct sbuf *sb)
 
 	heading(sb, "Help", true, help_margin, max_help_cols);
 	for (size_t i = 0; i < nitems(general_keys); i++) {
-		if (help_margin > 0)
-			sbuf_printf(sb, CURSOR_FORWARD_FMT, help_margin);
+		draw_margin(sb, help_margin);
 		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
 		    general_keys[i].keys, max_desc_len, general_keys[i].desc);
 	}
 
 	heading(sb, "Known Networks", false, help_margin, max_help_cols);
 	for (size_t i = 0; i < nitems(kn_keys); i++) {
-		if (help_margin > 0)
-			sbuf_printf(sb, CURSOR_FORWARD_FMT, help_margin);
+		draw_margin(sb, help_margin);
 		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
 		    kn_keys[i].keys, max_desc_len, kn_keys[i].desc);
 	}
 
 	heading(sb, "Network Scan", false, help_margin, max_help_cols);
 	for (size_t i = 0; i < nitems(ns_keys); i++) {
-		if (help_margin > 0)
-			sbuf_printf(sb, CURSOR_FORWARD_FMT, help_margin);
+		draw_margin(sb, help_margin);
 		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
 		    ns_keys[i].keys, max_desc_len, ns_keys[i].desc);
 	}
 
 	divider(sb, true, help_margin, max_help_cols);
+	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
+}
+
+static void
+render_dialog(struct sbuf *sb)
+{
+	int dialog_rows = 3 + 2;
+	int dialog_cols = MAX_COLS / 2;
+	int vertical_offset = MAX((wutui.winsize.ws_row - dialog_rows) / 2, 0);
+	int dialog_margin = MAX((wutui.winsize.ws_col - dialog_cols) / 2, 0);
+
+	if (wutui.dialog_text != NULL && wutui.hide_dialog_text)
+		memset(wutui.dialog_text, '*', strlen(wutui.dialog_text));
+
+	sbuf_cat(sb, CURSOR_MOVE(1, 1));
+	sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
+	sbuf_cat(sb, COLOR(FG, GREEN));
+
+	heading(sb, wutui.dialog_title, true, dialog_margin, dialog_cols);
+
+	draw_margin(sb, dialog_margin);
+	sbuf_printf(sb, "│ %*s │\r\n", dialog_cols - 4, "");
+
+	draw_margin(sb, dialog_margin);
+	sbuf_printf(sb,
+	    "│ " COLOR(BG_BRIGHT, BLACK) "%-*.*s" COLOR(BG,
+		DEFAULT_COLOR) " │\r\n",
+	    dialog_cols - 4, dialog_cols - 4,
+	    wutui.dialog_text == NULL ? "" : wutui.dialog_text);
+
+	draw_margin(sb, dialog_margin);
+	sbuf_printf(sb, "│ %*s │\r\n", dialog_cols - 4, "");
+
+	divider(sb, true, dialog_margin, dialog_cols);
+
 	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
 }
 
@@ -664,6 +716,58 @@ render_notifications(struct sbuf *sb)
 	}
 }
 
+static char *
+input_dialog(const char *title, int min, int max, bool hide_text)
+{
+	struct kevent tevent;
+	struct sbuf *input_sb = sbuf_new_auto();
+	char *input = NULL;
+
+	wutui.dialog_title = title;
+	wutui.hide_dialog_text = hide_text;
+
+	render_tui();
+	for (;;) {
+		if (sbuf_finish(input_sb) != 0)
+			die("sbuf failed");
+		wutui.dialog_text = sbuf_data(input_sb);
+
+		render_tui();
+
+		wait_kq(&tevent);
+
+		if (tevent.ident == TIMER_NOTIFICATION_CLEANUP)
+			handle_notification_cleanup();
+		else if (tevent.ident == TIMER_PERIODIC_SCAN)
+			handle_periodic_scan();
+		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
+			handle_wpa_event();
+		else if (tevent.ident == (uintptr_t)wutui.tty) {
+			int key = read_key();
+
+			if (key == ESC_CHAR)
+				break;
+			else if (key == CTRL('h') && input_sb->s_len != 0)
+				input_sb->s_len--;
+			else if (!iscntrl(key) && key < 128)
+				sbuf_putc(input_sb, key);
+			else if (key == '\r' && sbuf_len(input_sb) > min) {
+				input = strdup(sbuf_data(input_sb));
+				if (input == NULL)
+					die("strdup");
+				break;
+			}
+		}
+	}
+
+	wutui.dialog_title = wutui.dialog_text = NULL;
+	wutui.hide_dialog_text = false;
+
+	sbuf_delete(input_sb);
+
+	return (input);
+}
+
 static void
 heading(struct sbuf *sb, const char *text, bool rounded, int margin,
     int max_cols)
@@ -672,8 +776,7 @@ heading(struct sbuf *sb, const char *text, bool rounded, int margin,
 	const char *left_corner = rounded ? "╭" : "├";
 	const char *right_corner = rounded ? "╮" : "┤";
 
-	if (margin > 0)
-		sbuf_printf(sb, CURSOR_FORWARD_FMT, margin);
+	draw_margin(sb, margin);
 	sbuf_printf(sb, "%s", left_corner);
 	sbuf_printf(sb, "─┐" BOLD "%s" NORMAL_INTENSITY "┌", text);
 	for (int i = 0; i < max_cols - 2 - len; i++)
@@ -687,8 +790,7 @@ divider(struct sbuf *sb, bool rounded, int margin, int max_cols)
 	const char *left_corner = rounded ? "╰" : "├";
 	const char *right_corner = rounded ? "╯" : "┤";
 
-	if (margin > 0)
-		sbuf_printf(sb, CURSOR_FORWARD_FMT, margin);
+	draw_margin(sb, margin);
 	sbuf_printf(sb, "%s", left_corner);
 	for (int i = 0; i < max_cols - 2; i++)
 		sbuf_cat(sb, "─");
@@ -716,6 +818,13 @@ word_wrap(struct sbuf *sb, const char *text, int width, int start_col, int pos)
 	}
 
 	return (pos);
+}
+
+static void
+draw_margin(struct sbuf *sb, int margin)
+{
+	if (margin > 0)
+		sbuf_printf(sb, CURSOR_FORWARD_FMT, margin);
 }
 
 static const char *
@@ -846,6 +955,78 @@ quit(void)
 	exit(EXIT_SUCCESS);
 }
 
+static void
+wutui_configure_network(void)
+{
+	int nwid = -1;
+	char *identity = NULL;
+	char *password = NULL;
+
+	nwid = add_network(wutui.ctrl, wutui.current_sr->ssid);
+	if (nwid == -1)
+		diex("failed to create new network");
+
+	switch (wutui.current_sr->security) {
+	case SEC_PSK:
+		password = input_dialog("Enter the password", PSK_MIN, PSK_MAX,
+		    true);
+		if (password == NULL)
+			goto cancel;
+		if (configure_psk(wutui.ctrl, nwid, password))
+			goto fail;
+		break;
+	case SEC_EAP:
+		identity = input_dialog("Enter the EAP username", EAP_MIN,
+		    EAP_MAX, false);
+		if (identity == NULL)
+			goto cancel;
+		password = input_dialog("Enter the password", EAP_MIN, EAP_MAX,
+		    true);
+		if (password == NULL) {
+			free(identity);
+			goto cancel;
+		}
+		if (configure_eap(wutui.ctrl, nwid, identity, password) != 0)
+			goto fail;
+		break;
+	default:
+		if (configure_ess(wutui.ctrl, nwid) != 0)
+			goto fail;
+		break;
+	}
+
+	free(identity);
+	free(password);
+
+	return;
+
+fail:
+	remove_network(wutui.ctrl, nwid);
+	diex("failed configuring network: %s", wutui.current_sr->ssid);
+cancel:
+	remove_network(wutui.ctrl, nwid);
+}
+
+static void
+connect_scan_result(void)
+{
+	int nwid = -1;
+	struct known_network *nw, *nw_tmp;
+
+	TAILQ_FOREACH_SAFE(nw, wutui.kns, next, nw_tmp) {
+		if (strcmp(nw->ssid, wutui.current_sr->ssid) == 0) {
+			nwid = nw->id;
+			break;
+		}
+	}
+
+	if (nwid == -1)
+		wutui_configure_network();
+
+	if (select_network(wutui.ctrl, nwid) != 0)
+		diex("failed to select network: %s", wutui.current_sr->ssid);
+}
+
 void
 die(const char *fmt, ...)
 {
@@ -915,15 +1096,21 @@ handle_periodic_scan(void)
 static void
 handle_input(void)
 {
-	int c = read_key();
+	int key = read_key();
 
-	if (wutui.is_window_small) {
-		if (c == 'q')
-			quit();
+	if (key == 'q')
+		quit();
+
+	if (wutui.is_window_small)
+		return;
+
+	if (wutui.show_help) {
+		if (key == 'h')
+			wutui.show_help = !wutui.show_help;
 		return;
 	}
 
-	switch (c) {
+	switch (key) {
 	case 'a':
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
 			if (set_autoconnect(wutui.ctrl, wutui.current_kn->id,
@@ -933,23 +1120,8 @@ handle_input(void)
 		}
 		break;
 	case 'c':
-		if (wutui.section == SECTION_NS && wutui.current_sr != NULL) {
-			int nwid = -1;
-			struct known_network *nw, *nw_tmp;
-
-			TAILQ_FOREACH_SAFE(nw, wutui.kns, next, nw_tmp) {
-				if (strcmp(nw->ssid, wutui.current_sr->ssid) ==
-				    0) {
-					nwid = nw->id;
-					break;
-				}
-			}
-
-			if (nwid != -1 && select_network(wutui.ctrl, nwid) != 0) {
-				diex("failed to select network: %s",
-				    wutui.current_sr->ssid);
-			}
-		}
+		if (wutui.section == SECTION_NS && wutui.current_sr != NULL)
+			connect_scan_result();
 		break;
 	case 'd':
 		if (disconnect(wutui.ctrl) != 0)
@@ -994,9 +1166,6 @@ handle_input(void)
 			wutui.current_sr = TAILQ_CIRCULAR_PREV(wutui.srs,
 			    scan_results, wutui.current_sr, next);
 		}
-		break;
-	case 'q':
-		quit();
 		break;
 	case 'r':
 		if (reconnect(wutui.ctrl) != 0)
