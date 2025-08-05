@@ -1035,7 +1035,7 @@ connect_scan_result(void)
 		diex("failed to select network: %s", wutui.current_sr->ssid);
 
 	if (update_config(wutui.ctrl) != 0)
-		die("failed to update config");
+		diex("failed to update config");
 }
 
 void
@@ -1159,12 +1159,12 @@ handle_input(void)
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
 			if (set_autoconnect(wutui.ctrl, wutui.current_kn->id,
 				wutui.current_kn->state != KN_ENABLED) != 0)
-				die("failed to set autoconnect");
+				diex("failed to set autoconnect");
 			update_known_networks();
 		}
 
 		if (update_config(wutui.ctrl) != 0)
-			die("failed to update config");
+			diex("failed to update config");
 		break;
 	case 'c':
 		if (wutui.section == SECTION_NS && wutui.current_sr != NULL)
@@ -1172,19 +1172,19 @@ handle_input(void)
 		break;
 	case 'd':
 		if (disconnect(wutui.ctrl) != 0)
-			die("failed to disconnect");
+			diex("failed to disconnect");
 		update_supplicant_status();
 		break;
 	case 'f':
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
 			if (remove_network(wutui.ctrl, wutui.current_kn->id) !=
 			    0) {
-				die("failed to remove network: %s",
+				diex("failed to remove network: %s",
 				    wutui.current_kn->ssid);
 			}
 
 			if (update_config(wutui.ctrl) != 0)
-				die("failed to update config");
+				diex("failed to update config");
 
 			update_known_networks();
 		}
@@ -1220,7 +1220,7 @@ handle_input(void)
 		break;
 	case 'r':
 		if (reconnect(wutui.ctrl) != 0)
-			die("failed to reconnect");
+			diex("failed to reconnect");
 		update_supplicant_status();
 		break;
 	case 's':
@@ -1295,10 +1295,10 @@ handle_input(void)
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
 			if (set_priority(wutui.ctrl, wutui.current_kn->id,
 				wutui.current_kn->priority + 1) != 0)
-				die("failed to set priority");
+				diex("failed to set priority");
 
 			if (update_config(wutui.ctrl) != 0)
-				die("failed to update config");
+				diex("failed to update config");
 
 			update_known_networks();
 		}
@@ -1307,10 +1307,10 @@ handle_input(void)
 		if (wutui.section == SECTION_KN && wutui.current_kn != NULL) {
 			if (set_priority(wutui.ctrl, wutui.current_kn->id,
 				wutui.current_kn->priority - 1) != 0)
-				die("failed to set priority");
+				diex("failed to set priority");
 
 			if (update_config(wutui.ctrl) != 0)
-				die("failed to update config");
+				diex("failed to update config");
 
 			update_known_networks();
 		}
