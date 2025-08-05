@@ -655,9 +655,12 @@ render_dialog(struct sbuf *sb)
 	int dialog_cols = MAX_COLS / 2;
 	int vertical_offset = MAX((wutui.winsize.ws_row - dialog_rows) / 2, 0);
 	int dialog_margin = MAX((wutui.winsize.ws_col - dialog_cols) / 2, 0);
+	int text_width = dialog_cols - 4;
+	int text_len = wutui.dialog_text != NULL ? strlen(wutui.dialog_text) :
+						   0;
 
 	if (wutui.dialog_text != NULL && wutui.hide_dialog_text)
-		memset(wutui.dialog_text, '*', strlen(wutui.dialog_text));
+		memset(wutui.dialog_text, '*', text_len);
 
 	sbuf_cat(sb, CURSOR_MOVE(1, 1));
 	sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
@@ -666,17 +669,19 @@ render_dialog(struct sbuf *sb)
 	heading(sb, wutui.dialog_title, true, dialog_margin, dialog_cols);
 
 	draw_margin(sb, dialog_margin);
-	sbuf_printf(sb, "│ %*s │\r\n", dialog_cols - 4, "");
+	sbuf_printf(sb, "│ %*s │\r\n", text_width, "");
 
 	draw_margin(sb, dialog_margin);
 	sbuf_printf(sb,
 	    "│ " COLOR(BG_BRIGHT, BLACK) "%-*.*s" COLOR(BG,
 		DEFAULT_COLOR) " │\r\n",
-	    dialog_cols - 4, dialog_cols - 4,
-	    wutui.dialog_text == NULL ? "" : wutui.dialog_text);
+	    text_width, text_width,
+	    wutui.dialog_text == NULL ?
+		"" :
+		(wutui.dialog_text + MAX(0, text_len - text_width)));
 
 	draw_margin(sb, dialog_margin);
-	sbuf_printf(sb, "│ %*s │\r\n", dialog_cols - 4, "");
+	sbuf_printf(sb, "│ %*s │\r\n", text_width, "");
 
 	divider(sb, true, dialog_margin, dialog_cols);
 
