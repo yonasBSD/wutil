@@ -741,7 +741,9 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 	for (;;) {
 		if (sbuf_finish(input_sb) != 0)
 			die("sbuf failed");
-		wutui.dialog_text = sbuf_data(input_sb);
+		wutui.dialog_text = strdup(sbuf_data(input_sb));
+		if (wutui.dialog_text == NULL)
+			die("strdup");
 
 		render_tui();
 
