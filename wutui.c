@@ -18,7 +18,6 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <math.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -150,7 +149,6 @@ static int get_scrollbar_pos(int offset, int entries, int max_entries);
 
 static int fetch_cursor_position(unsigned short *row, unsigned short *col);
 static int fetch_winsize(void);
-static void on_sig_winch(int signo);
 
 static void disable_raw_mode(void);
 static void enter_raw_mode(void);
@@ -169,6 +167,7 @@ static void handle_notification_cleanup(void);
 static void handle_periodic_scan(void);
 static void handle_input(void);
 static void handle_wpa_event(void);
+static void handle_sigwinch(void);
 
 static void update_scan_results(void);
 static void update_known_networks(void);
@@ -283,18 +282,10 @@ free_notifactions(struct notifications *ns)
 static void
 init_wutui(const char *ctrl_path)
 {
-	struct sigaction sa = { 0 };
-
 	wutui.wpa_fd = wutui.tty = wutui.kq = -1;
 
 	if (atexit(deinit_wutui) != 0)
 		err(EXIT_FAILURE, "atexit");
-
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = 0;
-	sa.sa_handler = on_sig_winch;
-	if (sigaction(SIGWINCH, &sa, 0) == -1)
-		err(EXIT_FAILURE, "sigaction SIGWINCH");
 
 	wutui.notifications = malloc(sizeof(struct notifications));
 	if (wutui.notifications == NULL)
@@ -387,6 +378,8 @@ event_loop(void)
 			handle_notification_cleanup();
 		else if (tevent.ident == TIMER_PERIODIC_SCAN)
 			handle_periodic_scan();
+		else if (tevent.ident == SIGWINCH)
+			handle_sigwinch();
 		else if (tevent.ident == (uintptr_t)wutui.tty)
 			handle_input();
 		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
@@ -753,6 +746,8 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 			handle_notification_cleanup();
 		else if (tevent.ident == TIMER_PERIODIC_SCAN)
 			handle_periodic_scan();
+		else if (tevent.ident == SIGWINCH)
+			handle_sigwinch();
 		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
 			handle_wpa_event();
 		else if (tevent.ident == (uintptr_t)wutui.tty) {
@@ -929,14 +924,6 @@ fetch_winsize(void)
 	    wutui.winsize.ws_row < MAX_ROWS;
 
 	return (0);
-}
-
-static void
-on_sig_winch(int signo)
-{
-	(void)signo;
-	if (fetch_winsize() == -1)
-		die("failed to fetch terminal winsize");
 }
 
 static void
@@ -1374,6 +1361,13 @@ handle_wpa_event(void)
 	}
 
 	push_notification(wutui.notifications, buf);
+}
+
+static void
+handle_sigwinch(void)
+{
+	if (fetch_winsize() == -1)
+		die("failed to fetch terminal winsize");
 }
 
 static void
