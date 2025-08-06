@@ -1160,6 +1160,9 @@ handle_input(void)
 {
 	int key = read_key();
 
+	if (isalpha(key))
+		key = tolower(key);
+
 	if (key == 'q')
 		quit();
 
