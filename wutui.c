@@ -61,8 +61,7 @@ TAILQ_HEAD(notifications, notification);
 struct wutui {
 	int tty, wpa_fd, kq;
 	bool show_help, is_window_small, show_dialog, hide_dialog_text;
-	const char *dialog_title;
-	char *dialog_text;
+	const char *dialog_title, *dialog_text;
 	struct termios cooked;
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
@@ -648,12 +647,17 @@ render_dialog(struct sbuf *sb)
 	int dialog_cols = MAX_COLS / 2;
 	int vertical_offset = MAX((wutui.winsize.ws_row - dialog_rows) / 2, 0);
 	int dialog_margin = MAX((wutui.winsize.ws_col - dialog_cols) / 2, 0);
-	int text_width = dialog_cols - 4;
+	int text_width = MAX(dialog_cols - 4, 1);
 	int text_len = wutui.dialog_text != NULL ? strlen(wutui.dialog_text) :
 						   0;
+	char stars[text_width];
+	const char *text = wutui.dialog_text == NULL || wutui.hide_dialog_text ?
+	    stars :
+	    (wutui.dialog_text + MAX(0, text_len - text_width));
 
+	memset(stars, 0, text_width);
 	if (wutui.dialog_text != NULL && wutui.hide_dialog_text)
-		memset(wutui.dialog_text, '*', text_len);
+		memset(stars, '*', MIN(text_width, text_len));
 
 	sbuf_cat(sb, CURSOR_MOVE(1, 1));
 	sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
@@ -668,10 +672,7 @@ render_dialog(struct sbuf *sb)
 	sbuf_printf(sb,
 	    "│ " COLOR(BG_BRIGHT, BLACK) "%-*.*s" COLOR(BG,
 		DEFAULT_COLOR) " │\r\n",
-	    text_width, text_width,
-	    wutui.dialog_text == NULL ?
-		"" :
-		(wutui.dialog_text + MAX(0, text_len - text_width)));
+	    text_width, text_width, text);
 
 	draw_margin(sb, dialog_margin);
 	sbuf_printf(sb, "│ %*s │\r\n", text_width, "");
@@ -734,9 +735,7 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 	for (;;) {
 		if (sbuf_finish(input_sb) != 0)
 			die("sbuf failed");
-		wutui.dialog_text = strdup(sbuf_data(input_sb));
-		if (wutui.dialog_text == NULL)
-			die("strdup");
+		wutui.dialog_text = sbuf_data(input_sb);
 
 		render_tui();
 
