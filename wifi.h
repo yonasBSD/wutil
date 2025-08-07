@@ -18,6 +18,14 @@
 
 #include "usage.h"
 
+#define WPA_EVENT_ASSOCIATED "Associated with"
+
+#define PSK_MIN		     8
+#define PSK_MAX		     63
+
+#define EAP_MIN		     0
+#define EAP_MAX		     256
+
 enum security { SEC_OPEN = 0, SEC_EAP, SEC_PSK, SEC_NA };
 
 struct known_network {

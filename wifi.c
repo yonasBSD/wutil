@@ -622,7 +622,7 @@ configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
 {
 	struct scan_results *srs = NULL;
 	struct scan_result *sr, *sr_tmp;
-	char identity_buf[254], password_buf[256];
+	char identity_buf[EAP_MAX], password_buf[EAP_MAX];
 	int ret = 0;
 
 	if (scan_and_wait(ctrl) != 0) {
@@ -660,8 +660,9 @@ configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
 		}
 
 		psk_len = strlen(password);
-		if (psk_len < 8 || psk_len > 63) {
-			warnx("password must be 8–63 characters");
+		if (psk_len < PSK_MIN || psk_len > PSK_MAX) {
+			warnx("password must be %d–%d characters", PSK_MIN,
+			    PSK_MAX);
 			goto cleanup;
 		}
 
@@ -715,7 +716,7 @@ configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid, const char *identity,
 		return (1);
 
 	if (identity != NULL) {
-		char password_buf[256];
+		char password_buf[EAP_MAX];
 
 		if (password == NULL &&
 		    (password = readpassphrase("network EAP password: ",
