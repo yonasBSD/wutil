@@ -476,9 +476,7 @@ render_known_networks(struct sbuf *sb)
 	scrollbar = get_scrollbar_pos(wutui.kn_offset, wutui.kns_len,
 	    KN_ENTRIES);
 
-	heading(sb,
-	    wutui.section == SECTION_KN ? "<Known Networks>" : "Known Networks",
-	    false, MARGIN, MAX_COLS);
+	heading(sb, "Known Networks", false, MARGIN, MAX_COLS);
 
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
@@ -534,9 +532,7 @@ render_network_scan(struct sbuf *sb)
 	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs_len,
 	    SR_ENTRIES);
 
-	heading(sb,
-	    wutui.section == SECTION_NS ? "<Network Scan>" : "Network Scan",
-	    false, MARGIN, MAX_COLS);
+	heading(sb, "Network Scan", false, MARGIN, MAX_COLS);
 	sbuf_printf(sb,
 	    "%*s│  " BOLD COLOR(FG,
 		BLUE) "%-*s      Security      Signal      Frequency" NORMAL_INTENSITY
