@@ -42,6 +42,7 @@
 					    TAILQ_LAST(head, headname))
 
 #define CLAMP(val, minval, maxval) MAX((minval), MIN((val), (maxval)))
+#define SUB_CLAMP_ZERO(a, b)	   ((a) < (b) ? 0 : (a) - (b))
 
 struct notification {
 	char *msg;
@@ -1210,48 +1211,35 @@ handle_input(void)
 			wutui.selected_sr = 0;
 		break;
 	case END_KEY:
-		if (wutui.section == SECTION_KN) {
-			wutui.selected_kn = wutui.kns->len != 0 ?
-			    wutui.kns->len - 1 :
-			    0;
-		} else if (wutui.section == SECTION_NS) {
-			wutui.selected_sr = wutui.srs->len != 0 ?
-			    wutui.srs->len - 1 :
-			    0;
-		}
+		if (wutui.section == SECTION_KN)
+			wutui.selected_kn = SUB_CLAMP_ZERO(wutui.kns->len, 1);
+		else if (wutui.section == SECTION_NS)
+			wutui.selected_sr = SUB_CLAMP_ZERO(wutui.srs->len, 1);
 		break;
 	case PAGE_UP:
 		if (wutui.section == SECTION_KN) {
-			size_t selected_kn = wutui.kn_offset >= KN_ENTRIES ?
-			    wutui.kn_offset - KN_ENTRIES :
-			    0;
+			size_t top_kn = SUB_CLAMP_ZERO(wutui.kn_offset,
+			    KN_ENTRIES);
 
-			wutui.selected_kn = CLAMP(selected_kn, 0,
-			    wutui.kn_offset);
+			wutui.selected_kn = CLAMP(top_kn, 0, wutui.kn_offset);
 		} else if (wutui.section == SECTION_NS) {
-			size_t selected_sr = wutui.sr_offset >= SR_ENTRIES ?
-			    wutui.sr_offset - SR_ENTRIES :
-			    0;
+			size_t top_sr = SUB_CLAMP_ZERO(wutui.sr_offset,
+			    SR_ENTRIES);
 
-			wutui.selected_sr = CLAMP(selected_sr, 0,
-			    wutui.sr_offset);
+			wutui.selected_sr = CLAMP(top_sr, 0, wutui.sr_offset);
 		}
 		break;
 	case PAGE_DOWN:
 		if (wutui.section == SECTION_KN && wutui.kns->len != 0) {
 			size_t selected_kn = wutui.kn_offset + 2 * KN_ENTRIES -
 			    1;
-			size_t max_kn = wutui.kns->len != 0 ?
-			    wutui.kns->len - 1 :
-			    0;
+			size_t max_kn = SUB_CLAMP_ZERO(wutui.kns->len, 1);
 
 			wutui.selected_kn = CLAMP(selected_kn, 0, max_kn);
 		} else if (wutui.section == SECTION_NS) {
 			size_t selected_sr = wutui.sr_offset + 2 * SR_ENTRIES -
 			    1;
-			size_t max_sr = wutui.srs->len != 0 ?
-			    wutui.srs->len - 1 :
-			    0;
+			size_t max_sr = SUB_CLAMP_ZERO(wutui.srs->len, 1);
 
 			wutui.selected_sr = CLAMP(selected_sr, 0, max_sr);
 		}
