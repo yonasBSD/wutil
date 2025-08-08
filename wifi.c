@@ -42,8 +42,7 @@ static int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
 static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
     const char *identity, const char *password);
 static int known_networks_cmp(const void *a, const void *b);
-static int scan_result_cmp(const struct scan_result *a,
-    const struct scan_result *b, void *thunk);
+static int scan_result_cmp_signal(const void *a, const void *b);
 
 #define WPA_MAX_REPLY_SIZE   4096
 #define WPA_BIN_REPLY_SIZE   2	/* sizeof("0") or sizeof("1") */
@@ -73,6 +72,8 @@ struct wpa_command known_network_cmds[4] = {
 };
 
 ARRAY_APPEND_DEFINITION(known_networks)
+
+ARRAY_APPEND_DEFINITION(scan_results)
 
 int
 wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout)
@@ -287,12 +288,12 @@ get_known_networks(struct wpa_ctrl *ctrl)
 		char *ssid = strtok_r(NULL, "\t", &brkt);
 		char *bssid = strtok_r(NULL, "\t", &brkt);
 		char *flags = strtok_r(NULL, "\t", &brkt);
-		struct known_network nw = {
-			.id = id,
-			.priority = get_network_priority(ctrl, id),
-			.hidden = is_hidden_network(ctrl, id),
-			.security = known_network_security(ctrl, id),
-		};
+		struct known_network nw = { 0 };
+
+		nw.id = id;
+		nw.priority = get_network_priority(ctrl, nw.id);
+		nw.hidden = is_hidden_network(ctrl, nw.id);
+		nw.security = known_network_security(ctrl, nw.id);
 
 		if (ssid != NULL)
 			strlcpy(nw.ssid, ssid, sizeof(nw.ssid));
@@ -349,16 +350,14 @@ get_scan_results(struct wpa_ctrl *ctrl)
 	if (wpa_ctrl_request(ctrl, "SCAN_RESULTS", strlen("SCAN_RESULTS"),
 		reply, &reply_len, NULL) != 0)
 		return (NULL);
+	reply[reply_len] = '\0';
 
 	srs = malloc(sizeof(*srs));
 	if (srs == NULL) {
 		warn("malloc");
 		return (NULL);
 	}
-
-	TAILQ_INIT(srs);
-
-	reply[reply_len] = '\0';
+	*srs = ARRAY_INITIALIZER(scan_results);
 
 	for (char *brkn,
 	    *line = (strtok_r(reply, "\n", &brkn), strtok_r(NULL, "\n", &brkn));
@@ -373,81 +372,54 @@ get_scan_results(struct wpa_ctrl *ctrl)
 						  0;
 		char *flags = strtok_r(NULL, "\t", &brkt);
 		char *ssid = strtok_r(NULL, "\t", &brkt);
-		struct scan_result *sr = calloc(1, sizeof(*sr));
+		struct scan_result sr = { 0 };
 
-		if (sr == NULL) {
-			warn("calloc");
+		sr.freq = freq;
+		sr.signal = signal;
+
+		if (ssid != NULL) {
+			if (ssid[0] == '\0') /* hidden network */
+				continue;
+			strlcpy(sr.ssid, ssid, sizeof(sr.ssid));
+		}
+
+		if (bssid != NULL && ether_aton_r(bssid, &sr.bssid) == NULL)
+			sr.bssid = (struct ether_addr) { 0 };
+
+		if (flags != NULL) {
+			sr.security = strstr(flags, "PSK") != NULL ? SEC_PSK :
+			    strstr(flags, "EAP") != NULL	   ? SEC_EAP :
+								     SEC_OPEN;
+		}
+
+		if (!ARRAY_APPEND(scan_results, srs, sr)) {
+			warn("reallocarray");
 			free_scan_results(srs);
 			return (NULL);
 		}
-
-		sr->freq = freq;
-		sr->signal = signal;
-
-		if (ssid != NULL)
-			strlcpy(sr->ssid, ssid, sizeof(sr->ssid));
-
-		if (bssid != NULL && ether_aton_r(bssid, &sr->bssid) == NULL)
-			sr->bssid = (struct ether_addr) { 0 };
-
-		if (flags != NULL) {
-			sr->security = strstr(flags, "PSK") != NULL ? SEC_PSK :
-			    strstr(flags, "EAP") != NULL	    ? SEC_EAP :
-								      SEC_OPEN;
-		}
-
-		TAILQ_INSERT_TAIL(srs, sr, next);
 	}
 
-	TAILQ_MERGESORT(srs, NULL, scan_result_cmp, scan_result, next);
+	qsort(srs->items, srs->len, sizeof(srs->items[0]),
+	    scan_result_cmp_signal);
 
 	return (srs);
 }
 
 static int
-scan_result_cmp(const struct scan_result *a, const struct scan_result *b,
-    void *thunk)
+scan_result_cmp_signal(const void *a, const void *b)
 {
-	(void)thunk;
-	return (b->signal - a->signal);
-}
+	const struct scan_result *sr_a = a, *sr_b = b;
 
-void
-remove_hidden_networks(struct scan_results *srs)
-{
-	struct scan_result *sr, *sr_tmp;
-
-	TAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
-		if (sr->ssid[0] == '\0') {
-			TAILQ_REMOVE(srs, sr, next);
-			free(sr);
-		}
-	}
-}
-
-int
-scan_results_len(struct scan_results *srs)
-{
-	int len = 0;
-	struct scan_result *sr, *sr_tmp;
-
-	TAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp)
-		len++;
-
-	return (len);
+	return ((sr_b->signal > sr_a->signal) - (sr_b->signal < sr_a->signal));
 }
 
 void
 free_scan_results(struct scan_results *srs)
 {
-	struct scan_result *sr, *tmp;
-
 	if (srs == NULL)
 		return;
 
-	TAILQ_FOREACH_SAFE(sr, srs, next, tmp)
-		free(sr);
-
+	ARRAY_FREE(srs);
 	free(srs);
 }
 
@@ -536,7 +508,6 @@ int
 cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
 	struct scan_results *srs = NULL;
-	struct scan_result *sr, *sr_tmp;
 
 	if (argc > 1) {
 		warnx("bad value %s", argv[1]);
@@ -548,11 +519,11 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	remove_hidden_networks(srs);
-
 	printf("%-*s %-8s %-9s %-8s\n", IEEE80211_NWID_LEN, "SSID", "Signal",
 	    "Frequency", "Security");
-	TAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
+	for (size_t i = 0; i < srs->len; i++) {
+		struct scan_result *sr = &srs->items[i];
+
 		printf("%-*s %4d dBm %5d MHz %-8s\n", IEEE80211_NWID_LEN,
 		    sr->ssid, sr->signal, sr->freq,
 		    security_to_string[sr->security]);
@@ -602,7 +573,7 @@ configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
     const char *identity, const char *password)
 {
 	struct scan_results *srs = NULL;
-	struct scan_result *sr, *sr_tmp;
+	struct scan_result *sr = NULL;
 	char identity_buf[EAP_MAX], password_buf[EAP_MAX];
 	int ret = 0;
 
@@ -618,9 +589,11 @@ configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
 		goto cleanup;
 	}
 
-	TAILQ_FOREACH_SAFE(sr, srs, next, sr_tmp) {
-		if (strcmp(sr->ssid, ssid) == 0)
+	for (size_t i = 0; i < srs->len; i++) {
+		if (strcmp(srs->items[i].ssid, ssid) == 0) {
+			sr = &srs->items[i];
 			break;
+		}
 	}
 
 	if (sr == NULL) {

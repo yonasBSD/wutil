@@ -58,14 +58,10 @@ struct wutui {
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
 	enum { SECTION_KN = 0, SECTION_NS } section;
-	size_t selected_kn;
-	int current_sr_index;
-	struct scan_result *current_sr;
-	size_t kn_offset;
-	int sr_offset;
+	size_t selected_kn, selected_sr;
+	size_t kn_offset, sr_offset;
 	struct supplicant_status *status;
 	struct scan_results *srs;
-	int srs_len;
 	struct known_networks *kns;
 	struct notifications *notifications;
 };
@@ -98,7 +94,7 @@ static struct wutui wutui;
 static const int MAX_COLS = 80;
 static const int MAX_ROWS = 34;
 static const int KN_ENTRIES = 13;
-static const int SR_ENTRIES = 13;
+static const size_t SR_ENTRIES = 13;
 
 #define MARGIN (MAX((wutui.winsize.ws_col - MAX_COLS) / 2, 0))
 
@@ -147,7 +143,8 @@ static void enter_alt_buffer(void);
 static void leave_alt_buffer(void);
 static void quit(void);
 
-static int wutui_configure_network(void);
+static int wutui_configure_network(struct scan_result *selected_sr);
+
 static void connect_scan_result(void);
 
 void die(const char *, ...);
@@ -297,9 +294,6 @@ init_wutui(const char *ctrl_path)
 
 	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve scan results");
-	remove_hidden_networks(wutui.srs);
-	wutui.srs_len = scan_results_len(wutui.srs);
-	wutui.current_sr = TAILQ_FIRST(wutui.srs);
 
 	if (wpa_ctrl_attach(wutui.ctrl) != 0) {
 		err(EXIT_FAILURE,
@@ -514,18 +508,18 @@ render_known_networks(struct sbuf *sb)
 static void
 render_network_scan(struct sbuf *sb)
 {
-	int i = 0, scrollbar = -1;
+	size_t i = 0;
+	int scrollbar = -1;
 	const int SECURITY_LEN = sizeof("Security") - 1;
 	const int SIGNAL_LEN = sizeof("Signal") - 1;
 	const int FREQ_LEN = sizeof("5180") - 1;
-	struct scan_result *sr;
 
-	if (wutui.current_sr_index < wutui.sr_offset)
-		wutui.sr_offset = wutui.current_sr_index;
-	if (wutui.current_sr_index >= wutui.sr_offset + SR_ENTRIES)
-		wutui.sr_offset = wutui.current_sr_index - SR_ENTRIES + 1;
+	if (wutui.selected_sr < wutui.sr_offset)
+		wutui.sr_offset = wutui.selected_sr;
+	if (wutui.selected_sr >= wutui.sr_offset + SR_ENTRIES)
+		wutui.sr_offset = wutui.selected_sr - SR_ENTRIES + 1;
 
-	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs_len,
+	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs->len,
 	    SR_ENTRIES);
 
 	heading(sb, "Network Scan", false, MARGIN, MAX_COLS);
@@ -536,17 +530,15 @@ render_network_scan(struct sbuf *sb)
 	    MARGIN, "", IEEE80211_NWID_LEN, "SSID",
 	    right_corner_block(-1, SR_ENTRIES, scrollbar));
 
-	for (sr = TAILQ_FIRST(wutui.srs), i = 0;
-	    sr != NULL && i < SR_ENTRIES + wutui.sr_offset;
-	    sr = TAILQ_NEXT(sr, next), i++) {
-		if (i < wutui.sr_offset)
-			continue;
+	for (i = wutui.sr_offset;
+	    i < wutui.srs->len && i < SR_ENTRIES + wutui.sr_offset; i++) {
+		struct scan_result *sr = &wutui.srs->items[i];
 
 		sbuf_printf(sb,
 		    "%*s│ %s %-*s      %-*s       %-*s       %-*d MHz   " REMOVE_INVERT
 		    " %s\r\n",
 		    MARGIN, "",
-		    wutui.section == SECTION_NS && i == wutui.current_sr_index ?
+		    wutui.section == SECTION_NS && i == wutui.selected_sr ?
 			INVERT :
 			"",
 		    IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
@@ -952,16 +944,16 @@ quit(void)
 }
 
 static int
-wutui_configure_network(void)
+wutui_configure_network(struct scan_result *selected_sr)
 {
 	char *identity = NULL;
 	char *password = NULL;
-	int nwid = add_network(wutui.ctrl, wutui.current_sr->ssid);
+	int nwid = add_network(wutui.ctrl, selected_sr->ssid);
 
 	if (nwid == -1)
 		diex("failed to create new network");
 
-	switch (wutui.current_sr->security) {
+	switch (selected_sr->security) {
 	case SEC_PSK:
 		password = input_dialog("Enter the password", PSK_MIN, PSK_MAX,
 		    true);
@@ -997,7 +989,7 @@ wutui_configure_network(void)
 
 fail:
 	remove_network(wutui.ctrl, nwid);
-	diex("failed configuring network: %s", wutui.current_sr->ssid);
+	diex("failed configuring network: %s", selected_sr->ssid);
 cancel:
 	remove_network(wutui.ctrl, nwid);
 	return (-1);
@@ -1007,20 +999,21 @@ static void
 connect_scan_result(void)
 {
 	int nwid = -1;
+	struct scan_result *selected_sr = &wutui.srs->items[wutui.selected_sr];
 
 	for (size_t i = 0; i < wutui.kns->len; i++) {
 		struct known_network *nw = &wutui.kns->items[i];
-		if (strcmp(nw->ssid, wutui.current_sr->ssid) == 0) {
+		if (strcmp(nw->ssid, selected_sr->ssid) == 0) {
 			nwid = nw->id;
 			break;
 		}
 	}
 
-	if (nwid == -1 && (nwid = wutui_configure_network()) == -1)
+	if (nwid == -1 && (nwid = wutui_configure_network(selected_sr)) == -1)
 		return;
 
 	if (select_network(wutui.ctrl, nwid) != 0)
-		diex("failed to select network: %s", wutui.current_sr->ssid);
+		diex("failed to select network: %s", selected_sr->ssid);
 
 	if (update_config(wutui.ctrl) != 0)
 		diex("failed to update config");
@@ -1161,7 +1154,7 @@ handle_input(void)
 			diex("failed to update config");
 		break;
 	case 'c':
-		if (wutui.section == SECTION_NS && wutui.current_sr != NULL)
+		if (wutui.section == SECTION_NS && wutui.srs->len != 0)
 			connect_scan_result();
 		break;
 	case 'd':
@@ -1190,25 +1183,17 @@ handle_input(void)
 		break;
 	case ARROW_DOWN:
 	case 'j':
-		if (wutui.section == SECTION_KN && wutui.kns->len != 0) {
+		if (wutui.section == SECTION_KN && wutui.kns->len != 0)
 			WRAPPED_INCR(wutui.selected_kn, wutui.kns->len);
-		} else if (wutui.section == SECTION_NS &&
-		    wutui.current_sr != NULL) {
-			WRAPPED_INCR(wutui.current_sr_index, wutui.srs_len);
-			wutui.current_sr = TAILQ_CIRCULAR_NEXT(wutui.srs,
-			    wutui.current_sr, next);
-		}
+		else if (wutui.section == SECTION_NS && wutui.srs->len != 0)
+			WRAPPED_INCR(wutui.selected_sr, wutui.srs->len);
 		break;
 	case ARROW_UP:
 	case 'k':
-		if (wutui.section == SECTION_KN && wutui.kns->len != 0) {
+		if (wutui.section == SECTION_KN && wutui.kns->len != 0)
 			WRAPPED_DECR(wutui.selected_kn, wutui.kns->len);
-		} else if (wutui.section == SECTION_NS &&
-		    wutui.current_sr != NULL) {
-			WRAPPED_DECR(wutui.current_sr_index, wutui.srs_len);
-			wutui.current_sr = TAILQ_CIRCULAR_PREV(wutui.srs,
-			    scan_results, wutui.current_sr, next);
-		}
+		else if (wutui.section == SECTION_NS && wutui.srs->len != 0)
+			WRAPPED_DECR(wutui.selected_sr, wutui.srs->len);
 		break;
 	case 'r':
 		if (reconnect(wutui.ctrl) != 0)
@@ -1219,19 +1204,20 @@ handle_input(void)
 		scan(wutui.ctrl);
 		break;
 	case HOME_KEY:
-		if (wutui.section == SECTION_KN) {
+		if (wutui.section == SECTION_KN)
 			wutui.selected_kn = 0;
-		} else if (wutui.section == SECTION_NS) {
-			wutui.current_sr_index = 0;
-			wutui.current_sr = TAILQ_FIRST(wutui.srs);
-		}
+		else if (wutui.section == SECTION_NS)
+			wutui.selected_sr = 0;
 		break;
 	case END_KEY:
 		if (wutui.section == SECTION_KN) {
-			wutui.selected_kn = MAX(0, wutui.kns->len - 1);
+			wutui.selected_kn = wutui.kns->len != 0 ?
+			    wutui.kns->len - 1 :
+			    0;
 		} else if (wutui.section == SECTION_NS) {
-			wutui.current_sr_index = MAX(0, wutui.srs_len - 1);
-			wutui.current_sr = TAILQ_LAST(wutui.srs, scan_results);
+			wutui.selected_sr = wutui.srs->len != 0 ?
+			    wutui.srs->len - 1 :
+			    0;
 		}
 		break;
 	case PAGE_UP:
@@ -1243,13 +1229,12 @@ handle_input(void)
 			wutui.selected_kn = CLAMP(selected_kn, 0,
 			    wutui.kn_offset);
 		} else if (wutui.section == SECTION_NS) {
-			wutui.current_sr_index = wutui.sr_offset;
-			for (int i = 0; i < SR_ENTRIES &&
-			    wutui.current_sr != TAILQ_FIRST(wutui.srs);
-			    i++) {
-				wutui.current_sr = TAILQ_PREV(wutui.current_sr,
-				    scan_results, next);
-			}
+			size_t selected_sr = wutui.sr_offset >= SR_ENTRIES ?
+			    wutui.sr_offset - SR_ENTRIES :
+			    0;
+
+			wutui.selected_sr = CLAMP(selected_sr, 0,
+			    wutui.sr_offset);
 		}
 		break;
 	case PAGE_DOWN:
@@ -1262,17 +1247,13 @@ handle_input(void)
 
 			wutui.selected_kn = CLAMP(selected_kn, 0, max_kn);
 		} else if (wutui.section == SECTION_NS) {
-			wutui.current_sr_index = wutui.sr_offset + SR_ENTRIES -
+			size_t selected_sr = wutui.sr_offset + 2 * SR_ENTRIES -
 			    1;
-			if (wutui.current_sr_index >= wutui.srs_len)
-				wutui.current_sr_index = wutui.srs_len - 1;
-			for (int i = 0; i < SR_ENTRIES &&
-			    wutui.current_sr !=
-				TAILQ_LAST(wutui.srs, scan_results);
-			    i++) {
-				wutui.current_sr = TAILQ_NEXT(wutui.current_sr,
-				    next);
-			}
+			size_t max_sr = wutui.srs->len != 0 ?
+			    wutui.srs->len - 1 :
+			    0;
+
+			wutui.selected_sr = CLAMP(selected_sr, 0, max_sr);
 		}
 		break;
 	case CTRL('a'):
@@ -1358,11 +1339,7 @@ update_scan_results(void)
 	free_scan_results(wutui.srs);
 	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
 		diex("failed to retrieve scan results");
-	remove_hidden_networks(wutui.srs);
-	wutui.srs_len = scan_results_len(wutui.srs);
-
-	wutui.current_sr_index = 0;
-	wutui.current_sr = TAILQ_FIRST(wutui.srs);
+	wutui.selected_sr = 0;
 }
 
 static void

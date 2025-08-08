@@ -53,7 +53,9 @@ struct scan_result {
 	TAILQ_ENTRY(scan_result) next;
 };
 
-TAILQ_HEAD(scan_results, scan_result);
+ARRAY(scan_results, struct scan_result);
+
+ARRAY_APPEND_PROTOTYPE(scan_results)
 
 struct supplicant_status {
 	int freq;
@@ -81,8 +83,6 @@ int template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
 char *wpa_ctrl_default_path(void);
 int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
-void remove_hidden_networks(struct scan_results *srs);
-int scan_results_len(struct scan_results *);
 void free_scan_results(struct scan_results *head);
 int scan(struct wpa_ctrl *ctrl);
 int scan_and_wait(struct wpa_ctrl *ctrl);
