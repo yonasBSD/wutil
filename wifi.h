@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <wpa_ctrl.h>
 
+#include "array.h"
 #include "usage.h"
 
 #define WPA_EVENT_ASSOCIATED "Associated with"
@@ -38,7 +39,9 @@ struct known_network {
 	TAILQ_ENTRY(known_network) next;
 };
 
-TAILQ_HEAD(known_networks, known_network);
+ARRAY(known_networks, struct known_network);
+
+ARRAY_APPEND_PROTOTYPE(known_networks)
 
 extern const char *security_to_string[];
 
@@ -88,7 +91,6 @@ int disconnect(struct wpa_ctrl *ctrl);
 
 struct known_networks *get_known_networks(struct wpa_ctrl *ctrl);
 void free_known_networks(struct known_networks *nws);
-int known_networks_len(struct known_networks *);
 enum security known_network_security(struct wpa_ctrl *ctrl, int nwid);
 bool is_hidden_network(struct wpa_ctrl *ctrl, int nwid);
 int get_network_priority(struct wpa_ctrl *ctrl, int nwid);

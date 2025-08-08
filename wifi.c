@@ -41,8 +41,7 @@ static int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
     const char *identity, const char *password);
 static int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid,
     const char *identity, const char *password);
-static int known_networks_cmp(struct known_network *a, struct known_network *b,
-    void *thunk);
+static int known_networks_cmp(const void *a, const void *b);
 static int scan_result_cmp(const struct scan_result *a,
     const struct scan_result *b, void *thunk);
 
@@ -72,6 +71,8 @@ struct wpa_command known_network_cmds[4] = {
 	{ "forget", cmd_known_network_forget },
 	{ "set", cmd_known_network_set },
 };
+
+ARRAY_APPEND_DEFINITION(known_networks)
 
 int
 wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout)
@@ -267,16 +268,14 @@ get_known_networks(struct wpa_ctrl *ctrl)
 	if (wpa_ctrl_request(ctrl, "LIST_NETWORKS", strlen("LIST_NETWORKS"),
 		reply, &reply_len, NULL) != 0)
 		return (NULL);
+	reply[reply_len] = '\0';
 
 	nws = malloc(sizeof(*nws));
 	if (nws == NULL) {
 		warn("malloc");
 		return (NULL);
 	}
-
-	TAILQ_INIT(nws);
-
-	reply[reply_len] = '\0';
+	*nws = ARRAY_INITIALIZER(known_networks);
 
 	for (char *brkn,
 	    *line = (strtok_r(reply, "\n", &brkn), strtok_r(NULL, "\n", &brkn));
@@ -288,73 +287,55 @@ get_known_networks(struct wpa_ctrl *ctrl)
 		char *ssid = strtok_r(NULL, "\t", &brkt);
 		char *bssid = strtok_r(NULL, "\t", &brkt);
 		char *flags = strtok_r(NULL, "\t", &brkt);
-		struct known_network *nw = calloc(1, sizeof(*nw));
-
-		if (nw == NULL) {
-			warn("calloc");
-			free_known_networks(nws);
-			return (NULL);
-		}
-
-		nw->id = id;
-		nw->priority = get_network_priority(ctrl, nw->id);
-		nw->hidden = is_hidden_network(ctrl, nw->id);
-		nw->security = known_network_security(ctrl, nw->id);
+		struct known_network nw = {
+			.id = id,
+			.priority = get_network_priority(ctrl, id),
+			.hidden = is_hidden_network(ctrl, id),
+			.security = known_network_security(ctrl, id),
+		};
 
 		if (ssid != NULL)
-			strlcpy(nw->ssid, ssid, sizeof(nw->ssid));
+			strlcpy(nw.ssid, ssid, sizeof(nw.ssid));
 
-		if (bssid != NULL && ether_aton_r(bssid, &nw->bssid) == NULL)
-			nw->bssid = (struct ether_addr) { 0 };
+		if (bssid != NULL && ether_aton_r(bssid, &nw.bssid) == NULL)
+			nw.bssid = (struct ether_addr) { 0 };
 
-		nw->state = KN_ENABLED;
+		nw.state = KN_ENABLED;
 
 		if (flags != NULL) {
 			if (strstr(flags, "CURRENT") != NULL)
-				nw->state = KN_CURRENT;
+				nw.state = KN_CURRENT;
 			else if (strstr(flags, "DISABLED") != NULL)
-				nw->state = KN_DISABLED;
+				nw.state = KN_DISABLED;
 		}
 
-		TAILQ_INSERT_TAIL(nws, nw, next);
+		if (!ARRAY_APPEND(known_networks, nws, nw)) {
+			warn("reallocarray");
+			free_known_networks(nws);
+			return (NULL);
+		}
 	}
 
-	TAILQ_MERGESORT(nws, NULL, known_networks_cmp, known_network, next);
+	qsort(nws->items, nws->len, sizeof(nws->items[0]), known_networks_cmp);
 
 	return (nws);
 }
 
 static int
-known_networks_cmp(struct known_network *a, struct known_network *b,
-    void *thunk)
+known_networks_cmp(const void *a, const void *b)
 {
-	(void)thunk;
-	return (b->priority - a->priority);
-}
-
-int
-known_networks_len(struct known_networks *kns)
-{
-	int len = 0;
-	struct known_network *kn, *kn_tmp;
-
-	TAILQ_FOREACH_SAFE(kn, kns, next, kn_tmp)
-		len++;
-
-	return (len);
+	const struct known_network *kn_a = a, *kn_b = b;
+	return ((kn_b->priority > kn_a->priority) -
+	    (kn_b->priority < kn_a->priority));
 }
 
 void
 free_known_networks(struct known_networks *nws)
 {
-	struct known_network *nw, *tmp;
-
 	if (nws == NULL)
 		return;
 
-	TAILQ_FOREACH_SAFE(nw, nws, next, tmp)
-		free(nw);
-
+	ARRAY_FREE(nws);
 	free(nws);
 }
 
@@ -741,7 +722,6 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
 	int nwid = -1;
 	struct known_networks *nws = NULL;
-	struct known_network *nw, *nw_tmp;
 	const char *ssid;
 	const char *identity = NULL, *password = NULL;
 	bool hidden = false;
@@ -794,9 +774,9 @@ cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
-		if (strcmp(nw->ssid, ssid) == 0) {
-			nwid = nw->id;
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcmp(nws->items[i].ssid, ssid) == 0) {
+			nwid = nws->items[i].id;
 			break;
 		}
 	}
@@ -1113,7 +1093,6 @@ get_network_priority(struct wpa_ctrl *ctrl, int nwid)
 int
 cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	struct known_network *nw, *nw_tmp;
 	struct known_networks *nws = get_known_networks(ctrl);
 
 	if (argc > 1) {
@@ -1128,7 +1107,8 @@ cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 
 	printf("  %-*s %-8s %-6s %-8s\n", IEEE80211_NWID_LEN, "SSID",
 	    "Security", "Hidden", "Priority");
-	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
+	for (size_t i = 0; i < nws->len; i++) {
+		struct known_network *nw = &nws->items[i];
 		printf("%c %-*s %-8s %-6s %8d\n",
 		    nw->state == KN_CURRENT ? '>' : ' ', IEEE80211_NWID_LEN,
 		    nw->ssid, security_to_string[nw->security],
@@ -1143,7 +1123,7 @@ cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 int
 cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	struct known_network *nw, *nw_tmp;
+	struct known_network *nw = NULL;
 	struct known_networks *nws = NULL;
 	const char *ssid;
 
@@ -1163,9 +1143,11 @@ cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
-		if (strcmp(nw->ssid, ssid) == 0)
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcmp(nws->items[i].ssid, ssid) == 0) {
+			nw = &nws->items[i];
 			break;
+		}
 	}
 
 	if (nw == NULL) {
@@ -1204,7 +1186,7 @@ remove_network(struct wpa_ctrl *ctrl, int nwid)
 int
 cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	struct known_network *nw, *nw_tmp;
+	struct known_network *nw = NULL;
 	struct known_networks *nws = NULL;
 	const char *ssid;
 
@@ -1224,9 +1206,11 @@ cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
-		if (strcmp(nw->ssid, ssid) == 0)
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcmp(nws->items[i].ssid, ssid) == 0) {
+			nw = &nws->items[i];
 			break;
+		}
 	}
 
 	if (nw == NULL) {
@@ -1275,7 +1259,7 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 	enum { UNCHANGED, YES, NO } autoconnect = UNCHANGED;
 	char *endptr;
 	const char *ssid;
-	struct known_network *nw, *nw_tmp;
+	struct known_network *nw = NULL;
 	struct known_networks *nws = NULL;
 
 	struct option options[] = {
@@ -1339,9 +1323,11 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 		return (1);
 	}
 
-	TAILQ_FOREACH_SAFE(nw, nws, next, nw_tmp) {
-		if (strcmp(nw->ssid, ssid) == 0)
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcmp(nws->items[i].ssid, ssid) == 0) {
+			nw = &nws->items[i];
 			break;
+		}
 	}
 
 	if (nw == NULL) {
