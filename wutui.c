@@ -701,12 +701,7 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 	wutui.dialog_title = title;
 	wutui.hide_dialog_text = hide_text;
 
-	render_tui();
 	for (;;) {
-		if (sbuf_finish(input_sb) != 0)
-			die("sbuf failed");
-		wutui.dialog_text = sbuf_data(input_sb);
-
 		render_tui();
 
 		wait_kq(&tevent);
@@ -730,7 +725,7 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 				input_sb->s_len--;
 			else if (!iscntrl(key) && key < 128)
 				sbuf_putc(input_sb, key);
-			else if (key == '\r' && sbuf_len(input_sb) > min) {
+			else if (key == '\r' && sbuf_len(input_sb) >= min) {
 				if (sbuf_len(input_sb) > max) {
 					char msg[64];
 
@@ -747,6 +742,10 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 					die("strdup");
 				break;
 			}
+
+			if (sbuf_finish(input_sb) != 0)
+				die("sbuf failed");
+			wutui.dialog_text = sbuf_data(input_sb);
 		}
 	}
 
