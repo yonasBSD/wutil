@@ -31,15 +31,8 @@
 #include "usage.h"
 #include "wifi.h"
 
-#define WRAPPED_INCR(var, max) ((var) = ((var) + 1) % (max))
-#define WRAPPED_DECR(var, max) ((var) = ((var) - 1 + (max)) % (max))
-
-#define TAILQ_CIRCULAR_NEXT(head, elm, field) \
-	(TAILQ_NEXT(elm, field) ? TAILQ_NEXT(elm, field) : TAILQ_FIRST(head))
-
-#define TAILQ_CIRCULAR_PREV(head, headname, elm, field)                        \
-	(TAILQ_PREV(elm, headname, field) ? TAILQ_PREV(elm, headname, field) : \
-					    TAILQ_LAST(head, headname))
+#define WRAPPED_INCR(var, max)	   ((var) = ((var) + 1) % (max))
+#define WRAPPED_DECR(var, max)	   ((var) = ((var) - 1 + (max)) % (max))
 
 #define CLAMP(val, minval, maxval) MAX((minval), MIN((val), (maxval)))
 #define SUB_CLAMP_ZERO(a, b)	   ((a) < (b) ? 0 : (a) - (b))
