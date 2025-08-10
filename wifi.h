@@ -113,12 +113,6 @@ int cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv);
 int cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv);
 int cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv);
 
-int cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv);
-int cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv);
-int cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv);
-int cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv);
-
 extern struct wpa_command station_cmds[5];
-extern struct wpa_command known_network_cmds[4];
 
 #endif /* !IEEE80211_H */

@@ -39,12 +39,25 @@ static int cmd_station(int argc, char *argv[]);
 static int cmd_interfaces(int argc, char **argv);
 static int cmd_interface(int argc, char **argv);
 
+static int cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv);
+static int cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv);
+static int cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc,
+    char **argv);
+static int cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv);
+
 static void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 static void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 static void print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata __unused);
+
+static struct wpa_command known_network_cmds[] = {
+	{ "known-networks", cmd_known_network_list },
+	{ "known-network", cmd_known_network_show },
+	{ "forget", cmd_known_network_forget },
+	{ "set", cmd_known_network_set },
+};
 
 static struct command commands[] = {
 	{ "help", cmd_help },
@@ -220,6 +233,237 @@ cmd_interface(int argc, char **argv)
 
 cleanup:
 	ifconfig_close(lifh);
+
+	return (ret);
+}
+
+static int
+cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	struct known_networks *nws = get_known_networks(ctrl);
+
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
+	}
+
+	if (nws == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	printf("  %-*s %-8s %-6s %-8s\n", IEEE80211_NWID_LEN, "SSID",
+	    "Security", "Hidden", "Priority");
+	for (size_t i = 0; i < nws->len; i++) {
+		struct known_network *nw = &nws->items[i];
+		printf("%c %-*s %-8s %-6s %8d\n",
+		    nw->state == KN_CURRENT ? '>' : ' ', IEEE80211_NWID_LEN,
+		    nw->ssid, security_to_string[nw->security],
+		    nw->hidden ? "Yes" : "", nw->priority);
+	}
+
+	free_known_networks(nws);
+
+	return (0);
+}
+
+static int
+cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	struct known_network *nw = NULL;
+	struct known_networks *nws = NULL;
+	const char *ssid;
+
+	if (argc < 2) {
+		warnx("<network> not provided");
+		return (1);
+	}
+	ssid = argv[1];
+
+	if (argc > 2) {
+		warnx("bad value %s", argv[2]);
+		return (1);
+	}
+
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcmp(nws->items[i].ssid, ssid) == 0) {
+			nw = &nws->items[i];
+			break;
+		}
+	}
+
+	if (nw == NULL) {
+		warnx("unknown network %s", ssid);
+		free_known_networks(nws);
+		return (1);
+	}
+
+	printf("%12s: %s\n", "Network SSID", nw->ssid);
+	printf("%12s: %s\n", "Security", security_to_string[nw->security]);
+	printf("%12s: %s\n", "Hidden", nw->hidden ? "Yes" : "No");
+	printf("%12s: %d\n", "Priority", nw->priority);
+	printf("%12s: %s\n", "Autoconnect",
+	    nw->state == KN_CURRENT	? "Current" :
+		nw->state == KN_ENABLED ? "Yes" :
+					  "No");
+
+	free_known_networks(nws);
+
+	return (0);
+}
+
+static int
+cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	struct known_network *nw = NULL;
+	struct known_networks *nws = NULL;
+	const char *ssid;
+
+	if (argc < 2) {
+		warnx("<network> not provided");
+		return (1);
+	}
+	ssid = argv[1];
+
+	if (argc > 2) {
+		warnx("bad value %s", argv[2]);
+		return (1);
+	}
+
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcmp(nws->items[i].ssid, ssid) == 0) {
+			nw = &nws->items[i];
+			break;
+		}
+	}
+
+	if (nw == NULL) {
+		warnx("unknown network %s", ssid);
+		free_known_networks(nws);
+		return (1);
+	}
+
+	if (remove_network(ctrl, nw->id) != 0) {
+		warnx("failed to forget network %s", ssid);
+		free_known_networks(nws);
+		return (1);
+	}
+
+	free_known_networks(nws);
+
+	return (0);
+}
+
+int
+cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	int ret = 0;
+	int priority = 0;
+	bool change_priority = false;
+	enum { UNCHANGED, YES, NO } autoconnect = UNCHANGED;
+	char *endptr;
+	const char *ssid;
+	struct known_network *nw = NULL;
+	struct known_networks *nws = NULL;
+	int opt = -1;
+	struct option opts[] = {
+		{ "priority", required_argument, NULL, 'p' },
+		{ "autoconnect", required_argument, NULL, 'a' },
+		{ NULL, 0, NULL, 0 },
+	};
+
+	while ((opt = getopt_long(argc, argv, "p:a:", opts, NULL)) != -1) {
+		switch (opt) {
+		case 'a':
+			if (strcmp(optarg, "y") == 0 ||
+			    strcmp(optarg, "yes") == 0) {
+				autoconnect = YES;
+			} else if (strcmp(optarg, "n") == 0 ||
+			    strcmp(optarg, "no") == 0) {
+				autoconnect = NO;
+			} else {
+				warnx("invalid value '%s' for --autoconnect",
+				    optarg);
+				return (1);
+			}
+			break;
+		case 'p':
+			priority = strtol(optarg, &endptr, 10);
+			if (*endptr != '\0') {
+				warnx("invalid value '%s' for --priority",
+				    optarg);
+				return (-1);
+			}
+			change_priority = true;
+			break;
+		case '?':
+		default:
+			return (1);
+		}
+	}
+
+	if (optind == 1) {
+		warnx("no options were provided");
+		return (1);
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		warnx("<network> not provided");
+		return (1);
+	}
+	ssid = argv[0];
+
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
+	}
+
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcmp(nws->items[i].ssid, ssid) == 0) {
+			nw = &nws->items[i];
+			break;
+		}
+	}
+
+	if (nw == NULL) {
+		warnx("unknown network %s", ssid);
+		ret = 1;
+		goto cleanup;
+	}
+
+	if (autoconnect != UNCHANGED &&
+	    set_autoconnect(ctrl, nw->id, autoconnect == YES) != 0) {
+		warnx("failed to set priority");
+		ret = 1;
+		goto cleanup;
+	}
+
+	if (change_priority && set_priority(ctrl, nw->id, priority) != 0) {
+		warnx("failed to set priority");
+		ret = 1;
+		goto cleanup;
+	}
+
+cleanup:
+	free_known_networks(nws);
 
 	return (ret);
 }
