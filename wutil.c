@@ -7,6 +7,9 @@
 #include <sys/param.h>
 #include <sys/pciio.h>
 
+#include <net/if_dl.h>
+
+#include <arpa/inet.h>
 #include <err.h>
 #include <getopt.h>
 #include <ifaddrs.h>
@@ -38,6 +41,10 @@ static int cmd_interface(int argc, char **argv);
 
 static void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
+static void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
+    void *udata);
+static void print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
+    void *udata __unused);
 
 static struct command commands[] = {
 	{ "help", cmd_help },
@@ -248,4 +255,77 @@ list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 
 	printf("%-*s %-17s %-5s %-*s %-12s\n", IFNAMSIZ, ifa->ifa_name, mac,
 	    state, PCI_MAXNAMELEN, device, connection_state_to_string[status]);
+}
+
+static void
+show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
+{
+	char device[PCI_MAXNAMELEN + 1];
+	const char **ifname = udata;
+	const char *state = (ifa->ifa_flags & IFF_UP) ? "Up" : "Down";
+
+	if (ifname == NULL || strcmp(*ifname, ifa->ifa_name) != 0)
+		return;
+
+	if (get_iface_parent(ifa->ifa_name, strlen(ifa->ifa_name), device,
+		sizeof(device)) != 0)
+		device[0] = '\0';
+
+	printf("%9s: %s\n", "Interface", ifa->ifa_name);
+	printf("%9s: %s\n", "State", state);
+	printf("%9s: %s\n", "Device", device);
+	ifconfig_foreach_ifaddr(lifh, ifa, print_ifaddr, NULL);
+}
+
+static void
+print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata __unused)
+{
+	struct ether_addr ea = { 0 };
+	struct ifconfig_inet_addr inet;
+	struct ifconfig_inet6_addr inet6;
+	char addr_buf[INET6_ADDRSTRLEN];
+
+	switch (ifa->ifa_addr->sa_family) {
+	case AF_INET: {
+		if (ifconfig_inet_get_addrinfo(lifh, ifa->ifa_name, ifa,
+			&inet) != 0)
+			return;
+
+		if (inet_ntop(AF_INET, &inet.sin->sin_addr, addr_buf,
+			sizeof(addr_buf)) == NULL)
+			return;
+		printf("%9s: %s/%d\n", "inet", addr_buf, inet.prefixlen);
+
+		break;
+	}
+	case AF_INET6: {
+		if (ifconfig_inet6_get_addrinfo(lifh, ifa->ifa_name, ifa,
+			&inet6) != 0)
+			return;
+
+		if (inet_ntop(AF_INET6, &inet6.sin6->sin6_addr, addr_buf,
+			sizeof(addr_buf)) == NULL)
+			return;
+		printf("%9s: %s/%d\n", "inet6", addr_buf, inet6.prefixlen);
+
+		break;
+	}
+	case AF_LINK: {
+		struct sockaddr_dl *sdl = (void *)ifa->ifa_addr;
+
+		if (sdl->sdl_family != AF_LINK ||
+		    sdl->sdl_alen != ETHER_ADDR_LEN)
+			return;
+
+		memcpy(&ea, LLADDR(sdl), ETHER_ADDR_LEN);
+
+		if (ether_ntoa_r(&ea, addr_buf) == NULL)
+			strcpy(addr_buf, "N/A");
+		printf("%9s: %s\n", "MAC", addr_buf);
+
+		break;
+	}
+	default:
+		break;
+	}
 }
