@@ -9,6 +9,7 @@
 
 #include <err.h>
 #include <getopt.h>
+#include <ifaddrs.h>
 #include <libifconfig.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,13 +33,16 @@ static int cmd_help(int argc, char **argv);
 static int cmd_known_network(int argc, char *argv[]);
 static int cmd_station(int argc, char *argv[]);
 
-static int cmd_interface_list(int argc, char **argv);
-static int cmd_interface_show(int argc, char **argv);
+static int cmd_interfaces(int argc, char **argv);
+static int cmd_interface(int argc, char **argv);
+
+static void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
+    void *udata);
 
 static struct command commands[] = {
 	{ "help", cmd_help },
-	{ "interfaces", cmd_interface_list },
-	{ "interface", cmd_interface_show },
+	{ "interfaces", cmd_interfaces },
+	{ "interface", cmd_interface },
 
 	{ "known-networks", cmd_known_network },
 	{ "known-network", cmd_known_network },
@@ -138,7 +142,7 @@ cmd_help(int argc, char **argv)
 }
 
 static int
-cmd_interface_list(int argc, char **argv)
+cmd_interfaces(int argc, char **argv)
 {
 	struct ifconfig_handle *lifh = NULL;
 	int ret = 0;
@@ -168,7 +172,7 @@ cleanup:
 }
 
 static int
-cmd_interface_show(int argc, char **argv)
+cmd_interface(int argc, char **argv)
 {
 	int ret = 0;
 	struct ifconfig_handle *lifh = NULL;
@@ -211,4 +215,37 @@ cleanup:
 	ifconfig_close(lifh);
 
 	return (ret);
+}
+
+static void
+list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
+{
+	enum connection_state status;
+	const char *state = (ifa->ifa_flags & IFF_UP) ? "Up" : "Down";
+	char device[PCI_MAXNAMELEN + 1];
+	char mac[18];
+	struct ether_addr ea = { 0 };
+	struct ifgroupreq ifgr;
+
+	(void)udata;
+
+	if (!is_wlan_group(lifh, ifa->ifa_name))
+		return;
+
+	status = get_connection_state(lifh, ifa);
+
+	if (get_iface_parent(ifa->ifa_name, strlen(ifa->ifa_name), device,
+		sizeof(device)) != 0)
+		device[0] = '\0';
+
+	if (ifconfig_get_groups(lifh, ifa->ifa_name, &ifgr) == -1)
+		return;
+
+	ifconfig_foreach_ifaddr(lifh, ifa, get_mac_addr, &ea);
+
+	if (ether_ntoa_r(&ea, mac) == NULL)
+		strcpy(mac, "N/A");
+
+	printf("%-*s %-17s %-5s %-*s %-12s\n", IFNAMSIZ, ifa->ifa_name, mac,
+	    state, PCI_MAXNAMELEN, device, connection_state_to_string[status]);
 }

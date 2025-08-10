@@ -27,15 +27,7 @@
 #include "interface.h"
 #include "libifconfig.h"
 
-enum connection_state {
-	CONNECTED,
-	DISCONNECTED,
-	UNPLUGGED,
-	DISABLED,
-	NA,
-};
-
-static const char *connection_state_to_string[] = {
+const char *connection_state_to_string[] = {
 	[CONNECTED] = "Connected",
 	[DISCONNECTED] = "Disconnected",
 	[UNPLUGGED] = "Unplugged",
@@ -45,12 +37,6 @@ static const char *connection_state_to_string[] = {
 
 static void is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata);
-static enum connection_state get_connection_state(struct ifconfig_handle *lifh,
-    struct ifaddrs *ifa);
-static void get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
-    void *udata);
-static int get_iface_parent(const char *ifname, int ifname_len, char *buf,
-    int buf_len);
 
 static void
 is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
@@ -68,7 +54,7 @@ is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
 	}
 }
 
-static enum connection_state
+enum connection_state
 get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
 {
 	bool is_interface_online = false;
@@ -100,39 +86,6 @@ get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
 	free(ifmr);
 
 	return (state);
-}
-
-void
-list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
-{
-	enum connection_state status;
-	const char *state = (ifa->ifa_flags & IFF_UP) ? "Up" : "Down";
-	char device[PCI_MAXNAMELEN + 1];
-	char mac[18];
-	struct ether_addr ea = { 0 };
-	struct ifgroupreq ifgr;
-
-	(void)udata;
-
-	if (!is_wlan_group(lifh, ifa->ifa_name))
-		return;
-
-	status = get_connection_state(lifh, ifa);
-
-	if (get_iface_parent(ifa->ifa_name, strlen(ifa->ifa_name), device,
-		sizeof(device)) != 0)
-		device[0] = '\0';
-
-	if (ifconfig_get_groups(lifh, ifa->ifa_name, &ifgr) == -1)
-		return;
-
-	ifconfig_foreach_ifaddr(lifh, ifa, get_mac_addr, &ea);
-
-	if (ether_ntoa_r(&ea, mac) == NULL)
-		strcpy(mac, "N/A");
-
-	printf("%-*s %-17s %-5s %-*s %-12s\n", IFNAMSIZ, ifa->ifa_name, mac,
-	    state, PCI_MAXNAMELEN, device, connection_state_to_string[status]);
 }
 
 static void
@@ -208,7 +161,7 @@ show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 	ifconfig_foreach_ifaddr(lifh, ifa, print_ifaddr, NULL);
 }
 
-static void
+void
 get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
 {
 	struct ether_addr *ea = udata;
@@ -247,7 +200,7 @@ is_wlan_group(struct ifconfig_handle *lifh, const char *ifname)
 	return (false);
 }
 
-static int
+int
 get_iface_parent(const char *ifname, int ifname_len, char *buf, int buf_len)
 { /* assumes ifname[ifname_len] == '\0' */
 	char name[32];

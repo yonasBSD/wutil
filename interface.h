@@ -11,11 +11,24 @@
 
 #include "libifconfig.h"
 
-bool is_wlan_group(struct ifconfig_handle *lifh, const char *ifname);
+enum connection_state {
+	CONNECTED,
+	DISCONNECTED,
+	UNPLUGGED,
+	DISABLED,
+	NA,
+};
 
-void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
-    void *udata);
+bool is_wlan_group(struct ifconfig_handle *lifh, const char *ifname);
+enum connection_state get_connection_state(struct ifconfig_handle *lifh,
+    struct ifaddrs *ifa);
+int get_iface_parent(const char *ifname, int ifname_len, char *buf,
+    int buf_len);
+void get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata);
+
 void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
+
+extern const char *connection_state_to_string[];
 
 #endif /* !INTERFACE_H */
