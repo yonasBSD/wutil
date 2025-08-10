@@ -1310,7 +1310,7 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 	}
 
 	if (autoconnect != UNCHANGED &&
-	    set_autoconnect(ctrl, autoconnect, nw->id) != 0) {
+	    set_autoconnect(ctrl, nw->id, autoconnect == YES) != 0) {
 		warnx("failed to set priority");
 		ret = 1;
 		goto cleanup;
