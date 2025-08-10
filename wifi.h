@@ -17,7 +17,6 @@
 #include <wpa_ctrl.h>
 
 #include "array.h"
-#include "usage.h"
 
 #define WPA_EVENT_ASSOCIATED "Associated with"
 
@@ -70,17 +69,7 @@ struct supplicant_status *get_supplicant_status(struct wpa_ctrl *);
 void free_supplicant_status(struct supplicant_status *);
 int get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid);
 
-typedef int (*wpa_cmd_handler_f)(struct wpa_ctrl *ctrl, int argc, char **argv);
-
-struct wpa_command {
-	const char *name;
-	wpa_cmd_handler_f handler;
-};
-
-int template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
-    size_t cmds_len, const char *wpa_ctrl_path);
-
-char *wpa_ctrl_default_path(void);
+const char *wpa_ctrl_default_path(void);
 int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
 void free_scan_results(struct scan_results *head);

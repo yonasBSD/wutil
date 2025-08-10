@@ -25,31 +25,28 @@
 #include "usage.h"
 #include "wifi.h"
 
-typedef int (*cmd_handler_f)(int argc, char **argv);
+typedef int (*cmd_handler_f)(int argc, char **argv, void *udata);
 
 struct command {
 	const char *name;
 	cmd_handler_f handler;
 };
 
-static int cmd_help(int argc, char **argv);
-static int cmd_known_network(int argc, char *argv[]);
-static int cmd_station(int argc, char *argv[]);
+static int cmd_help(int argc, char *argv[], void *udata);
 
-static int cmd_interfaces(int argc, char **argv);
-static int cmd_interface(int argc, char **argv);
+static int cmd_interfaces(int argc, char *argv[], void *udata);
+static int cmd_interface(int argc, char *argv[], void *udata);
 
-static int cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv);
-static int cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv);
-static int cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc,
-    char **argv);
-static int cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv);
+static int cmd_known_network_list(int argc, char *argv[], void *udata);
+static int cmd_known_network_show(int argc, char *argv[], void *udata);
+static int cmd_known_network_forget(int argc, char *argv[], void *udata);
+static int cmd_known_network_set(int argc, char *argv[], void *udata);
 
-static int cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv);
-static int cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv);
-static int cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv);
-static int cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv);
-static int cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv);
+static int cmd_wpa_scan(int argc, char *argv[], void *udata);
+static int cmd_wpa_networks(int argc, char *argv[], void *udata);
+static int cmd_wpa_status(int argc, char *argv[], void *udata);
+static int cmd_wpa_disconnect(int argc, char *argv[], void *udata);
+static int cmd_wpa_connect(int argc, char *argv[], void *udata);
 
 static void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
@@ -58,14 +55,16 @@ static void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
 static void print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata __unused);
 
-static struct wpa_command known_network_cmds[] = {
+static struct command commands[] = {
+	{ "help", cmd_help },
+	{ "interfaces", cmd_interfaces },
+	{ "interface", cmd_interface },
+
 	{ "known-networks", cmd_known_network_list },
 	{ "known-network", cmd_known_network_show },
 	{ "forget", cmd_known_network_forget },
 	{ "set", cmd_known_network_set },
-};
 
-static struct wpa_command station_cmds[5] = {
 	{ "scan", cmd_wpa_scan },
 	{ "networks", cmd_wpa_networks },
 	{ "status", cmd_wpa_status },
@@ -73,30 +72,13 @@ static struct wpa_command station_cmds[5] = {
 	{ "connect", cmd_wpa_connect },
 };
 
-static struct command commands[] = {
-	{ "help", cmd_help },
-	{ "interfaces", cmd_interfaces },
-	{ "interface", cmd_interface },
-
-	{ "known-networks", cmd_known_network },
-	{ "known-network", cmd_known_network },
-	{ "forget", cmd_known_network },
-	{ "set", cmd_known_network },
-
-	{ "scan", cmd_station },
-	{ "networks", cmd_station },
-	{ "status", cmd_station },
-	{ "disconnect", cmd_station },
-	{ "connect", cmd_station },
-};
-
-static const char *ctrl_path = NULL;
-
 int
 main(int argc, char *argv[])
 {
+	int ret = 0, opt = -1;
 	struct command *cmd = NULL;
-	int opt = -1;
+	const char *ctrl_path = wpa_ctrl_default_path();
+	struct wpa_ctrl *ctrl = NULL;
 	struct option opts[] = {
 		{ "ctrl-interface", required_argument, NULL, 'c' },
 		{ "help", no_argument, NULL, 'h' },
@@ -129,8 +111,7 @@ main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	if (ctrl_path == NULL &&
-	    (ctrl_path = wpa_ctrl_default_path()) == NULL) {
+	if (ctrl_path == NULL) {
 		warn(
 		    "no wpa ctrl interface on default path, provide --ctrl-interface");
 		return (1);
@@ -149,37 +130,36 @@ main(int argc, char *argv[])
 		return (EXIT_FAILURE);
 	}
 
-	return (cmd->handler(argc, argv));
+	if ((ctrl = wpa_ctrl_open(ctrl_path)) == NULL) {
+		warn("failed to open wpa_supplicant control interface, %s",
+		    ctrl_path);
+		return (1);
+	}
+
+	ret = cmd->handler(argc, argv, ctrl);
+
+	wpa_ctrl_close(ctrl);
+
+	return (ret);
 }
 
 static int
-cmd_known_network(int argc, char *argv[])
-{
-	return (template_cmd_wpa(argc, argv, known_network_cmds,
-	    nitems(known_network_cmds), ctrl_path));
-}
-
-static int
-cmd_station(int argc, char *argv[])
-{
-	return (template_cmd_wpa(argc, argv, station_cmds, nitems(station_cmds),
-	    ctrl_path));
-}
-
-static int
-cmd_help(int argc, char **argv)
+cmd_help(int argc, char **argv, void *udata)
 {
 	(void)argc;
 	(void)argv;
+	(void)udata;
 	usage(stdout);
 	return (0);
 }
 
 static int
-cmd_interfaces(int argc, char **argv)
+cmd_interfaces(int argc, char *argv[], void *udata)
 {
 	struct ifconfig_handle *lifh = NULL;
 	int ret = 0;
+
+	(void)udata;
 
 	if (argc > 2) {
 		warnx("bad value %s", argv[2]);
@@ -206,11 +186,13 @@ cleanup:
 }
 
 static int
-cmd_interface(int argc, char **argv)
+cmd_interface(int argc, char *argv[], void *udata)
 {
 	int ret = 0;
 	struct ifconfig_handle *lifh = NULL;
 	const char *ifname = NULL;
+
+	(void)udata;
 
 	if (argc < 2) {
 		warnx("<interface> not provided");
@@ -252,8 +234,9 @@ cleanup:
 }
 
 static int
-cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
+cmd_known_network_list(int argc, char *argv[], void *udata)
 {
+	struct wpa_ctrl *ctrl = udata;
 	struct known_networks *nws = get_known_networks(ctrl);
 
 	if (argc > 1) {
@@ -282,8 +265,9 @@ cmd_known_network_list(struct wpa_ctrl *ctrl, int argc, char **argv)
 }
 
 static int
-cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
+cmd_known_network_show(int argc, char *argv[], void *udata)
 {
+	struct wpa_ctrl *ctrl = udata;
 	struct known_network *nw = NULL;
 	struct known_networks *nws = NULL;
 	const char *ssid;
@@ -332,8 +316,9 @@ cmd_known_network_show(struct wpa_ctrl *ctrl, int argc, char **argv)
 }
 
 static int
-cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
+cmd_known_network_forget(int argc, char *argv[], void *udata)
 {
+	struct wpa_ctrl *ctrl = udata;
 	struct known_network *nw = NULL;
 	struct known_networks *nws = NULL;
 	const char *ssid;
@@ -378,18 +363,18 @@ cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc, char **argv)
 	return (0);
 }
 
-int
-cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
+static int
+cmd_known_network_set(int argc, char *argv[], void *udata)
 {
-	int ret = 0;
+	int ret = 0, opt = -1;
 	int priority = 0;
 	bool change_priority = false;
 	enum { UNCHANGED, YES, NO } autoconnect = UNCHANGED;
 	char *endptr;
 	const char *ssid;
+	struct wpa_ctrl *ctrl = udata;
 	struct known_network *nw = NULL;
 	struct known_networks *nws = NULL;
-	int opt = -1;
 	struct option opts[] = {
 		{ "priority", required_argument, NULL, 'p' },
 		{ "autoconnect", required_argument, NULL, 'a' },
@@ -483,8 +468,9 @@ cleanup:
 }
 
 static int
-cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv)
+cmd_wpa_scan(int argc, char *argv[], void *udata)
 {
+	struct wpa_ctrl *ctrl = udata;
 	if (argc > 1) {
 		warnx("bad value %s", argv[1]);
 		return (1);
@@ -499,8 +485,9 @@ cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv)
 }
 
 static int
-cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
+cmd_wpa_networks(int argc, char *argv[], void *udata)
 {
+	struct wpa_ctrl *ctrl = udata;
 	struct scan_results *srs = NULL;
 
 	if (argc > 1) {
@@ -528,9 +515,10 @@ cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
 	return (0);
 }
 
-int
-cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
+static int
+cmd_wpa_status(int argc, char *argv[], void *udata)
 {
+	struct wpa_ctrl *ctrl = udata;
 	struct supplicant_status *status = NULL;
 
 	if (argc > 1) {
@@ -560,9 +548,10 @@ cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
 	return (0);
 }
 
-int
-cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
+static int
+cmd_wpa_disconnect(int argc, char *argv[], void *udata)
 {
+	struct wpa_ctrl *ctrl = udata;
 	if (argc > 1) {
 		warnx("bad value %s", argv[1]);
 		return (1);
@@ -576,15 +565,15 @@ cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
 	return (0);
 }
 
-int
-cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
+static int
+cmd_wpa_connect(int argc, char *argv[], void *udata)
 {
-	int nwid = -1;
+	int nwid = -1, opt = -1;
 	struct known_networks *nws = NULL;
 	const char *ssid;
 	const char *identity = NULL, *password = NULL;
 	bool hidden = false;
-	int opt;
+	struct wpa_ctrl *ctrl = udata;
 	struct option options[] = {
 		{ "identity", required_argument, NULL, 'i' },
 		{ "password", required_argument, NULL, 'p' },

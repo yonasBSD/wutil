@@ -160,7 +160,7 @@ scan_and_wait(struct wpa_ctrl *ctrl)
 	return (ret);
 }
 
-char *
+const char *
 wpa_ctrl_default_path(void)
 {
 	static char path[128];
@@ -734,34 +734,6 @@ wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len,
 	}
 
 	return (0);
-}
-
-int
-template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
-    size_t cmds_len, const char *wpa_ctrl_path)
-{
-	int ret = 0;
-	struct wpa_command *cmd = NULL;
-	struct wpa_ctrl *ctrl;
-
-	for (size_t i = 0; i < cmds_len; i++) {
-		if (strcmp(argv[0], cmds[i].name) == 0) {
-			cmd = &cmds[i];
-			break;
-		}
-	}
-
-	if ((ctrl = wpa_ctrl_open(wpa_ctrl_path)) == NULL) {
-		warn("failed to open wpa_supplicant control interface, %s",
-		    wpa_ctrl_path);
-		return (1);
-	}
-
-	ret = cmd->handler(ctrl, argc, argv);
-
-	wpa_ctrl_close(ctrl);
-
-	return (ret);
 }
 
 enum security
