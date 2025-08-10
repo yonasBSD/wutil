@@ -1266,15 +1266,11 @@ handle_input(void *udata)
 		break;
 	case PAGE_UP:
 		if (wutui.section == SECTION_KN) {
-			size_t top_kn = SUB_CLAMP_ZERO(wutui.kn_offset,
+			wutui.selected_kn = SUB_CLAMP_ZERO(wutui.kn_offset,
 			    KN_ENTRIES);
-
-			wutui.selected_kn = CLAMP(top_kn, 0, wutui.kn_offset);
 		} else if (wutui.section == SECTION_NS) {
-			size_t top_sr = SUB_CLAMP_ZERO(wutui.sr_offset,
+			wutui.selected_sr = SUB_CLAMP_ZERO(wutui.sr_offset,
 			    SR_ENTRIES);
-
-			wutui.selected_sr = CLAMP(top_sr, 0, wutui.sr_offset);
 		}
 		break;
 	case PAGE_DOWN:
