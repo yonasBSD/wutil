@@ -117,11 +117,11 @@ main(int argc, char *argv[])
 			ctrl_path = optarg;
 			break;
 		case 'h':
-			usage_tui(stdout);
+			usage(stdout);
 			exit(EXIT_SUCCESS);
 		case '?':
 		default:
-			usage_tui(stderr);
+			usage(stderr);
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -133,7 +133,7 @@ main(int argc, char *argv[])
 	optind = 1;
 
 	if (argc == 0) {
-		usage_tui(stderr);
+		usage(stderr);
 		exit(EXIT_FAILURE);
 	}
 

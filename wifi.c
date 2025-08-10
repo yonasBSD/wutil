@@ -1235,7 +1235,6 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 
 	if (optind == 1) {
 		warnx("no options were provided");
-		usage_known_networks(stderr, true);
 		return (1);
 	}
 
