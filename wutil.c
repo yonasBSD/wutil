@@ -54,29 +54,6 @@ static struct command commands[] = {
 
 static const char *ctrl_path = NULL;
 
-static int
-cmd_known_network(int argc, char *argv[])
-{
-	return (template_cmd_wpa(argc, argv, known_network_cmds,
-	    nitems(known_network_cmds), ctrl_path));
-}
-
-static int
-cmd_station(int argc, char *argv[])
-{
-	return (template_cmd_wpa(argc, argv, station_cmds, nitems(station_cmds),
-	    ctrl_path));
-}
-
-static int
-cmd_help(int argc, char **argv)
-{
-	(void)argc;
-	(void)argv;
-	usage(stdout);
-	return (0);
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -135,6 +112,29 @@ main(int argc, char *argv[])
 	}
 
 	return (cmd->handler(argc, argv));
+}
+
+static int
+cmd_known_network(int argc, char *argv[])
+{
+	return (template_cmd_wpa(argc, argv, known_network_cmds,
+	    nitems(known_network_cmds), ctrl_path));
+}
+
+static int
+cmd_station(int argc, char *argv[])
+{
+	return (template_cmd_wpa(argc, argv, station_cmds, nitems(station_cmds),
+	    ctrl_path));
+}
+
+static int
+cmd_help(int argc, char **argv)
+{
+	(void)argc;
+	(void)argv;
+	usage(stdout);
+	return (0);
 }
 
 static int
