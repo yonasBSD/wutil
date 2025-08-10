@@ -37,9 +37,14 @@
 #define CLAMP(val, minval, maxval) MAX((minval), MIN((val), (maxval)))
 #define SUB_CLAMP_ZERO(a, b)	   ((a) < (b) ? 0 : (a) - (b))
 
+enum handler_return { HANDLER_CONTINUE, HANDLER_BREAK };
+
+typedef enum handler_return (*handler_f)(void *udata);
+
 struct event_handler {
 	uintptr_t ident;
-	void (*handler)(void);
+	handler_f handler;
+	void *udata;
 	SLIST_ENTRY(event_handler) next;
 };
 
@@ -103,8 +108,8 @@ static const size_t SR_ENTRIES = 13;
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
-void register_handler(struct event_handlers *ehs, int ident,
-    void (*handler)(void));
+void register_handler(struct event_handlers *ehs, int ident, handler_f handler,
+    void *udata);
 void free_handlers(struct event_handlers *ehs);
 
 void register_events(void);
@@ -160,11 +165,11 @@ void die(const char *, ...);
 void diex(const char *, ...);
 
 static int read_key(void);
-static void handle_notification_cleanup(void);
-static void handle_periodic_scan(void);
-static void handle_input(void);
-static void handle_wpa_event(void);
-static void handle_sigwinch(void);
+static enum handler_return handle_notification_cleanup(void *);
+static enum handler_return handle_periodic_scan(void *);
+static enum handler_return handle_input(void *);
+static enum handler_return handle_wpa_event(void *);
+static enum handler_return handle_sigwinch(void *);
 
 static void update_scan_results(void);
 static void update_known_networks(void);
@@ -226,7 +231,8 @@ parse_args(int argc, char *argv[], const char **ctrl_path)
 }
 
 void
-register_handler(struct event_handlers *ehs, int ident, void (*handler)(void))
+register_handler(struct event_handlers *ehs, int ident, handler_f handler,
+    void *udata)
 {
 	struct event_handler *eh = malloc(sizeof(*eh));
 
@@ -234,6 +240,7 @@ register_handler(struct event_handlers *ehs, int ident, void (*handler)(void))
 		err(EXIT_FAILURE, "malloc");
 	eh->ident = ident;
 	eh->handler = handler;
+	eh->udata = udata;
 
 	SLIST_INSERT_HEAD(ehs, eh, next);
 }
@@ -254,23 +261,23 @@ register_events(void)
 	struct kevent events[5];
 
 	EV_SET(&events[0], wutui.tty, EVFILT_READ, EV_ADD, 0, 0, NULL);
-	register_handler(wutui.handlers, wutui.tty, handle_input);
+	register_handler(wutui.handlers, wutui.tty, handle_input, NULL);
 
 	EV_SET(&events[1], wutui.wpa_fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-	register_handler(wutui.handlers, wutui.wpa_fd, handle_wpa_event);
+	register_handler(wutui.handlers, wutui.wpa_fd, handle_wpa_event, NULL);
 
 	EV_SET(&events[2], SIGWINCH, EVFILT_SIGNAL, EV_ADD, 0, 0, NULL);
-	register_handler(wutui.handlers, SIGWINCH, handle_sigwinch);
+	register_handler(wutui.handlers, SIGWINCH, handle_sigwinch, NULL);
 
 	EV_SET(&events[3], TIMER_NOTIFICATION_CLEANUP, EVFILT_TIMER, EV_ADD,
 	    NOTE_SECONDS, timers[TIMER_NOTIFICATION_CLEANUP], NULL);
 	register_handler(wutui.handlers, TIMER_NOTIFICATION_CLEANUP,
-	    handle_notification_cleanup);
+	    handle_notification_cleanup, NULL);
 
 	EV_SET(&events[4], TIMER_PERIODIC_SCAN, EVFILT_TIMER, EV_ADD,
 	    NOTE_SECONDS, timers[TIMER_PERIODIC_SCAN], NULL);
 	register_handler(wutui.handlers, TIMER_PERIODIC_SCAN,
-	    handle_periodic_scan);
+	    handle_periodic_scan, NULL);
 
 	if (kevent(wutui.kq, events, nitems(events), NULL, 0, NULL) == -1)
 		err(EXIT_FAILURE, "kevent register");
@@ -415,8 +422,11 @@ event_loop(void)
 		wait_kq(&tevent);
 
 		SLIST_FOREACH(eh, wutui.handlers, next) {
-			if (tevent.ident == eh->ident)
-				eh->handler();
+			if (tevent.ident == eh->ident) {
+				if (eh->handler(NULL) == HANDLER_BREAK)
+					return;
+				break;
+			}
 		}
 	}
 }
@@ -764,13 +774,13 @@ input_dialog(const char *title, int min, int max, bool hide_text)
 		wait_kq(&tevent);
 
 		if (tevent.ident == TIMER_NOTIFICATION_CLEANUP)
-			handle_notification_cleanup();
+			handle_notification_cleanup(NULL);
 		else if (tevent.ident == TIMER_PERIODIC_SCAN)
-			handle_periodic_scan();
+			handle_periodic_scan(NULL);
 		else if (tevent.ident == SIGWINCH)
-			handle_sigwinch();
+			handle_sigwinch(NULL);
 		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
-			handle_wpa_event();
+			handle_wpa_event(NULL);
 		else if (tevent.ident == (uintptr_t)wutui.tty) {
 			int key = read_key();
 
@@ -1156,22 +1166,30 @@ read_key(void)
 	return (c);
 }
 
-static void
-handle_notification_cleanup(void)
+static enum handler_return
+handle_notification_cleanup(void *udata)
 {
+	(void)udata;
+
 	pop_notification(wutui.notifications);
+	return (HANDLER_CONTINUE);
 }
 
-static void
-handle_periodic_scan(void)
+static enum handler_return
+handle_periodic_scan(void *udata)
 {
+	(void)udata;
+
 	scan(wutui.ctrl);
+	return (HANDLER_CONTINUE);
 }
 
-static void
-handle_input(void)
+static enum handler_return
+handle_input(void *udata)
 {
 	int key = read_key();
+
+	(void)udata;
 
 	if (isalpha(key))
 		key = tolower(key);
@@ -1180,12 +1198,12 @@ handle_input(void)
 		quit();
 
 	if (wutui.is_window_small)
-		return;
+		return (HANDLER_CONTINUE);
 
 	if (wutui.show_help) {
 		if (key == 'h')
 			wutui.show_help = !wutui.show_help;
-		return;
+		return (HANDLER_CONTINUE);
 	}
 
 	switch (key) {
@@ -1332,13 +1350,17 @@ handle_input(void)
 	default:
 		break;
 	}
+
+	return (HANDLER_CONTINUE);
 }
 
-static void
-handle_wpa_event(void)
+static enum handler_return
+handle_wpa_event(void *udata)
 {
 	char buf[4096];
 	int len = recv(wutui.wpa_fd, buf, sizeof(buf) - 1, 0);
+
+	(void)udata;
 
 	if (len == -1)
 		die("recv(wpa_fd)");
@@ -1361,13 +1383,17 @@ handle_wpa_event(void)
 	}
 
 	push_notification(wutui.notifications, buf);
+	return (HANDLER_CONTINUE);
 }
 
-static void
-handle_sigwinch(void)
+static enum handler_return
+handle_sigwinch(void *udata)
 {
+	(void)udata;
+
 	if (fetch_winsize() == -1)
 		die("failed to fetch terminal winsize");
+	return (HANDLER_CONTINUE);
 }
 
 static void
