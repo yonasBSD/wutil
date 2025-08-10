@@ -134,7 +134,8 @@ static void render_dialog(struct sbuf *sb);
 static int render_notification(struct sbuf *sb, const char *msg, int pos);
 static void render_notifications(struct sbuf *sb);
 
-static char *input_dialog(const char *title, int min, int max, bool hide_text);
+static char *read_dialog_input(const char *title, int min, int max,
+    bool hide_text);
 
 static void heading(struct sbuf *sb, const char *text, bool rounded, int margin,
     int max_cols);
@@ -168,6 +169,7 @@ static int read_key(void);
 static enum handler_return handle_notification_cleanup(void *);
 static enum handler_return handle_periodic_scan(void *);
 static enum handler_return handle_input(void *);
+static enum handler_return handle_dialog_input(void *);
 static enum handler_return handle_wpa_event(void *);
 static enum handler_return handle_sigwinch(void *);
 
@@ -423,7 +425,7 @@ event_loop(void)
 
 		SLIST_FOREACH(eh, wutui.handlers, next) {
 			if (tevent.ident == eh->ident) {
-				if (eh->handler(NULL) == HANDLER_BREAK)
+				if (eh->handler(eh->udata) == HANDLER_BREAK)
 					return;
 				break;
 			}
@@ -759,67 +761,46 @@ render_notifications(struct sbuf *sb)
 }
 
 static char *
-input_dialog(const char *title, int min, int max, bool hide_text)
+read_dialog_input(const char *title, int min, int max, bool hide_text)
 {
-	struct kevent tevent;
-	struct sbuf *input_sb = sbuf_new_auto();
 	char *input = NULL;
+	struct sbuf *input_sb = sbuf_new_auto();
+	struct event_handler *eh = NULL;
+	handler_f old_handler = NULL;
+	void *old_udata = NULL;
+	struct {
+		struct sbuf *input_sb;
+		int min, max;
+	} udata = { input_sb, min, max };
 
 	wutui.dialog_title = title;
 	wutui.hide_dialog_text = hide_text;
 
-	for (;;) {
-		render_tui();
-
-		wait_kq(&tevent);
-
-		if (tevent.ident == TIMER_NOTIFICATION_CLEANUP)
-			handle_notification_cleanup(NULL);
-		else if (tevent.ident == TIMER_PERIODIC_SCAN)
-			handle_periodic_scan(NULL);
-		else if (tevent.ident == SIGWINCH)
-			handle_sigwinch(NULL);
-		else if (tevent.ident == (uintptr_t)wutui.wpa_fd)
-			handle_wpa_event(NULL);
-		else if (tevent.ident == (uintptr_t)wutui.tty) {
-			int key = read_key();
-
-			if (key == ESC_CHAR)
-				break;
-			else if ((key == DEL_KEY || key == BACKSPACE ||
-				     key == CTRL('h')) &&
-			    input_sb->s_len != 0)
-				input_sb->s_len--;
-			else if (!iscntrl(key) && key < 128)
-				sbuf_putc(input_sb, key);
-			else if (key == '\r' && sbuf_len(input_sb) >= min) {
-				if (sbuf_len(input_sb) > max) {
-					char msg[64];
-
-					snprintf(msg, sizeof(msg),
-					    "Input must not exceed %d characters",
-					    max);
-					push_notification(wutui.notifications,
-					    msg);
-					break;
-				}
-
-				input = strdup(sbuf_data(input_sb));
-				if (input == NULL)
-					die("strdup");
-				break;
-			}
-
-			if (sbuf_finish(input_sb) != 0)
-				die("sbuf failed");
-			wutui.dialog_text = sbuf_data(input_sb);
-		}
+	SLIST_FOREACH(eh, wutui.handlers, next) {
+		if (eh->ident == (uintptr_t)wutui.tty)
+			break;
 	}
+	assert(eh != NULL);
+
+	old_handler = eh->handler;
+	old_udata = eh->udata;
+
+	eh->handler = handle_dialog_input;
+	eh->udata = &udata;
+
+	event_loop();
+
+	eh->handler = old_handler;
+	eh->udata = old_udata;
+
+	if (sbuf_len(input_sb) != 0) {
+		if ((input = strdup(sbuf_data(input_sb))) == NULL)
+			die("strdup");
+	}
+	sbuf_delete(input_sb);
 
 	wutui.dialog_title = wutui.dialog_text = NULL;
 	wutui.hide_dialog_text = false;
-
-	sbuf_delete(input_sb);
 
 	return (input);
 }
@@ -1015,20 +996,20 @@ wutui_configure_network(struct scan_result *selected_sr)
 
 	switch (selected_sr->security) {
 	case SEC_PSK:
-		password = input_dialog("Enter the password", PSK_MIN, PSK_MAX,
-		    true);
+		password = read_dialog_input("Enter the password", PSK_MIN,
+		    PSK_MAX, true);
 		if (password == NULL)
 			goto cancel;
 		if (configure_psk(wutui.ctrl, nwid, password))
 			goto fail;
 		break;
 	case SEC_EAP:
-		identity = input_dialog("Enter the EAP username", EAP_MIN,
+		identity = read_dialog_input("Enter the EAP username", EAP_MIN,
 		    EAP_MAX, false);
 		if (identity == NULL)
 			goto cancel;
-		password = input_dialog("Enter the password", EAP_MIN, EAP_MAX,
-		    true);
+		password = read_dialog_input("Enter the password", EAP_MIN,
+		    EAP_MAX, true);
 		if (password == NULL) {
 			free(identity);
 			goto cancel;
@@ -1350,6 +1331,48 @@ handle_input(void *udata)
 	default:
 		break;
 	}
+
+	return (HANDLER_CONTINUE);
+}
+
+static enum handler_return
+handle_dialog_input(void *udata)
+{
+	struct {
+		struct sbuf *input_sb;
+		int min, max;
+	} *data = udata;
+
+	assert(udata != NULL);
+
+	int key = read_key();
+
+	if (key == ESC_CHAR) {
+		sbuf_clear(data->input_sb);
+		return (HANDLER_BREAK);
+	} else if ((key == DEL_KEY || key == BACKSPACE || key == CTRL('h')) &&
+	    data->input_sb->s_len != 0) {
+		data->input_sb->s_len--;
+	} else if (!iscntrl(key) && key < 128) {
+		sbuf_putc(data->input_sb, key);
+	} else if (key == '\r' && sbuf_len(data->input_sb) >= data->min) {
+		if (sbuf_len(data->input_sb) > data->max) {
+			char msg[64];
+
+			snprintf(msg, sizeof(msg),
+			    "Input must not exceed %d characters", data->max);
+			push_notification(wutui.notifications, msg);
+
+			sbuf_clear(data->input_sb);
+			return (HANDLER_BREAK);
+		}
+
+		return (HANDLER_BREAK);
+	}
+
+	if (sbuf_finish(data->input_sb) != 0)
+		die("sbuf failed");
+	wutui.dialog_text = sbuf_data(data->input_sb);
 
 	return (HANDLER_CONTINUE);
 }
