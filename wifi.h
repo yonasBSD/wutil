@@ -78,7 +78,7 @@ struct wpa_command {
 };
 
 int template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
-    size_t cmds_len, usage_f usage_handler);
+    size_t cmds_len, const char *wpa_ctrl_path);
 
 char *wpa_ctrl_default_path(void);
 int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);

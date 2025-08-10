@@ -28,8 +28,8 @@
 #include "libifconfig.h"
 
 struct interface_command interface_cmds[2] = {
-	{ "list", cmd_interface_list },
-	{ "show", cmd_interface_show },
+	{ "interfaces", cmd_interface_list },
+	{ "interface", cmd_interface_show },
 };
 
 enum connection_state {
@@ -47,8 +47,6 @@ static const char *connection_state_to_string[] = {
 	[DISABLED] = "Disabled",
 	[NA] = "N/A",
 };
-
-static char *parse_interface_arg(int argc, char **argv, int max_argc);
 
 static void is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata);
@@ -85,13 +83,26 @@ cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv)
 int
 cmd_interface_show(struct ifconfig_handle *lifh, int argc, char **argv)
 {
-	const char *ifname = parse_interface_arg(argc, argv, 3);
+	const char *ifname = NULL;
 
-	if (ifname == NULL)
+	if (argc < 2) {
+		warnx("<interface> not provided");
 		return (1);
+	}
 
-	if (!is_wlan_group(lifh, argv[2])) {
-		warnx("invalid interface %s", argv[2]);
+	if (if_nametoindex(argv[1]) == 0) { /* returns 0 if invalid i.e false */
+		warnx("unknown interface %s", argv[1]);
+		return (1);
+	}
+
+	if (argc > 2) {
+		warnx("bad value %s", argv[2]);
+		return (1);
+	}
+
+	ifname = argv[1];
+	if (!is_wlan_group(lifh, ifname)) {
+		warnx("invalid interface %s", argv[1]);
 		return (1);
 	}
 
@@ -101,27 +112,6 @@ cmd_interface_show(struct ifconfig_handle *lifh, int argc, char **argv)
 	}
 
 	return (0);
-}
-
-char *
-parse_interface_arg(int argc, char **argv, int max_argc)
-{
-	if (argc < 3) {
-		warnx("<interface> not provided");
-		return (NULL);
-	}
-
-	if (if_nametoindex(argv[2]) == 0) { /* returns 0 if invalid i.e false */
-		warnx("unknown interface %s", argv[2]);
-		return (NULL);
-	}
-
-	if (argc > max_argc) {
-		warnx("bad value %s", argv[3]);
-		return (NULL);
-	}
-
-	return (argv[2]);
 }
 
 static void

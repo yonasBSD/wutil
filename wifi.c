@@ -65,8 +65,8 @@ struct wpa_command station_cmds[5] = {
 };
 
 struct wpa_command known_network_cmds[4] = {
-	{ "list", cmd_known_network_list },
-	{ "show", cmd_known_network_show },
+	{ "known-networks", cmd_known_network_list },
+	{ "known-network", cmd_known_network_show },
 	{ "forget", cmd_known_network_forget },
 	{ "set", cmd_known_network_set },
 };
@@ -950,55 +950,17 @@ wpa_ctrl_ack_request(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len,
 
 int
 template_cmd_wpa(int argc, char *argv[], struct wpa_command *cmds,
-    size_t cmds_len, usage_f usage_handler)
+    size_t cmds_len, const char *wpa_ctrl_path)
 {
 	int ret = 0;
 	struct wpa_command *cmd = NULL;
-	const char *wpa_ctrl_path = wpa_ctrl_default_path();
 	struct wpa_ctrl *ctrl;
-	int opt;
-	struct option opts[] = {
-		{ "ctrl-interface", required_argument, NULL, 'c' },
-		{ NULL, 0, NULL, 0 },
-	};
-
-	while ((opt = getopt_long(argc, argv, "+c:", opts, NULL)) != -1) {
-		switch (opt) {
-		case 'c':
-			wpa_ctrl_path = optarg;
-			break;
-		default:
-			return (1);
-		}
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	if (argc < 1) {
-		warnx("wrong number of arguments");
-		if (usage_handler != NULL)
-			usage_handler(stderr, true);
-		return (1);
-	}
-
-	if (wpa_ctrl_path == NULL) {
-		warn(
-		    "no wpa ctrl interface on default path, provide --ctrl-interface");
-		return (1);
-	}
 
 	for (size_t i = 0; i < cmds_len; i++) {
 		if (strcmp(argv[0], cmds[i].name) == 0) {
 			cmd = &cmds[i];
 			break;
 		}
-	}
-
-	if (cmd == NULL) {
-		warnx("Unknown subcommand: %s", argv[0]);
-		usage_handler(stderr, true);
-		return (1);
 	}
 
 	if ((ctrl = wpa_ctrl_open(wpa_ctrl_path)) == NULL) {
@@ -1226,7 +1188,7 @@ set_priority(struct wpa_ctrl *ctrl, int nwid, int priority)
 int
 cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 {
-	int opt, ret = 0;
+	int ret = 0;
 	int priority = 0;
 	bool change_priority = false;
 	enum { UNCHANGED, YES, NO } autoconnect = UNCHANGED;
@@ -1234,14 +1196,14 @@ cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv)
 	const char *ssid;
 	struct known_network *nw = NULL;
 	struct known_networks *nws = NULL;
-
-	struct option options[] = {
+	int opt = -1;
+	struct option opts[] = {
 		{ "priority", required_argument, NULL, 'p' },
 		{ "autoconnect", required_argument, NULL, 'a' },
 		{ NULL, 0, NULL, 0 },
 	};
 
-	while ((opt = getopt_long(argc, argv, "p:a:", options, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "p:a:", opts, NULL)) != -1) {
 		switch (opt) {
 		case 'a':
 			if (strcmp(optarg, "y") == 0 ||
