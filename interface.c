@@ -27,11 +27,6 @@
 #include "interface.h"
 #include "libifconfig.h"
 
-struct interface_command interface_cmds[2] = {
-	{ "interfaces", cmd_interface_list },
-	{ "interface", cmd_interface_show },
-};
-
 enum connection_state {
 	CONNECTED,
 	DISCONNECTED,
@@ -52,67 +47,10 @@ static void is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata);
 static enum connection_state get_connection_state(struct ifconfig_handle *lifh,
     struct ifaddrs *ifa);
-static void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
-    void *udata);
-static void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
-    void *udata);
 static void get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata);
-static bool is_wlan_group(struct ifconfig_handle *lifh, const char *ifname);
 static int get_iface_parent(const char *ifname, int ifname_len, char *buf,
     int buf_len);
-
-int
-cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv)
-{
-	if (argc > 2) {
-		warnx("bad value %s", argv[2]);
-		return (1);
-	}
-
-	printf("%-*s %-17s %-4s %-*s %-12s\n", IFNAMSIZ, "Interface", "MAC",
-	    "State", PCI_MAXNAMELEN, "Device", "Connection");
-	if (ifconfig_foreach_iface(lifh, list_interface, NULL) != 0) {
-		warnx("failed to get network interfaces");
-		return (1);
-	}
-
-	return (0);
-}
-
-int
-cmd_interface_show(struct ifconfig_handle *lifh, int argc, char **argv)
-{
-	const char *ifname = NULL;
-
-	if (argc < 2) {
-		warnx("<interface> not provided");
-		return (1);
-	}
-
-	if (if_nametoindex(argv[1]) == 0) { /* returns 0 if invalid i.e false */
-		warnx("unknown interface %s", argv[1]);
-		return (1);
-	}
-
-	if (argc > 2) {
-		warnx("bad value %s", argv[2]);
-		return (1);
-	}
-
-	ifname = argv[1];
-	if (!is_wlan_group(lifh, ifname)) {
-		warnx("invalid interface %s", argv[1]);
-		return (1);
-	}
-
-	if (ifconfig_foreach_iface(lifh, show_interface, &ifname) != 0) {
-		warnx("failed to get network interfaces");
-		return (1);
-	}
-
-	return (0);
-}
 
 static void
 is_ifaddr_af_inet(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
@@ -164,7 +102,7 @@ get_connection_state(struct ifconfig_handle *lifh, struct ifaddrs *ifa)
 	return (state);
 }
 
-static void
+void
 list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 {
 	enum connection_state status;
@@ -250,7 +188,7 @@ print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata __unused)
 	}
 }
 
-static void
+void
 show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa, void *udata)
 {
 	char device[PCI_MAXNAMELEN + 1];
@@ -285,7 +223,7 @@ get_mac_addr(ifconfig_handle_t *lifh, struct ifaddrs *ifa, void *udata)
 		memcpy(ea, LLADDR(sdl), ETHER_ADDR_LEN);
 }
 
-static bool
+bool
 is_wlan_group(struct ifconfig_handle *lifh, const char *ifname)
 {
 	struct ifgroupreq ifgr;

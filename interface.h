@@ -11,17 +11,11 @@
 
 #include "libifconfig.h"
 
-typedef int (
-    *iface_cmd_handler_f)(struct ifconfig_handle *lifh, int argc, char **argv);
+bool is_wlan_group(struct ifconfig_handle *lifh, const char *ifname);
 
-struct interface_command {
-	const char *name;
-	iface_cmd_handler_f handler;
-};
-
-extern struct interface_command interface_cmds[2];
-
-int cmd_interface_list(struct ifconfig_handle *lifh, int argc, char **argv);
-int cmd_interface_show(struct ifconfig_handle *lifh, int argc, char **argv);
+void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
+    void *udata);
+void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
+    void *udata);
 
 #endif /* !INTERFACE_H */

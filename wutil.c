@@ -5,6 +5,7 @@
  */
 
 #include <sys/param.h>
+#include <sys/pciio.h>
 
 #include <err.h>
 #include <getopt.h>
@@ -28,14 +29,16 @@ struct command {
 };
 
 static int cmd_help(int argc, char **argv);
-static int cmd_interface(int argc, char *argv[]);
 static int cmd_known_network(int argc, char *argv[]);
 static int cmd_station(int argc, char *argv[]);
 
+static int cmd_interface_list(int argc, char **argv);
+static int cmd_interface_show(int argc, char **argv);
+
 static struct command commands[] = {
 	{ "help", cmd_help },
-	{ "interfaces", cmd_interface },
-	{ "interface", cmd_interface },
+	{ "interfaces", cmd_interface_list },
+	{ "interface", cmd_interface_show },
 
 	{ "known-networks", cmd_known_network },
 	{ "known-network", cmd_known_network },
@@ -50,32 +53,6 @@ static struct command commands[] = {
 };
 
 static const char *ctrl_path = NULL;
-
-static int
-cmd_interface(int argc, char *argv[])
-{
-	struct interface_command *cmd = NULL;
-	struct ifconfig_handle *lifh;
-	int ret = 0;
-
-	if ((lifh = ifconfig_open()) == NULL) {
-		warnx("failed to open libifconfig handle");
-		return (1);
-	}
-
-	for (size_t i = 0; i < nitems(interface_cmds); i++) {
-		if (strcmp(*argv, interface_cmds[i].name) == 0) {
-			cmd = &interface_cmds[i];
-			break;
-		}
-	}
-
-	ret = cmd->handler(lifh, argc, argv);
-
-	ifconfig_close(lifh);
-
-	return (ret);
-}
 
 static int
 cmd_known_network(int argc, char *argv[])
@@ -158,4 +135,80 @@ main(int argc, char *argv[])
 	}
 
 	return (cmd->handler(argc, argv));
+}
+
+static int
+cmd_interface_list(int argc, char **argv)
+{
+	struct ifconfig_handle *lifh = NULL;
+	int ret = 0;
+
+	if (argc > 2) {
+		warnx("bad value %s", argv[2]);
+		return (1);
+	}
+
+	if ((lifh = ifconfig_open()) == NULL) {
+		warnx("failed to open libifconfig handle");
+		return (1);
+	}
+
+	printf("%-*s %-17s %-4s %-*s %-12s\n", IFNAMSIZ, "Interface", "MAC",
+	    "State", PCI_MAXNAMELEN, "Device", "Connection");
+	if (ifconfig_foreach_iface(lifh, list_interface, NULL) != 0) {
+		warnx("failed to get network interfaces");
+		ret = 1;
+		goto cleanup;
+	}
+
+cleanup:
+	ifconfig_close(lifh);
+
+	return (ret);
+}
+
+static int
+cmd_interface_show(int argc, char **argv)
+{
+	int ret = 0;
+	struct ifconfig_handle *lifh = NULL;
+	const char *ifname = NULL;
+
+	if (argc < 2) {
+		warnx("<interface> not provided");
+		return (1);
+	}
+
+	if (if_nametoindex(argv[1]) == 0) { /* returns 0 if invalid i.e false */
+		warnx("unknown interface %s", argv[1]);
+		return (1);
+	}
+
+	if (argc > 2) {
+		warnx("bad value %s", argv[2]);
+		return (1);
+	}
+
+	if ((lifh = ifconfig_open()) == NULL) {
+		warnx("failed to open libifconfig handle");
+		return (1);
+	}
+
+	ifname = argv[1];
+	if (!is_wlan_group(lifh, ifname)) {
+		warnx("invalid interface %s", argv[1]);
+		ret = 1;
+		goto cleanup;
+	}
+
+	if (ifconfig_foreach_iface(lifh, show_interface, &ifname) != 0) {
+		warnx("failed to get network interfaces");
+		ret = 1;
+		goto cleanup;
+	}
+
+cleanup:
+	ifconfig_close(lifh);
+
+	return (ret);
 }
