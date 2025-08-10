@@ -45,6 +45,12 @@ static int cmd_known_network_forget(struct wpa_ctrl *ctrl, int argc,
     char **argv);
 static int cmd_known_network_set(struct wpa_ctrl *ctrl, int argc, char **argv);
 
+static int cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv);
+static int cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv);
+static int cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv);
+static int cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv);
+static int cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv);
+
 static void list_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
     void *udata);
 static void show_interface(struct ifconfig_handle *lifh, struct ifaddrs *ifa,
@@ -57,6 +63,14 @@ static struct wpa_command known_network_cmds[] = {
 	{ "known-network", cmd_known_network_show },
 	{ "forget", cmd_known_network_forget },
 	{ "set", cmd_known_network_set },
+};
+
+static struct wpa_command station_cmds[5] = {
+	{ "scan", cmd_wpa_scan },
+	{ "networks", cmd_wpa_networks },
+	{ "status", cmd_wpa_status },
+	{ "disconnect", cmd_wpa_disconnect },
+	{ "connect", cmd_wpa_connect },
 };
 
 static struct command commands[] = {
@@ -466,6 +480,196 @@ cleanup:
 	free_known_networks(nws);
 
 	return (ret);
+}
+
+static int
+cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
+	}
+
+	if (scan_and_wait(ctrl) != 0) {
+		warnx("scan failed");
+		return (1);
+	}
+
+	return (0);
+}
+
+static int
+cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	struct scan_results *srs = NULL;
+
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
+	}
+
+	if ((srs = get_scan_results(ctrl)) == NULL) {
+		warnx("failed to retrieve scan results");
+		return (1);
+	}
+
+	printf("%-*s %-8s %-9s %-8s\n", IEEE80211_NWID_LEN, "SSID", "Signal",
+	    "Frequency", "Security");
+	for (size_t i = 0; i < srs->len; i++) {
+		struct scan_result *sr = &srs->items[i];
+
+		printf("%-*s %4d dBm %5d MHz %-8s\n", IEEE80211_NWID_LEN,
+		    sr->ssid, sr->signal, sr->freq,
+		    security_to_string[sr->security]);
+	}
+
+	free_scan_results(srs);
+
+	return (0);
+}
+
+int
+cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	struct supplicant_status *status = NULL;
+
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
+	}
+
+	if ((status = get_supplicant_status(ctrl)) == NULL) {
+		warnx("failed retrieve wpa_supplicant status");
+		return (1);
+	}
+
+	printf("%15s: %s\n", "WPA State", status->state);
+	if (status->ssid != NULL)
+		printf("%15s: %s\n", "Connected SSID", status->ssid);
+	if (status->bssid != NULL) {
+		printf("%15s: %s\n", "Connected BSSID", status->bssid);
+		printf("%15s: %d MHz\n", "Frequency", status->freq);
+	}
+	if (status->ip_address != NULL)
+		printf("%15s: %s\n", "IP Address", status->ip_address);
+	if (status->security != NULL)
+		printf("%15s: %s\n", "Security", status->security);
+
+	free_supplicant_status(status);
+
+	return (0);
+}
+
+int
+cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	if (argc > 1) {
+		warnx("bad value %s", argv[1]);
+		return (1);
+	}
+
+	if (disconnect(ctrl) != 0) {
+		warnx("failed to disconnect");
+		return (1);
+	}
+
+	return (0);
+}
+
+int
+cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv)
+{
+	int nwid = -1;
+	struct known_networks *nws = NULL;
+	const char *ssid;
+	const char *identity = NULL, *password = NULL;
+	bool hidden = false;
+	int opt;
+	struct option options[] = {
+		{ "identity", required_argument, NULL, 'i' },
+		{ "password", required_argument, NULL, 'p' },
+		{ "hidden", no_argument, NULL, 'h' },
+		{ NULL, 0, NULL, 0 },
+	};
+
+	while ((opt = getopt_long(argc, argv, "i:p:h", options, NULL)) != -1) {
+		switch (opt) {
+		case 'i':
+			identity = optarg;
+			break;
+		case 'p':
+			password = optarg;
+			break;
+		case 'h':
+			hidden = true;
+			break;
+		case '?':
+			break;
+		default:
+			break;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		warnx("<ssid> not provided");
+		return (1);
+	}
+	ssid = argv[0];
+
+	if (argc == 2 && password == NULL) {
+		password = argv[1];
+	} else if (argc >= 2) {
+		warnx("bad value %s", argv[password != NULL ? 1 : 2]);
+		return (1);
+	}
+
+	if ((nws = get_known_networks(ctrl)) == NULL) {
+		warnx("failed to retrieve known networks");
+		return (1);
+	}
+
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcmp(nws->items[i].ssid, ssid) == 0) {
+			nwid = nws->items[i].id;
+			break;
+		}
+	}
+
+	free_known_networks(nws);
+
+	if (nwid == -1) {
+		int config_ret;
+
+		if ((nwid = add_network(ctrl, ssid)) == -1) {
+			warnx("failed to create new network");
+			return (1);
+		}
+
+		config_ret = hidden ?
+		    configure_hidden_ssid(ctrl, nwid, identity, password) :
+		    configure_ssid(ctrl, nwid, ssid, identity, password);
+
+		if (config_ret != 0) {
+			warnx("failed to configure network: %s", ssid);
+			remove_network(ctrl, nwid);
+			return (1);
+		}
+	}
+
+	if (select_network(ctrl, nwid) != 0) {
+		warnx("failed to select network: %s", ssid);
+		return (1);
+	}
+
+	if (update_config(ctrl) != 0) {
+		warnx("failed to update wpa_supplicant config");
+		return (1);
+	}
+
+	return (0);
 }
 
 static void

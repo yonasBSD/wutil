@@ -107,12 +107,9 @@ int configure_ess(struct wpa_ctrl *ctrl, int nwid);
 int select_network(struct wpa_ctrl *ctrl, int nwid);
 int update_config(struct wpa_ctrl *ctrl);
 
-int cmd_wpa_scan(struct wpa_ctrl *ctrl, int argc, char **argv);
-int cmd_wpa_networks(struct wpa_ctrl *ctrl, int argc, char **argv);
-int cmd_wpa_status(struct wpa_ctrl *ctrl, int argc, char **argv);
-int cmd_wpa_disconnect(struct wpa_ctrl *ctrl, int argc, char **argv);
-int cmd_wpa_connect(struct wpa_ctrl *ctrl, int argc, char **argv);
-
-extern struct wpa_command station_cmds[5];
+int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid, const char *identity,
+    const char *password);
+int configure_ssid(struct wpa_ctrl *ctrl, int nwid, const char *ssid,
+    const char *identity, const char *password);
 
 #endif /* !IEEE80211_H */
