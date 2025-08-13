@@ -75,6 +75,8 @@ struct wutui {
 	struct known_networks *kns;
 	struct event_handlers *handlers;
 	struct notifications *notifications;
+	size_t max_rows;
+	size_t kn_entries, sr_entries;
 };
 
 enum wutui_key {
@@ -104,13 +106,13 @@ static const int timers[] = {
 
 static struct wutui wutui;
 
-static const int TUI_COLS = 80;
-static const int TUI_ROWS = 34;
+static const int MAX_COLS = 80;
+static const int MAX_ROWS = 34;
+static const int MAX_ENTRIES = 13;
 static const int MIN_COLS = 44;
-static const int KN_ENTRIES = 13;
-static const size_t SR_ENTRIES = 13;
+static const int MIN_ROWS = 12;
 
-#define MARGIN (MAX((wutui.winsize.ws_col - TUI_COLS) / 2, 0))
+#define MARGIN (MAX((wutui.winsize.ws_col - MAX_COLS) / 2, 0))
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
@@ -324,6 +326,9 @@ free_handlers(struct event_handlers *ehs)
 {
 	struct event_handler *eh, *eh_tmp;
 
+	if (ehs == NULL)
+		return;
+
 	SLIST_FOREACH_SAFE(eh, ehs, next, eh_tmp)
 		free(eh);
 	free(ehs);
@@ -534,7 +539,8 @@ render_tui(void)
 		sbuf_printf(sb, "%*s" BOLD "%s" NORMAL_INTENSITY, msg_offset,
 		    "", msg);
 	} else {
-		int vertical_offset = (wutui.winsize.ws_row - TUI_ROWS) / 2;
+		int vertical_offset = (wutui.winsize.ws_row - wutui.max_rows) /
+		    2;
 
 		vertical_offset = MAX(vertical_offset, 0);
 		sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
@@ -543,8 +549,8 @@ render_tui(void)
 		render_known_networks(sb);
 		render_network_scan(sb);
 
-		divider(sb, MARGIN, MIN(TUI_COLS, wutui.winsize.ws_col), true,
-		    wutui.winsize.ws_col < TUI_COLS);
+		divider(sb, MARGIN, MIN(MAX_COLS, wutui.winsize.ws_col), true,
+		    wutui.winsize.ws_col < MAX_COLS);
 
 		render_notifications(sb);
 
@@ -578,7 +584,7 @@ render_wifi_info(struct sbuf *sb)
 	int freq_str_len = snprintf(freq_buf, sizeof(freq_buf), "%d MHz",
 	    wutui.status->freq);
 	const int right_val_width = MAX(IP_LEN, freq_str_len);
-	const int cols = MIN(wutui.winsize.ws_col, TUI_COLS);
+	const int cols = MIN(wutui.winsize.ws_col, MAX_COLS);
 
 	heading(sb, "WiFi Info", true, MARGIN, cols);
 	sbuf_printf(sb, "%*s│", MARGIN, "");
@@ -611,15 +617,15 @@ render_known_networks(struct sbuf *sb)
 	const int HIDDEN_LEN = sizeof("Hidden") - 1;
 	const int PRIORITY_LEN = sizeof("Priority") - 1;
 	const int AUTO_CONNECT_LEN = sizeof("Auto Connect") - 1;
-	const int COLS = MIN(wutui.winsize.ws_col, TUI_COLS);
+	const int COLS = MIN(wutui.winsize.ws_col, MAX_COLS);
 
 	if (wutui.selected_kn < wutui.kn_offset)
 		wutui.kn_offset = wutui.selected_kn;
-	if (wutui.selected_kn >= wutui.kn_offset + KN_ENTRIES)
-		wutui.kn_offset = wutui.selected_kn - KN_ENTRIES + 1;
+	if (wutui.selected_kn >= wutui.kn_offset + wutui.kn_entries)
+		wutui.kn_offset = wutui.selected_kn - wutui.kn_entries + 1;
 
 	scrollbar = get_scrollbar_pos(wutui.kn_offset, wutui.kns->len,
-	    KN_ENTRIES, 1);
+	    wutui.kn_entries, 1);
 
 	heading(sb, "Known Networks", false, MARGIN, COLS);
 	sbuf_printf(sb, "%*s│" BOLD COLOR(FG, BLUE), MARGIN, "");
@@ -627,10 +633,10 @@ render_known_networks(struct sbuf *sb)
 	    L"  %-*s  Security  Hidden  Priority  Auto Connect  ",
 	    IEEE80211_NWID_LEN, "SSID");
 	sbuf_printf(sb, NORMAL_INTENSITY COLOR(FG, DEFAULT_COLOR) "%s\r\n",
-	    right_corner_block(-1, KN_ENTRIES, scrollbar));
+	    right_corner_block(-1, wutui.kn_entries, scrollbar));
 
 	for (i = wutui.kn_offset;
-	    i < wutui.kns->len && i < KN_ENTRIES + wutui.kn_offset; i++) {
+	    i < wutui.kns->len && i < wutui.kn_entries + wutui.kn_offset; i++) {
 		struct known_network *kn = &wutui.kns->items[i];
 
 		sbuf_printf(sb, "%*s│ %s", MARGIN, "",
@@ -647,13 +653,13 @@ render_known_networks(struct sbuf *sb)
 			kn->state == KN_CURRENT ? "Current" :
 						  "No");
 		sbuf_printf(sb, REMOVE_INVERT " %s\r\n",
-		    right_corner_block(i - wutui.kn_offset, KN_ENTRIES,
+		    right_corner_block(i - wutui.kn_offset, wutui.kn_entries,
 			scrollbar));
 	}
 
-	for (; i < KN_ENTRIES + wutui.kn_offset; i++)
+	for (; i < wutui.kn_entries + wutui.kn_offset; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", COLS - 2, "",
-		    right_corner_block(i - wutui.kn_offset, KN_ENTRIES,
+		    right_corner_block(i - wutui.kn_offset, wutui.kn_entries,
 			scrollbar));
 }
 
@@ -665,15 +671,15 @@ render_network_scan(struct sbuf *sb)
 	const int SECURITY_LEN = sizeof("Security") - 1;
 	const int SIGNAL_LEN = sizeof("Signal") - 1;
 	const int FREQ_LEN = sizeof("5180") - 1;
-	const int COLS = MIN(wutui.winsize.ws_col, TUI_COLS);
+	const int COLS = MIN(wutui.winsize.ws_col, MAX_COLS);
 
 	if (wutui.selected_sr < wutui.sr_offset)
 		wutui.sr_offset = wutui.selected_sr;
-	if (wutui.selected_sr >= wutui.sr_offset + SR_ENTRIES)
-		wutui.sr_offset = wutui.selected_sr - SR_ENTRIES + 1;
+	if (wutui.selected_sr >= wutui.sr_offset + wutui.sr_entries)
+		wutui.sr_offset = wutui.selected_sr - wutui.sr_entries + 1;
 
 	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs->len,
-	    SR_ENTRIES, 1);
+	    wutui.sr_entries, 1);
 
 	heading(sb, "Network Scan", false, MARGIN, COLS);
 	sbuf_printf(sb, "%*s│" BOLD COLOR(FG, BLUE), MARGIN, "");
@@ -681,10 +687,10 @@ render_network_scan(struct sbuf *sb)
 	    L"  %-*s      Security      Signal      Frequency   ",
 	    IEEE80211_NWID_LEN, "SSID");
 	sbuf_printf(sb, NORMAL_INTENSITY COLOR(FG, DEFAULT_COLOR) "%s\r\n",
-	    right_corner_block(-1, SR_ENTRIES, scrollbar));
+	    right_corner_block(-1, wutui.sr_entries, scrollbar));
 
 	for (i = wutui.sr_offset;
-	    i < wutui.srs->len && i < SR_ENTRIES + wutui.sr_offset; i++) {
+	    i < wutui.srs->len && i < wutui.sr_entries + wutui.sr_offset; i++) {
 		struct scan_result *sr = &wutui.srs->items[i];
 		const wchar_t *signal_bars = get_signal_bars(sr->signal);
 
@@ -698,13 +704,13 @@ render_network_scan(struct sbuf *sb)
 		    security_to_string[sr->security], SIGNAL_LEN, signal_bars,
 		    FREQ_LEN, sr->freq);
 		sbuf_printf(sb, REMOVE_INVERT " %s\r\n",
-		    right_corner_block(i - wutui.sr_offset, SR_ENTRIES,
+		    right_corner_block(i - wutui.sr_offset, wutui.sr_entries,
 			scrollbar));
 	}
 
-	for (; i < SR_ENTRIES + wutui.sr_offset; i++)
+	for (; i < wutui.sr_entries + wutui.sr_offset; i++)
 		sbuf_printf(sb, "%*s│%*s%s\r\n", MARGIN, "", COLS - 2, "",
-		    right_corner_block(i - wutui.sr_offset, SR_ENTRIES,
+		    right_corner_block(i - wutui.sr_offset, wutui.sr_entries,
 			scrollbar));
 }
 
@@ -776,7 +782,7 @@ static void
 render_dialog(struct sbuf *sb)
 {
 	int dialog_rows = 3 + 2;
-	int dialog_cols = TUI_COLS / 2;
+	int dialog_cols = MAX_COLS / 2;
 	int vertical_offset = MAX((wutui.winsize.ws_row - dialog_rows) / 2, 0);
 	int dialog_margin = MAX((wutui.winsize.ws_col - dialog_cols) / 2, 0);
 	int text_width = MAX(dialog_cols - 4, 1);
@@ -818,7 +824,7 @@ static int
 render_notification(struct sbuf *sb, const char *msg, int pos)
 {
 	int len = strlen(msg);
-	int box_width = MIN(len + 4, TUI_COLS / 2);
+	int box_width = MIN(len + 4, MAX_COLS / 2);
 	int start_col = wutui.winsize.ws_col - box_width + 1;
 
 	sbuf_cat(sb, COLOR(FG, YELLOW));
@@ -843,12 +849,12 @@ static void
 render_notifications(struct sbuf *sb)
 {
 	struct notification *notif, *notif_tmp;
-	int pos = 1;
+	size_t pos = 1;
 
 	TAILQ_FOREACH_REVERSE_SAFE(notif, wutui.notifications, notifications,
 	    next, notif_tmp) {
 		pos = render_notification(sb, notif->msg, pos);
-		if (pos * 3 >= TUI_ROWS * 2)
+		if (pos * 3 >= wutui.max_rows * 2)
 			break;
 	}
 }
@@ -924,7 +930,7 @@ divider(struct sbuf *sb, int margin, int max_cols, bool rounded,
 
 	if (with_scrollbar) {
 		scrollbar = 1 +
-		    get_scrollbar_pos(wutui.horizontal_pos, TUI_COLS - 2,
+		    get_scrollbar_pos(wutui.horizontal_pos, MAX_COLS - 2,
 			max_cols - 2, 2);
 	}
 
@@ -1049,8 +1055,12 @@ fetch_winsize(void)
 		    &wutui.winsize.ws_col));
 	}
 
+	wutui.max_rows = MIN(wutui.winsize.ws_row, MAX_ROWS);
+	wutui.sr_entries = wutui.kn_entries = MIN(MAX_ENTRIES,
+	    SUB_CLAMP_ZERO(wutui.winsize.ws_row, 8) / 2);
+
 	wutui.is_window_small = wutui.winsize.ws_col < MIN_COLS ||
-	    wutui.winsize.ws_row < TUI_ROWS;
+	    wutui.winsize.ws_row < MIN_ROWS;
 
 	return (0);
 }
@@ -1384,22 +1394,22 @@ handle_input(void *udata)
 	case PAGE_UP:
 		if (wutui.section == SECTION_KN) {
 			wutui.selected_kn = SUB_CLAMP_ZERO(wutui.kn_offset,
-			    KN_ENTRIES);
+			    wutui.kn_entries);
 		} else if (wutui.section == SECTION_NS) {
 			wutui.selected_sr = SUB_CLAMP_ZERO(wutui.sr_offset,
-			    SR_ENTRIES);
+			    wutui.sr_entries);
 		}
 		break;
 	case PAGE_DOWN:
 		if (wutui.section == SECTION_KN && wutui.kns->len != 0) {
-			size_t selected_kn = wutui.kn_offset + 2 * KN_ENTRIES -
-			    1;
+			size_t selected_kn = wutui.kn_offset +
+			    2 * wutui.kn_entries - 1;
 			size_t max_kn = SUB_CLAMP_ZERO(wutui.kns->len, 1);
 
 			wutui.selected_kn = CLAMP(selected_kn, 0, max_kn);
 		} else if (wutui.section == SECTION_NS) {
-			size_t selected_sr = wutui.sr_offset + 2 * SR_ENTRIES -
-			    1;
+			size_t selected_sr = wutui.sr_offset +
+			    2 * wutui.sr_entries - 1;
 			size_t max_sr = SUB_CLAMP_ZERO(wutui.srs->len, 1);
 
 			wutui.selected_sr = CLAMP(selected_sr, 0, max_sr);
@@ -1441,7 +1451,7 @@ handle_input(void *udata)
 	case ARROW_RIGHT:
 	case ']':
 		if (wutui.horizontal_pos + 1 <
-		    SUB_CLAMP_ZERO(TUI_COLS, wutui.winsize.ws_col))
+		    SUB_CLAMP_ZERO(MAX_COLS, wutui.winsize.ws_col))
 			wutui.horizontal_pos = wutui.horizontal_pos + 1;
 		break;
 	case ARROW_LEFT:
@@ -1541,7 +1551,7 @@ handle_sigwinch(void *udata)
 		die("failed to fetch terminal winsize");
 
 	wutui.horizontal_pos = CLAMP(wutui.horizontal_pos, 0,
-	    SUB_CLAMP_ZERO(TUI_COLS, wutui.winsize.ws_col));
+	    SUB_CLAMP_ZERO(MAX_COLS, wutui.winsize.ws_col));
 
 	return (HANDLER_CONTINUE);
 }
