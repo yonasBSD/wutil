@@ -150,13 +150,16 @@ static void heading(struct sbuf *sb, const char *text, bool rounded, int margin,
     int max_cols);
 static int word_wrap(struct sbuf *sb, const char *text, int width,
     int start_col, int pos);
-static void divider(struct sbuf *sb, bool rounded, int margin, int max_cols);
+static void divider(struct sbuf *sb, int margin, int max_cols, bool rounded,
+    bool scrollbar);
 static void draw_margin(struct sbuf *sb, int margin);
 
 static const wchar_t *get_signal_bars(int dbm);
 
 static const char *right_corner_block(int pos, int max_entries, int scrollbar);
-static int get_scrollbar_pos(int offset, int entries, int max_entries);
+static const char *divider_block(int pos, int max_entries, int scrollbar);
+static int get_scrollbar_pos(int offset, int entries, int max_entries,
+    int arrows);
 
 static int fetch_cursor_position(unsigned short *row, unsigned short *col);
 static int fetch_winsize(void);
@@ -540,7 +543,8 @@ render_tui(void)
 		render_known_networks(sb);
 		render_network_scan(sb);
 
-		divider(sb, true, MARGIN, MIN(TUI_COLS, wutui.winsize.ws_col));
+		divider(sb, MARGIN, MIN(TUI_COLS, wutui.winsize.ws_col), true,
+		    wutui.winsize.ws_col < TUI_COLS);
 
 		render_notifications(sb);
 
@@ -615,7 +619,7 @@ render_known_networks(struct sbuf *sb)
 		wutui.kn_offset = wutui.selected_kn - KN_ENTRIES + 1;
 
 	scrollbar = get_scrollbar_pos(wutui.kn_offset, wutui.kns->len,
-	    KN_ENTRIES);
+	    KN_ENTRIES, 1);
 
 	heading(sb, "Known Networks", false, MARGIN, COLS);
 	sbuf_printf(sb, "%*s│" BOLD COLOR(FG, BLUE), MARGIN, "");
@@ -669,7 +673,7 @@ render_network_scan(struct sbuf *sb)
 		wutui.sr_offset = wutui.selected_sr - SR_ENTRIES + 1;
 
 	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs->len,
-	    SR_ENTRIES);
+	    SR_ENTRIES, 1);
 
 	heading(sb, "Network Scan", false, MARGIN, COLS);
 	sbuf_printf(sb, "%*s│" BOLD COLOR(FG, BLUE), MARGIN, "");
@@ -762,7 +766,7 @@ render_help(struct sbuf *sb)
 		    ns_keys[i].keys, max_desc_len, ns_keys[i].desc);
 	}
 
-	divider(sb, true, help_margin, max_help_cols);
+	divider(sb, help_margin, max_help_cols, true, false);
 	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
 }
 
@@ -803,7 +807,7 @@ render_dialog(struct sbuf *sb)
 	draw_margin(sb, dialog_margin);
 	sbuf_printf(sb, "│ %*s │\r\n", text_width, "");
 
-	divider(sb, true, dialog_margin, dialog_cols);
+	divider(sb, dialog_margin, dialog_cols, true, false);
 
 	sbuf_cat(sb, COLOR(FG, DEFAULT_COLOR));
 }
@@ -909,15 +913,25 @@ heading(struct sbuf *sb, const char *text, bool rounded, int margin,
 }
 
 static void
-divider(struct sbuf *sb, bool rounded, int margin, int max_cols)
+divider(struct sbuf *sb, int margin, int max_cols, bool rounded,
+    bool with_scrollbar)
 {
 	const char *left_corner = rounded ? "╰" : "├";
 	const char *right_corner = rounded ? "╯" : "┤";
+	int scrollbar = -1;
+
+	if (with_scrollbar) {
+		scrollbar = 1 +
+		    get_scrollbar_pos(wutui.horizontal_pos, TUI_COLS - 2,
+			max_cols - 2, 2);
+	}
 
 	draw_margin(sb, margin);
 	sbuf_printf(sb, "%s", left_corner);
-	for (int i = 0; i < max_cols - 2; i++)
-		sbuf_cat(sb, "─");
+	for (int i = 0; i < max_cols - 2; i++) {
+		sbuf_cat(sb, divider_block(i, max_cols - 2, scrollbar));
+	}
+
 	sbuf_printf(sb, "%s", right_corner);
 }
 
@@ -975,8 +989,18 @@ right_corner_block(int pos, int max_entries, int scrollbar)
 					 " ");
 }
 
+static const char *
+divider_block(int pos, int max_entries, int scrollbar)
+{
+	return (scrollbar == -1	       ? "─" :
+		pos == 0	       ? "<" :
+		pos == max_entries - 1 ? ">" :
+		pos == scrollbar       ? "━" :
+					 " ");
+}
+
 static int
-get_scrollbar_pos(int offset, int entries, int max_entries)
+get_scrollbar_pos(int offset, int entries, int max_entries, int arrows)
 {
 	int pos;
 	double scroll_ratio;
@@ -987,7 +1011,7 @@ get_scrollbar_pos(int offset, int entries, int max_entries)
 	scroll_ratio = (double)offset / (entries - max_entries);
 	pos = round(scroll_ratio * max_entries);
 
-	return (CLAMP(pos, 0, max_entries - 1 /* down arrow */ - 1));
+	return (CLAMP(pos, 0, max_entries - arrows /* down arrow */ - 1));
 }
 
 static int
