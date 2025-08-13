@@ -110,7 +110,7 @@ static const int MAX_COLS = 80;
 static const int MAX_ROWS = 34;
 static const int MAX_ENTRIES = 13;
 static const int MIN_COLS = 44;
-static const int MIN_ROWS = 12;
+static const int MIN_ROWS = 22;
 
 #define MARGIN (MAX((wutui.winsize.ws_col - MAX_COLS) / 2, 0))
 
