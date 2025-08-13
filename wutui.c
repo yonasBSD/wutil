@@ -106,7 +106,7 @@ static struct wutui wutui;
 
 static const int TUI_COLS = 80;
 static const int TUI_ROWS = 34;
-static const int MIN_COLS = 26;
+static const int MIN_COLS = 44;
 static const int KN_ENTRIES = 13;
 static const size_t SR_ENTRIES = 13;
 
@@ -714,6 +714,8 @@ render_help(struct sbuf *sb)
 	struct keybinding general_keys[] = {
 		{ "d", "Disconnect current AP" },
 		{ "h", "Toggle help" },
+		{ "[/<Left>", "Scroll left" },
+		{ "]/<Right>", "Scroll right" },
 		{ "j/<Down>", "Move down" },
 		{ "k/<Up>", "Move up" },
 		{ "q", "Quit" },
@@ -731,7 +733,7 @@ render_help(struct sbuf *sb)
 	struct keybinding ns_keys[] = {
 		{ "c", "Connect to network" },
 	};
-	int max_key_len = sizeof("j/<Down>") - 1;
+	int max_key_len = sizeof("]/<Right>") - 1;
 	int max_desc_len = sizeof("Switch between sections") - 1;
 	int max_help_rows = nitems(general_keys) + nitems(kn_keys) +
 	    nitems(ns_keys) + 2 /* top and bottom */ + 2 /* section headers*/;
