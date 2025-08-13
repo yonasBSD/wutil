@@ -108,16 +108,16 @@ static const size_t SR_ENTRIES = 13;
 
 static void parse_args(int argc, char *argv[], const char **ctrl_path);
 
-void register_handler(struct event_handlers *ehs, int ident, handler_f handler,
-    void *udata);
-void free_handlers(struct event_handlers *ehs);
+static void register_handler(struct event_handlers *ehs, int ident,
+    handler_f handler, void *udata);
+static void free_handlers(struct event_handlers *ehs);
 
-void register_events(void);
+static void register_events(void);
 
-void pop_notification(struct notifications *ns);
-void push_notification(struct notifications *ns, const char *msg);
-void clear_notifactions(struct notifications *);
-void free_notifactions(struct notifications *);
+static void pop_notification(struct notifications *ns);
+static void push_notification(struct notifications *ns, const char *msg);
+static void clear_notifactions(struct notifications *);
+static void free_notifactions(struct notifications *);
 
 static void init_wutui(const char *ctrl_path);
 static void deinit_wutui(void);
@@ -139,8 +139,8 @@ static char *read_dialog_input(const char *title, int min, int max,
 
 static void heading(struct sbuf *sb, const char *text, bool rounded, int margin,
     int max_cols);
-int word_wrap(struct sbuf *sb, const char *text, int width, int start_col,
-    int pos);
+static int word_wrap(struct sbuf *sb, const char *text, int width,
+    int start_col, int pos);
 static void divider(struct sbuf *sb, bool rounded, int margin, int max_cols);
 static void draw_margin(struct sbuf *sb, int margin);
 
@@ -162,8 +162,8 @@ static int wutui_configure_network(struct scan_result *selected_sr);
 
 static void connect_scan_result(void);
 
-void die(const char *, ...);
-void diex(const char *, ...);
+static void die(const char *, ...);
+static void diex(const char *, ...);
 
 static int read_key(void);
 static enum handler_return handle_notification_cleanup(void *);
@@ -232,7 +232,7 @@ parse_args(int argc, char *argv[], const char **ctrl_path)
 	}
 }
 
-void
+static void
 register_handler(struct event_handlers *ehs, int ident, handler_f handler,
     void *udata)
 {
@@ -247,7 +247,7 @@ register_handler(struct event_handlers *ehs, int ident, handler_f handler,
 	SLIST_INSERT_HEAD(ehs, eh, next);
 }
 
-void
+static void
 free_handlers(struct event_handlers *ehs)
 {
 	struct event_handler *eh, *eh_tmp;
@@ -257,7 +257,7 @@ free_handlers(struct event_handlers *ehs)
 	free(ehs);
 }
 
-void
+static void
 register_events(void)
 {
 	struct kevent events[5];
@@ -285,7 +285,7 @@ register_events(void)
 		err(EXIT_FAILURE, "kevent register");
 }
 
-void
+static void
 pop_notification(struct notifications *ns)
 {
 	struct notification *first = TAILQ_FIRST(ns);
@@ -298,7 +298,7 @@ pop_notification(struct notifications *ns)
 	free(first);
 }
 
-void
+static void
 push_notification(struct notifications *ns, const char *msg)
 {
 	struct notification *notification = NULL;
@@ -314,7 +314,7 @@ push_notification(struct notifications *ns, const char *msg)
 	TAILQ_INSERT_TAIL(ns, notification, next);
 }
 
-void
+static void
 clear_notifactions(struct notifications *ns)
 {
 	struct notification *n, *n_tmp;
@@ -326,7 +326,7 @@ clear_notifactions(struct notifications *ns)
 	}
 }
 
-void
+static void
 free_notifactions(struct notifications *ns)
 {
 	if (ns == NULL)
@@ -834,7 +834,7 @@ divider(struct sbuf *sb, bool rounded, int margin, int max_cols)
 	sbuf_printf(sb, "%s", right_corner);
 }
 
-int
+static int
 word_wrap(struct sbuf *sb, const char *text, int width, int start_col, int pos)
 {
 	int text_len = strlen(text);
@@ -1060,7 +1060,7 @@ connect_scan_result(void)
 		diex("failed to update config");
 }
 
-void
+static void
 die(const char *fmt, ...)
 {
 	leave_alt_buffer();
@@ -1071,7 +1071,7 @@ die(const char *fmt, ...)
 	va_end(ap);
 }
 
-void
+static void
 diex(const char *fmt, ...)
 {
 	leave_alt_buffer();
