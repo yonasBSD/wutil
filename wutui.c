@@ -1562,7 +1562,8 @@ update_scan_results(void)
 	free_scan_results(wutui.srs);
 	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
 		diex("failed to retrieve scan results");
-	wutui.selected_sr = 0;
+	wutui.selected_sr = MIN(wutui.selected_sr,
+	    SUB_CLAMP_ZERO(wutui.srs->len, 1));
 }
 
 static void
@@ -1571,7 +1572,8 @@ update_known_networks(void)
 	free_known_networks(wutui.kns);
 	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
 		diex("failed to retrieve known networks");
-	wutui.selected_kn = 0;
+	wutui.selected_kn = MIN(wutui.selected_kn,
+	    SUB_CLAMP_ZERO(wutui.kns->len, 1));
 }
 
 static void
