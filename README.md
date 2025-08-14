@@ -7,6 +7,7 @@ $ make
 ```
 
 ## Usage
+### The CLI
 ```
 $ wutil -h
 Usage:  wutil {-h | subcommand [args...]}
@@ -21,7 +22,7 @@ Usage:  wutil {-h | subcommand [args...]}
           [-i <eap-id>] [-p <password>] [-h] <ssid> [password]
 ```
 
-### wutui
+### The TUI
 ```
 $ wutui
 ```
