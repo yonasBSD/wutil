@@ -14,7 +14,6 @@ usage(FILE *fout)
 	fprintf(fout,
 	    "Usage:"
 	    "\twutil {-h | subcommand [args...]}\n"
-	    "\twutil help\n"
 	    "\twutil interfaces\n"
 	    "\twutil interface <interface>\n"
 	    "\twutil [-c <wpa-ctrl-path>] known-networks\n"

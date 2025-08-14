@@ -32,8 +32,6 @@ struct command {
 	cmd_handler_f handler;
 };
 
-static int cmd_help(int argc, char *argv[], void *udata);
-
 static int cmd_interfaces(int argc, char *argv[], void *udata);
 static int cmd_interface(int argc, char *argv[], void *udata);
 
@@ -56,7 +54,6 @@ static void print_ifaddr(ifconfig_handle_t *lifh, struct ifaddrs *ifa,
     void *udata __unused);
 
 static struct command commands[] = {
-	{ "help", cmd_help },
 	{ "interfaces", cmd_interfaces },
 	{ "interface", cmd_interface },
 
@@ -141,16 +138,6 @@ main(int argc, char *argv[])
 	wpa_ctrl_close(ctrl);
 
 	return (ret);
-}
-
-static int
-cmd_help(int argc, char *argv[], void *udata)
-{
-	(void)argc;
-	(void)argv;
-	(void)udata;
-	usage(stdout);
-	return (0);
 }
 
 static int
