@@ -74,6 +74,7 @@ int wpa_ctrl_wait(int wpa_fd, const char *wpa_event, struct timespec *timeout);
 struct scan_results *get_scan_results(struct wpa_ctrl *ctrl);
 void free_scan_results(struct scan_results *head);
 int scan(struct wpa_ctrl *ctrl);
+int set_passive_scan(struct wpa_ctrl *ctrl, bool enable);
 int scan_and_wait(struct wpa_ctrl *ctrl);
 int reconnect(struct wpa_ctrl *ctrl);
 int disconnect(struct wpa_ctrl *ctrl);

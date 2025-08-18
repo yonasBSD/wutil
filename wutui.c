@@ -1377,7 +1377,9 @@ handle_input(void *udata)
 		update_supplicant_status();
 		break;
 	case 's':
+		set_passive_scan(wutui.ctrl, true);
 		scan(wutui.ctrl);
+		set_passive_scan(wutui.ctrl, false);
 		break;
 	case HOME_KEY:
 		if (wutui.section == SECTION_KN)

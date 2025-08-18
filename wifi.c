@@ -132,6 +132,21 @@ scan(struct wpa_ctrl *ctrl)
 }
 
 int
+set_passive_scan(struct wpa_ctrl *ctrl, bool enable)
+{
+	char reply[WPA_ACK_REPLY_SIZE];
+	size_t reply_len = sizeof(reply) - 1;
+
+	if (wpa_ctrl_ack_request(ctrl, reply, &reply_len, "SET passive_scan %d",
+		enable) != 0) {
+		warnx("(wpa_ctrl) failed to set passive_scan=%d", enable);
+		return (1);
+	}
+
+	return (0);
+}
+
+int
 scan_and_wait(struct wpa_ctrl *ctrl)
 {
 	int wpa_fd = wpa_ctrl_get_fd(ctrl);
