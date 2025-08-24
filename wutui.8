@@ -1,0 +1,99 @@
+.\"-
+.\" BSD 2-Clause License
+.\"
+.\" Copyright (c) 2025, Muhammad Saheed <saheed@FreeBSD.org>
+.\"
+.Dd August 24, 2025
+.Dt WUTUI 8
+.Os
+.Sh NAME
+.Nm wutui
+.Nd "A WiFi utility TUI"
+.Sh SYNOPSIS
+.Nm
+.Op Fl h
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Sh DESCRIPTION
+.Nm
+is a WiFi management TUI. It displays the current WiFi status, known-networks
+and available scanned access points.
+It supports station-mode operations like scanning
+access points, connecting and disconnecting from access points. 
+It interacts with 
+.Xr wpa-supplicant 8
+over it's control interface
+and automatically updates the 
+.Xr wpa-supplicant.conf 5
+and provides keybindings to forget a known-network and
+set priority and autoconnect
+options on known-networks.
+The CLI is
+.Xr wutil 8 .
+.Ss Supported Flags
+.Bl -tag -width indent
+.It Fl h
+.It Fl -help
+Print usage information and exit.
+.It Fl c Ar wpa-ctrl-path Sy Ar subcommand
+.It Fl -ctrl-interface Ar wpa-ctrl-path Sy Ar subcommand
+Path to
+.Xr wpa_supplicant 8
+control interface to use for the TUI.
+.El
+.Ss General keybindings
+.Bl -tag -width indent
+.It Ic d
+Disconnect from current access point.
+.It Ic h
+Toggle help.
+.It Ic \&[ No or Ic left
+Scroll left, only usable when the horizontal space is too small.
+.It Ic \&] No or Ic right
+Scroll right, only usable when the horizontal space is too small.
+.It Ic j No or Ic down
+Move one entry down.
+.It Ic k No or Ic up
+Move one entry up.
+.It Ic q
+Quit TUI.
+.It Ic r
+Reconnect to an available known-network.
+.It Ic s
+Trigger a passive scan.
+.It Ic tab
+Switch between "Known Networks" and "Network Scan" sections.
+.It Ic <C-l> No or Ic CTRL-L
+Clear all the notifications.
+.El
+.Ss "Known Networks" section keybindings
+.Bl -tag -width indent
+.It Ic a
+Toggle autoconnect on the selected known-network.
+.It Ic f
+Forget the selected known-network.
+.It Ic <C-a> No or Ic CTRL-A
+Increase the selected known-network priority.
+.It Ic <C-x> No or Ic CTRL-X
+Decrease the selected known-network priority.
+.El
+.Ss "Network Scan" section keybindings
+.Bl -tag -width indent
+.It Ic c
+Connect to the selected network.
+.El
+.Sh EXAMPLES
+Open 
+.Nm
+with 
+.Xr wpa-supplicant 8
+control interface path,
+.Pa /var/run/wpa_supplicant/wlan0 :
+.Dl # wutui -c /var/run/wpa_supplicant/wlan0
+.Pp
+.Sh SEE ALSO
+.Xr wutil 8 ,
+.Xr wpa_supplicant 8 ,
+.Xr ifconfig 8
+.Sh AUTHORS
+.An Muhammad Saheed Aq Mt saheed@FreeBSD.org
