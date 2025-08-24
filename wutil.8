@@ -1,0 +1,240 @@
+.\"-
+.\" BSD 2-Clause License
+.\"
+.\" Copyright (c) 2025, Muhammad Saheed <saheed@FreeBSD.org>
+.\"
+.Dd April 3, 2025
+.Dt WUTIL 8
+.Os
+.Sh NAME
+.Nm wutil
+.Nd "A WiFi utility CLI"
+.Sh SYNOPSIS
+.Nm
+.Op Fl h
+.Nm
+.Cm interfaces
+.Nm
+.Cm interface Ar interface
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm known-networks
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm known-network Ar SSID
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm forget Ar SSID
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm set
+.Op Fl p Ar priority
+.Op Fl a Brq Ar y | n
+.Ar known-SSID
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm scan
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm networks
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm status
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm disconnect
+.Nm
+.Op Fl c Ar wpa-ctrl-path
+.Cm connect
+.Op Fl i Ar username
+.Op Fl p Ar password
+.Op Fl h
+.Ar SSID
+.Op Ar password
+.Sh DESCRIPTION
+.Nm
+is a WiFi management CLI. It supports station-mode operations like
+querying connection
+.Cm status ,
+.Cm scan Ns ning
+access points,
+listing available 
+.Cm networks ,
+.Cm connect Ns ing
+and
+.Cm disconnect Ns ing
+from access points. It interacts with 
+.Xr wpa-supplicant 8
+over it's control interface
+and automatically updates the 
+.Xr wpa-supplicant.conf 5
+and provides commands to
+.Cm forget
+and
+.Cm set
+options on
+.Cm known-networks .
+The utility also supports listing wireless 
+.Cm interfaces
+and displaying details about a specific
+wireless 
+.Cm interface .
+The TUI interface is
+.Xr wutui 8 .
+.Ss Supported Subcommands and Flags
+.Bl -tag -width indent
+.It Fl h
+.It Fl -help
+Print usage information and exit.
+.It Fl c Ar wpa-ctrl-path Sy Ar subcommand
+.It Fl -ctrl-interface Ar wpa-ctrl-path Sy Ar subcommand
+Path to
+.Xr wpa_supplicant 8
+control interface to use for
+.Ar subcommand .
+.It Xo
+.Cm interfaces
+.Xc
+List wireless interfaces.
+.It Xo
+.Cm interface
+.Ar interface
+.Xc
+Display details about the
+.Ar interface .
+.It Xo
+.Cm known-networks
+.Xc
+List all previously connected known-networks.
+.It Xo
+.Cm known-network
+.Ar SSID
+.Xc
+Display information about the
+known-network with the specified
+.Ar SSID .
+.It Xo
+.Cm forget
+.Ar SSID
+.Xc
+Forget and remove the known-network with the specified
+.Ar SSID .
+.It Xo
+.Cm set
+.Op Fl p Ar priority
+.Op Fl a Brq Ar y | n
+.Ar known-SSID
+.Xc
+.It Xo
+.Cm set
+.Op Fl -priority Ar priority
+.Op Fl -autoconnect Brq Ar yes | no
+.Ar SSID
+.Xc
+Set the
+.Ar priority
+and
+.Ar autoconnect
+on a known-network with the specified
+.Ar SSID .
+.It Xo
+.Cm scan
+.Xc
+Starts scan for available access points.
+.It Xo
+.Cm networks
+.Xc
+List available WiFi access points.
+.It Xo
+.Cm status
+.Xc
+Display current connection status information.
+.It Xo
+.Cm disconnect
+.Xc
+Disconnect from currently connected access point.
+.It Xo
+.Cm connect
+.Op Fl i Ar username
+.Op Fl p Ar password
+.Op Fl h
+.Ar SSID
+.Op Ar password
+.Xc
+.It Xo
+.Cm connect
+.Op Fl -identity Ar username
+.Op Fl -password Ar password
+.Op Fl -hidden
+.Ar SSID
+.Op Ar password
+.Xc
+Connect to the
+.Ar SSID .
+The
+.Fl p
+flag or argument
+can be used to specify the
+.Ar password
+for a WPA-PSK network.
+The
+.Fl i
+and
+.Fl p
+flags
+can be used to specify the
+.Ar username
+and
+.Ar password
+for a WPA-EAP network. To connect to a hidden network, the
+.Fl -hidden
+flag is used.
+.El
+.Sh EXAMPLES
+Trigger scan for available WiFi access points:
+.Dl # wutil scan
+.Pp
+Trigger scan for available WiFi access points with 
+.Xr wpa-supplicant 8
+control interface path,
+.Pa /var/run/wpa_supplicant/wlan0 :
+.Dl # wutil -c /var/run/wpa_supplicant/wlan0 scan
+.Pp
+List scan results:
+.Dl # wutil networks
+.Pp
+Connect to an open network,
+.Pa Beastie-WiFi :
+.Dl # wutil connect Beastie-WiFi
+.Pp
+Connect to a WPA-PSK network,
+.Pa Beastie-WiFi
+with password,
+.Pa psswrd :
+.Dl # wutil connect Beastie-WiFi psswrd
+.Pp
+Connect to a WPA-EAP network,
+.Pa Beastie-WiFi
+with identity,
+.Pa beastie :
+and password,
+.Pa psswrd :
+.Dl # wutil connect -i beastie -p psswrd Beastie-WiFi
+.Pp
+Change priority and enable autoconnect on a known-network,
+.Pa Beastie-WiFi :
+.Dl # wutil set -p 1 -a y Beastie-WiFi
+.Pp
+Forget a known-network,
+.Pa Beastie-WiFi :
+.Dl # wutil forget Beastie-WiFi
+.Pp
+Disconnect from WiFi:
+.Dl # wutil disconnect
+.Pp
+.Sh SEE ALSO
+.Xr wutui 8 ,
+.Xr wpa_supplicant 8 ,
+.Xr ifconfig 8
+.Sh AUTHORS
+.An Muhammad Saheed Aq Mt saheed@FreeBSD.org

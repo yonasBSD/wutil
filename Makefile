@@ -5,7 +5,7 @@ SRCS.wutui=	wutui.c usage.c wifi.c interface.c
 
 LDADD=	-lifconfig -l80211 -lwpa_client -lsbuf -lm
 
-MAN=	wutil.1
+MAN=	wutil.8
 
 .if defined(MK_WUTIL_SAN)
 CFLAGS+=	-fsanitize=address,undefined
