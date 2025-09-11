@@ -632,7 +632,7 @@ get_bss_freq(struct wpa_ctrl *ctrl, const char *bssid)
 
 	if (wpa_ctrl_requestf(ctrl, reply, &reply_len, "BSS %s MASK=%x", bssid,
 		WPA_BSS_MASK_FREQ) != 0) {
-		warnx("failed to disconnect");
+		warnx("failed to fetch frequency for %s", bssid);
 		return (0);
 	}
 
@@ -651,7 +651,7 @@ get_supplicant_status(struct wpa_ctrl *ctrl)
 
 	if (wpa_ctrl_request(ctrl, "STATUS", strlen("STATUS"), reply,
 		&reply_len, NULL) != 0) {
-		warnx("failed to disconnect");
+		warnx("failed to request wpa_supplicant status");
 		return (NULL);
 	}
 	reply[reply_len] = '\0';

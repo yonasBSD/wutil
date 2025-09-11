@@ -433,7 +433,7 @@ init_wutui(const char *ctrl_path)
 	}
 
 	if ((wutui.status = get_supplicant_status(wutui.ctrl)) == NULL)
-		errx(EXIT_FAILURE, "failed retrieve wpa_supplicant status");
+		errx(EXIT_FAILURE, "failed to retrieve wpa_supplicant status");
 
 	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve known networks");
@@ -1583,5 +1583,5 @@ update_supplicant_status(void)
 {
 	free_supplicant_status(wutui.status);
 	if ((wutui.status = get_supplicant_status(wutui.ctrl)) == NULL)
-		diex("failed retrieve wpa_supplicant status");
+		diex("failed to retrieve wpa_supplicant status");
 }

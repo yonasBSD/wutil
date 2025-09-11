@@ -518,7 +518,7 @@ cmd_status(int argc, char *argv[], void *udata)
 	}
 
 	if ((status = get_supplicant_status(ctrl)) == NULL) {
-		warnx("failed retrieve wpa_supplicant status");
+		warnx("failed to retrieve wpa_supplicant status");
 		return (1);
 	}
 
