@@ -485,8 +485,10 @@ deinit_wutui(void)
 	free_known_networks(wutui.kns);
 	free_scan_results(wutui.srs);
 
-	wpa_ctrl_detach(wutui.ctrl);
-	wpa_ctrl_close(wutui.ctrl);
+	if (wutui.ctrl != NULL) {
+		wpa_ctrl_detach(wutui.ctrl);
+		wpa_ctrl_close(wutui.ctrl);
+	}
 }
 
 static void
