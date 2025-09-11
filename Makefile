@@ -1,5 +1,8 @@
 PROGS=	wutil wutui
 
+LDFLAGS+=	-L/usr/local/lib
+CFLAGS+=	-I/usr/local/include
+
 SRCS.wutil=	wutil.c usage.c wifi.c interface.c
 SRCS.wutui=	wutui.c usage.c wifi.c interface.c
 
