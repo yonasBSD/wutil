@@ -28,7 +28,7 @@ FreeBSD ports tree and then build the `security/wpa_supplicant` port.
 
 ### Build `wutil` with `bmake`
 ```console
-$ LDFLAGS="-L/usr/local/lib" CFLAGS="-I/usr/local/include" make
+$ make
 ```
 
 ## Usage
