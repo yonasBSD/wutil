@@ -1,14 +1,39 @@
 # wutil
 A simple WiFi utility CLI for FreeBSD
 
-To build with bsdmake:
-```shell
-$ make
+## Building
+### Dependencies
+`wutil` depends on `libifconfig` and `libwpa_client`.
+- `libifconfig` is available via `net/libifconfig`
+  ```console
+  # # as a package
+  # pkg install net/libifconfig
+
+  # # or as a port
+  # make -C /usr/ports/net/libifconfig install
+  ```
+- To get `libwpa_client`, apply this
+[patch](patch/security_wpa__supplicant_libwpa__client-support.patch) to a
+FreeBSD ports tree and then build the `security/wpa_supplicant` port.
+  ```console
+  # patch -p1 -d /usr/ports < patch/security_wpa__supplicant_libwpa__client-support.patch
+  # make -C /usr/ports/security/wpa_supplicant install
+  ```
+
+### Build `wutil` as a port
+```console
+# patch -p1 -d /usr/ports < patch/sysutils_wutil.patch
+# make -C /usr/ports/sysutils/wutil install
+```
+
+### Build `wutil` with `bmake`
+```console
+$ LDFLAGS="-L/usr/local/lib" CFLAGS="-I/usr/local/include" make
 ```
 
 ## Usage
 ### The CLI
-```
+```console
 $ wutil -h
 Usage:  wutil {-h | subcommand [args...]}
         wutil interfaces
@@ -23,7 +48,7 @@ Usage:  wutil {-h | subcommand [args...]}
 ```
 
 ### The TUI
-```
+```console
 $ wutui
 ```
 <img width="1694" height="1279" alt="image" src="https://github.com/user-attachments/assets/b100b134-fa9d-45cc-8e96-3115a3b55012" />
