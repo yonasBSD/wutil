@@ -3,7 +3,8 @@ A simple WiFi utility CLI for FreeBSD
 
 ## Building
 ### Dependencies
-`wutil` depends on `libifconfig` and `libwpa_client`.
+`wutil` depends on `libifconfig` and `libwpa_client`. All required patches are
+available in the `patch/` directory.
 - `libifconfig` is available via `net/libifconfig`
   ```console
   # # as a package
