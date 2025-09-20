@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -111,12 +112,41 @@ int
 wpa_ctrl_request(struct wpa_ctrl *ctrl, const char *cmd, size_t cmd_len,
     char *reply, size_t *reply_len, void (*msg_cb)(char *msg, size_t len))
 {
-	(void)ctrl;
-	(void)cmd;
-	(void)cmd_len;
-	(void)reply;
-	(void)reply_len;
-	(void)msg_cb;
+	if (send(ctrl->s, cmd, cmd_len, 0) == -1)
+		return (-1);
+
+	for (;;) {
+		struct pollfd pfd = { .fd = ctrl->s, .events = POLLIN };
+		int nev = poll(&pfd, 1, 1000);
+		size_t recv_len = 0;
+
+		if (reply_len != 0)
+			recv_len = *reply_len - 1;
+
+		if (nev == -1 || nev == 0)
+			return (-1);
+
+		if ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0)
+			return (-1);
+
+		if (wpa_ctrl_recv(ctrl, reply, &recv_len) != 0)
+			return (-1);
+
+		if (*reply_len != 0)
+			reply[recv_len] = '\0';
+
+		/* unsolicited message */
+		if ((recv_len > 0 && reply[0] == '<') ||
+		    (recv_len > 6 && strncmp(reply, "IFNAME=", 7) == 0)) {
+			if (msg_cb != NULL)
+				msg_cb(reply, recv_len);
+			continue;
+		}
+
+		*reply_len = recv_len;
+		break;
+	}
+
 	return (0);
 }
 
@@ -137,9 +167,12 @@ wpa_ctrl_detach(struct wpa_ctrl *ctrl)
 int
 wpa_ctrl_recv(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len)
 {
-	(void)ctrl;
-	(void)reply;
-	(void)reply_len;
+	ssize_t len = recv(ctrl->s, reply, *reply_len, 0);
+
+	if (len == -1)
+		return (-1);
+	*reply_len = len;
+
 	return (0);
 }
 
@@ -153,6 +186,5 @@ wpa_ctrl_pending(struct wpa_ctrl *ctrl)
 int
 wpa_ctrl_get_fd(struct wpa_ctrl *ctrl)
 {
-	(void)ctrl;
-	return (0);
+	return (ctrl->s);
 }
