@@ -148,18 +148,34 @@ wpa_ctrl_request(struct wpa_ctrl *ctrl, const char *cmd, size_t cmd_len,
 	return (0);
 }
 
+static int
+wpa_ctrl_attach_helper(struct wpa_ctrl *ctrl, int attach)
+{
+	const char expected[] = "OK";
+	size_t expected_len = sizeof(expected) - 1, len = expected_len;
+	char buf[expected_len];
+	const char *cmd = attach ? "ATTACH" : "DETACH";
+	int ret = wpa_ctrl_request(ctrl, cmd, strlen(cmd), buf, &len, NULL);
+
+	if (ret < 0)
+		return (ret);
+
+	if (strncmp(buf, expected, expected_len) == 0)
+		return (0);
+
+	return (-1);
+}
+
 int
 wpa_ctrl_attach(struct wpa_ctrl *ctrl)
 {
-	(void)ctrl;
-	return (0);
+	return (wpa_ctrl_attach_helper(ctrl, 1));
 }
 
 int
 wpa_ctrl_detach(struct wpa_ctrl *ctrl)
 {
-	(void)ctrl;
-	return (0);
+	return (wpa_ctrl_attach_helper(ctrl, 0));
 }
 
 int
