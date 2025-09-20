@@ -3,25 +3,17 @@ A simple WiFi utility CLI for FreeBSD
 
 ## Building
 ### Dependencies
-`wutil` depends on `libifconfig` and `libwpa_client`. All required patches are
-available in the `patch/` directory.
-- `libifconfig` is available via `net/libifconfig`
-  ```console
-  # # as a package
-  # pkg install net/libifconfig
+`wutil` depends on `libifconfig` and it is available via `net/libifconfig`
+```console
+# # as a package
+# pkg install net/libifconfig
 
-  # # or as a port
-  # make -C /usr/ports/net/libifconfig install
-  ```
-- To get `libwpa_client`, apply this
-[patch](patch/security_wpa__supplicant_libwpa__client-support.patch) to a
-FreeBSD ports tree and then build the `security/wpa_supplicant` port.
-  ```console
-  # patch -p1 -d /usr/ports < patch/security_wpa__supplicant_libwpa__client-support.patch
-  # make -C /usr/ports/security/wpa_supplicant install
-  ```
+# # or as a port
+# make -C /usr/ports/net/libifconfig install
+```
 
 ### Build `wutil` as a port
+All required patches are available in the `patch/` directory.
 ```console
 # patch -p1 -d /usr/ports < patch/sysutils_wutil.patch
 # make -C /usr/ports/sysutils/wutil install
