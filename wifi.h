@@ -13,10 +13,8 @@
 #include <net/ethernet.h>
 #include <net80211/ieee80211.h>
 
-#include <stdio.h>
-#include <wpa_ctrl.h>
-
 #include "array.h"
+#include "wpa_ctrl.h"
 
 #define WPA_EVENT_ASSOCIATED "Associated with"
 

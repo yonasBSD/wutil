@@ -28,9 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <wpa_ctrl.h>
 
 #include "wifi.h"
+#include "wpa_ctrl.h"
 
 static int wpa_ctrl_requestf(struct wpa_ctrl *ctrl, char *reply,
     size_t *reply_len, const char *fmt, ...);

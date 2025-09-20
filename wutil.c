@@ -19,11 +19,11 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
-#include <wpa_ctrl.h>
 
 #include "interface.h"
 #include "usage.h"
 #include "wifi.h"
+#include "wpa_ctrl.h"
 
 typedef int (*cmd_handler_f)(int argc, char *argv[], void *udata);
 

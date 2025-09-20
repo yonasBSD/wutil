@@ -27,11 +27,11 @@
 #include <termios.h>
 #include <unistd.h>
 #include <wchar.h>
-#include <wpa_ctrl.h>
 
 #include "ctrl_seq.h"
 #include "usage.h"
 #include "wifi.h"
+#include "wpa_ctrl.h"
 
 #define WRAPPED_INCR(var, max)	   ((var) = ((var) + 1) % (max))
 #define WRAPPED_DECR(var, max)	   ((var) = ((var) - 1 + (max)) % (max))
