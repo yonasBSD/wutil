@@ -179,7 +179,15 @@ wpa_ctrl_recv(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len)
 int
 wpa_ctrl_pending(struct wpa_ctrl *ctrl)
 {
-	(void)ctrl;
+	struct pollfd pfd = { .fd = ctrl->s, .events = POLLIN };
+	int ret = poll(&pfd, 1, 0);
+
+	if (ret == -1)
+		return (-1);
+
+	if (ret > 0 && pfd.revents & POLLIN)
+		return (1);
+
 	return (0);
 }
 
