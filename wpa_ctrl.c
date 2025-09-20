@@ -118,10 +118,7 @@ wpa_ctrl_request(struct wpa_ctrl *ctrl, const char *cmd, size_t cmd_len,
 	for (;;) {
 		struct pollfd pfd = { .fd = ctrl->s, .events = POLLIN };
 		int nev = poll(&pfd, 1, 1000);
-		size_t recv_len = 0;
-
-		if (reply_len != 0)
-			recv_len = *reply_len - 1;
+		size_t recv_len = *reply_len;
 
 		if (nev == -1 || nev == 0)
 			return (-1);
@@ -132,14 +129,15 @@ wpa_ctrl_request(struct wpa_ctrl *ctrl, const char *cmd, size_t cmd_len,
 		if (wpa_ctrl_recv(ctrl, reply, &recv_len) != 0)
 			return (-1);
 
-		if (*reply_len != 0)
-			reply[recv_len] = '\0';
-
 		/* unsolicited message */
 		if ((recv_len > 0 && reply[0] == '<') ||
 		    (recv_len > 6 && strncmp(reply, "IFNAME=", 7) == 0)) {
-			if (msg_cb != NULL)
+			if (msg_cb != NULL) {
+				if (recv_len == *reply_len)
+					recv_len = *reply_len - 1;
+				reply[recv_len] = '\0';
 				msg_cb(reply, recv_len);
+			}
 			continue;
 		}
 
