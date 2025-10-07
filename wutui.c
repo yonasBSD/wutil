@@ -30,6 +30,7 @@
 
 #include "ctrl_seq.h"
 #include "usage.h"
+#include "utils.h"
 #include "wifi.h"
 #include "wpa_ctrl.h"
 
@@ -194,13 +195,15 @@ static void update_supplicant_status(void);
 int
 main(int argc, char *argv[])
 {
-	const char *ctrl_path = wpa_ctrl_default_path();
+	const char *ctrl_path = NULL;
 
-	setlocale(LC_ALL, "");
+	if (setlocale(LC_ALL, "") == NULL)
+		err(EXIT_FAILURE, "setlocale");
 
 	if (!isatty(STDIN_FILENO))
 		errx(EXIT_FAILURE, "not a TTY");
 
+	ctrl_path = wpa_ctrl_default_path();
 	parse_args(argc, argv, &ctrl_path);
 	if (ctrl_path == NULL) {
 		errx(EXIT_FAILURE,
@@ -575,6 +578,9 @@ render_tui(void)
 static void
 render_wifi_info(struct sbuf *sb)
 {
+	const size_t ssid_extra = wutui.status->ssid != NULL ?
+	    ssid_extra_width(wutui.status->ssid) :
+	    0;
 	const int WPA_STATE_LEN = sizeof("INTERFACE_DISABLED") - 1;
 	const int IP_LEN = sizeof("255.255.255.255") - 1;
 	const int left_key_width = MAX(sizeof("SSID"), sizeof("WPA State")) - 1;
@@ -590,9 +596,10 @@ render_wifi_info(struct sbuf *sb)
 
 	heading(sb, "WiFi Info", true, MARGIN, cols);
 	sbuf_printf(sb, "%*s│", MARGIN, "");
-	sbuf_sliding_printf(sb, wutui.horizontal_pos, MAX(cols - 2, 0),
-	    L"  %-*.*s: %-*.*s %-*.*s: %-*.*s", left_key_width, left_key_width,
-	    "SSID", left_val_width, left_val_width,
+	sbuf_sliding_printf(sb, wutui.horizontal_pos,
+	    MAX(cols - 2 - ssid_extra, 0), L"  %-*.*s: %-*.*s %-*.*s: %-*.*s",
+	    left_key_width, left_key_width, "SSID", left_val_width - ssid_extra,
+	    left_val_width - ssid_extra,
 	    wutui.status->ssid == NULL ? "N/A" : wutui.status->ssid,
 	    right_key_width, right_key_width, "Frequency", right_val_width,
 	    right_val_width, freq_buf);
@@ -640,17 +647,20 @@ render_known_networks(struct sbuf *sb)
 	for (i = wutui.kn_offset;
 	    i < wutui.kns->len && i < wutui.kn_entries + wutui.kn_offset; i++) {
 		struct known_network *kn = &wutui.kns->items[i];
+		const size_t ssid_extra = ssid_extra_width(kn->ssid);
 
 		sbuf_printf(sb, "%*s│ %s", MARGIN, "",
 		    wutui.section == SECTION_KN && i == wutui.selected_kn ?
 			INVERT :
 			"");
-		sbuf_sliding_printf(sb, wutui.horizontal_pos, COLS - 4,
+		sbuf_sliding_printf(sb, wutui.horizontal_pos,
+		    MAX(COLS - 4 - ssid_extra, 0),
 		    L"%s%-*s  %-*s  %-*s  %*d  %-*s",
-		    kn->state == KN_CURRENT ? ">" : " ", IEEE80211_NWID_LEN,
-		    kn->ssid, SECURITY_LEN, security_to_string[kn->security],
-		    HIDDEN_LEN, kn->hidden ? "Yes" : "No", PRIORITY_LEN,
-		    kn->priority, AUTO_CONNECT_LEN,
+		    kn->state == KN_CURRENT ? ">" : " ",
+		    IEEE80211_NWID_LEN - ssid_extra, kn->ssid, SECURITY_LEN,
+		    security_to_string[kn->security], HIDDEN_LEN,
+		    kn->hidden ? "Yes" : "No", PRIORITY_LEN, kn->priority,
+		    AUTO_CONNECT_LEN,
 		    kn->state == KN_ENABLED	? "Yes" :
 			kn->state == KN_CURRENT ? "Current" :
 						  "No");
@@ -695,14 +705,16 @@ render_network_scan(struct sbuf *sb)
 	    i < wutui.srs->len && i < wutui.sr_entries + wutui.sr_offset; i++) {
 		struct scan_result *sr = &wutui.srs->items[i];
 		const wchar_t *signal_bars = get_signal_bars(sr->signal);
+		const size_t ssid_extra = ssid_extra_width(sr->ssid);
 
 		sbuf_printf(sb, "%*s│ %s", MARGIN, "",
 		    wutui.section == SECTION_NS && i == wutui.selected_sr ?
 			INVERT :
 			"");
-		sbuf_sliding_printf(sb, wutui.horizontal_pos, COLS - 4,
+		sbuf_sliding_printf(sb, wutui.horizontal_pos,
+		    MAX(COLS - 4 - ssid_extra, 0),
 		    L" %-*s      %-*s       %-*ls     %-*d MHz   ",
-		    IEEE80211_NWID_LEN, sr->ssid, SECURITY_LEN,
+		    IEEE80211_NWID_LEN - ssid_extra, sr->ssid, SECURITY_LEN,
 		    security_to_string[sr->security], SIGNAL_LEN, signal_bars,
 		    FREQ_LEN, sr->freq);
 		sbuf_printf(sb, REMOVE_INVERT " %s\r\n",

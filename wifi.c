@@ -29,6 +29,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "utils.h"
 #include "wifi.h"
 #include "wpa_ctrl.h"
 
@@ -290,8 +291,10 @@ get_known_networks(struct wpa_ctrl *ctrl)
 		nw.hidden = is_hidden_network(ctrl, nw.id);
 		nw.security = known_network_security(ctrl, nw.id);
 
-		if (ssid != NULL)
+		if (ssid != NULL) {
+			ssid = unescape(ssid, strlen(ssid));
 			strlcpy(nw.ssid, ssid, sizeof(nw.ssid));
+		}
 
 		if (bssid != NULL && ether_aton_r(bssid, &nw.bssid) == NULL)
 			nw.bssid = (struct ether_addr) { 0 };
@@ -373,6 +376,7 @@ get_scan_results(struct wpa_ctrl *ctrl)
 		sr.signal = signal;
 
 		if (ssid != NULL) {
+			ssid = unescape(ssid, strlen(ssid));
 			if (ssid[0] == '\0') /* hidden network */
 				continue;
 			strlcpy(sr.ssid, ssid, sizeof(sr.ssid));
@@ -682,6 +686,9 @@ get_supplicant_status(struct wpa_ctrl *ctrl)
 	status->freq = 0;
 	if (status->bssid != NULL)
 		status->freq = get_bss_freq(ctrl, status->bssid);
+
+	if (status->ssid != NULL)
+		status->ssid = unescape(status->ssid, strlen(status->ssid));
 
 	return (status);
 }

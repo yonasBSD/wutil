@@ -3,8 +3,10 @@ PROGS=	wutil wutui
 LDFLAGS+=	-L/usr/local/lib
 CFLAGS+=	-I/usr/local/include
 
-SRCS.wutil=	wutil.c usage.c wifi.c interface.c wpa_ctrl.c
-SRCS.wutui=	wutui.c usage.c wifi.c interface.c wpa_ctrl.c
+_COMMON_SRCS=	 usage.c wifi.c interface.c wpa_ctrl.c utils.c
+
+SRCS.wutil=	wutil.c $(_COMMON_SRCS)
+SRCS.wutui=	wutui.c $(_COMMON_SRCS)
 
 LDADD=	-lifconfig -lsbuf -lm
 

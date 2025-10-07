@@ -14,6 +14,7 @@
 #include <getopt.h>
 #include <ifaddrs.h>
 #include <libifconfig.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,7 @@
 
 #include "interface.h"
 #include "usage.h"
+#include "utils.h"
 #include "wifi.h"
 #include "wpa_ctrl.h"
 
@@ -74,7 +76,7 @@ main(int argc, char *argv[])
 {
 	int ret = 0, opt = -1;
 	struct command *cmd = NULL;
-	const char *ctrl_path = wpa_ctrl_default_path();
+	const char *ctrl_path = NULL;
 	struct wpa_ctrl *ctrl = NULL;
 	struct option opts[] = {
 		{ "ctrl-interface", required_argument, NULL, 'c' },
@@ -82,6 +84,10 @@ main(int argc, char *argv[])
 		{ NULL, 0, NULL, 0 },
 	};
 
+	if (setlocale(LC_ALL, "") == NULL)
+		err(EXIT_FAILURE, "setlocale");
+
+	ctrl_path = wpa_ctrl_default_path();
 	while ((opt = getopt_long(argc, argv, "+c:h", opts, NULL)) != -1) {
 		switch (opt) {
 		case 'c':
@@ -240,10 +246,13 @@ cmd_known_networks(int argc, char *argv[], void *udata)
 	    "Security", "Hidden", "Priority");
 	for (size_t i = 0; i < nws->len; i++) {
 		struct known_network *nw = &nws->items[i];
-		printf("%c %-*s %-8s %-6s %8d\n",
-		    nw->state == KN_CURRENT ? '>' : ' ', IEEE80211_NWID_LEN,
-		    nw->ssid, security_to_string[nw->security],
-		    nw->hidden ? "Yes" : "", nw->priority);
+		const size_t ssid_width = display_width(nw->ssid);
+
+		printf("%c %s%*s %-8s %-6s %8d\n",
+		    nw->state == KN_CURRENT ? '>' : ' ', nw->ssid,
+		    MAX(IEEE80211_NWID_LEN - (int)ssid_width, 0), "",
+		    security_to_string[nw->security], nw->hidden ? "Yes" : "",
+		    nw->priority);
 	}
 
 	free_known_networks(nws);
@@ -495,10 +504,11 @@ cmd_networks(int argc, char *argv[], void *udata)
 	    "Frequency", "Security");
 	for (size_t i = 0; i < srs->len; i++) {
 		struct scan_result *sr = &srs->items[i];
+		const size_t ssid_width = display_width(sr->ssid);
 
-		printf("%-*s %4d dBm %5d MHz %-8s\n", IEEE80211_NWID_LEN,
-		    sr->ssid, sr->signal, sr->freq,
-		    security_to_string[sr->security]);
+		printf("%s%*s %-4d dBm %-5d MHz %-8s\n", sr->ssid,
+		    MAX(IEEE80211_NWID_LEN - (int)ssid_width, 0), "",
+		    sr->signal, sr->freq, security_to_string[sr->security]);
 	}
 
 	free_scan_results(srs);
