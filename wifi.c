@@ -315,7 +315,10 @@ get_known_networks(struct wpa_ctrl *ctrl)
 		}
 	}
 
-	qsort(nws->items, nws->len, sizeof(nws->items[0]), known_networks_cmp);
+	if (nws->len != 0) {
+		qsort(nws->items, nws->len, sizeof(nws->items[0]),
+		    known_networks_cmp);
+	}
 
 	return (nws);
 }
@@ -398,8 +401,10 @@ get_scan_results(struct wpa_ctrl *ctrl)
 		}
 	}
 
-	qsort(srs->items, srs->len, sizeof(srs->items[0]),
-	    scan_result_cmp_signal);
+	if (srs->len != 0) {
+		qsort(srs->items, srs->len, sizeof(srs->items[0]),
+		    scan_result_cmp_signal);
+	}
 
 	return (srs);
 }
