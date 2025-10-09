@@ -1680,7 +1680,9 @@ handle_search_input(void *udata)
 
 	if ((key == DEL_KEY || key == BACKSPACE || key == CTRL('h')) &&
 	    search_len != 0) {
-		data->search_str[--search_len] = '\0';
+		size_t pos = last_codepoint_pos(data->search_str, search_len);
+		memset(data->search_str + pos, '\0', search_len - pos);
+		search_len = pos;
 	} else if (key == CTRL('u')) {
 		memset(data->search_str, '\0', search_len);
 	} else if (!iscntrl(key) && key < 128 &&

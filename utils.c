@@ -163,3 +163,14 @@ ssid_extra_width(const char *ssid)
 
 	return (wcswidth(wssid, len) - len);
 }
+
+size_t
+last_codepoint_pos(char *s, size_t len)
+{
+	for (size_t i = len - 1; i != (size_t)-1; i--) {
+		if ((s[i] & 0b11000000) != 0b10000000)
+			return (i);
+	}
+
+	return ((size_t)-1);
+}
