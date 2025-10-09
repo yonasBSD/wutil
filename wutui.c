@@ -691,7 +691,8 @@ render_known_networks(struct sbuf *sb)
 		const size_t ssid_extra = ssid_extra_width(kn->ssid);
 
 		sbuf_printf(sb, "%*s│ %s", MARGIN, "",
-		    wutui.section == SECTION_KN && i == wutui.selected_kn ?
+		    wutui.section == SECTION_KN && i == wutui.selected_kn &&
+			    !wutui.searching ?
 			INVERT :
 			"");
 		sbuf_sliding_printf(sb, wutui.horizontal_pos,
@@ -757,7 +758,8 @@ render_network_scan(struct sbuf *sb)
 		const size_t ssid_extra = ssid_extra_width(sr->ssid);
 
 		sbuf_printf(sb, "%*s│ %s", MARGIN, "",
-		    wutui.section == SECTION_NS && i == wutui.selected_sr ?
+		    wutui.section == SECTION_NS && i == wutui.selected_sr &&
+			    !wutui.searching ?
 			INVERT :
 			"");
 		sbuf_sliding_printf(sb, wutui.horizontal_pos,
