@@ -1190,7 +1190,7 @@ connect_scan_result(void)
 	if (nwid == -1 && (nwid = wutui_configure_network(selected_sr)) == -1)
 		return;
 
-	if (select_network(wutui.ctrl, nwid) != 0)
+	if (select_network(wutui.ctrl, nwid, selected_sr->freq) != 0)
 		diex("failed to select network: %s", selected_sr->ssid);
 
 	if (update_config(wutui.ctrl) != 0)

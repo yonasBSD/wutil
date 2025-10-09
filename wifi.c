@@ -237,17 +237,19 @@ add_network(struct wpa_ctrl *ctrl, const char *ssid)
 }
 
 int
-select_network(struct wpa_ctrl *ctrl, int nwid)
+select_network(struct wpa_ctrl *ctrl, int nwid, int freq)
 {
 	char reply[WPA_ACK_REPLY_SIZE];
 	size_t reply_len = sizeof(reply) - 1;
-	char req[32] = "SELECT_NETWORK any";
 
-	if (nwid != -1)
-		snprintf(req, sizeof(req), "SELECT_NETWORK %d", nwid);
+	int result = nwid == -1 ?
+	    wpa_ctrl_requestf(ctrl, reply, &reply_len, "SELECT_NETWORK any") :
+	    freq == 0 ? wpa_ctrl_requestf(ctrl, reply, &reply_len,
+			    "SELECT_NETWORK %d", nwid) :
+			wpa_ctrl_requestf(ctrl, reply, &reply_len,
+			    "SELECT_NETWORK %d freq=%d", nwid, freq);
 
-	if (wpa_ctrl_request(ctrl, req, strlen(req), reply, &reply_len, NULL) !=
-	    0)
+	if (result != 0)
 		return (1);
 
 	reply[reply_len] = '\0';

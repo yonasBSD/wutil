@@ -92,7 +92,7 @@ int configure_eap(struct wpa_ctrl *ctrl, int nwid, const char *identity,
     const char *password);
 int configure_ess(struct wpa_ctrl *ctrl, int nwid);
 /* use nwid = -1 to select any network */
-int select_network(struct wpa_ctrl *ctrl, int nwid);
+int select_network(struct wpa_ctrl *ctrl, int nwid, int freq);
 int update_config(struct wpa_ctrl *ctrl);
 
 int configure_hidden_ssid(struct wpa_ctrl *ctrl, int nwid, const char *identity,

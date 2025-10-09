@@ -649,7 +649,7 @@ cmd_connect(int argc, char *argv[], void *udata)
 		}
 	}
 
-	if (select_network(ctrl, nwid) != 0) {
+	if (select_network(ctrl, nwid, 0) != 0) {
 		warnx("failed to select network: %s", ssid);
 		return (1);
 	}
