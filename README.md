@@ -37,7 +37,7 @@ Usage:  wutil {-h | subcommand [args...]}
           [-p <priority>] [--autoconnect {y | n}] <ssid>
         wutil [-c <wpa-ctrl-path>] {scan | networks | status | disconnect}
         wutil [-c <wpa-ctrl-path>] connect
-          [-i <eap-id>] [-p <password>] [-h] <ssid> [password]
+          [-i <eap-id>] [-p <password>] [-h] [-f <freq>] <ssid> [password]
 ```
 
 ### The TUI

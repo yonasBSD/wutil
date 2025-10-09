@@ -22,7 +22,7 @@ usage(FILE *fout)
 	    "\t  [-p <priority>] [--autoconnect {y | n}] <ssid>\n"
 	    "\twutil [-c <wpa-ctrl-path>] {scan | networks | status | disconnect}\n"
 	    "\twutil [-c <wpa-ctrl-path>] connect\n"
-	    "\t  [-i <eap-id>] [-p <password>] [-h] <ssid> [password]\n");
+	    "\t  [-i <eap-id>] [-p <password>] [-h] [-f <freq>] <ssid> [password]\n");
 }
 
 void
