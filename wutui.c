@@ -153,7 +153,8 @@ static void render_notifications(struct sbuf *sb);
 static char *read_dialog_input(const char *title, int min, int max,
     bool hide_text);
 
-static void heading(struct sbuf *sb, const char *text, bool rounded, int margin,
+static void heading(struct sbuf *sb, const char *text, const char *text_color,
+    int extra_utf8_width, bool rounded, bool search_icon, int margin,
     int max_cols);
 static int word_wrap(struct sbuf *sb, const char *text, int width,
     int start_col, int pos);
@@ -626,7 +627,7 @@ render_wifi_info(struct sbuf *sb)
 	const int right_val_width = MAX(IP_LEN, freq_str_len);
 	const int cols = MIN(wutui.winsize.ws_col, MAX_COLS);
 
-	heading(sb, "WiFi Info", true, MARGIN, cols);
+	heading(sb, "WiFi Info", NULL, 0, true, false, MARGIN, cols);
 	sbuf_printf(sb, "%*s│", MARGIN, "");
 	sbuf_sliding_printf(sb, wutui.horizontal_pos,
 	    MAX(cols - 2 - ssid_extra, 0), L"  %-*.*s: %-*.*s %-*.*s: %-*.*s",
@@ -659,6 +660,9 @@ render_known_networks(struct sbuf *sb)
 	const int PRIORITY_LEN = sizeof("Priority") - 1;
 	const int AUTO_CONNECT_LEN = sizeof("Auto Connect") - 1;
 	const int COLS = MIN(wutui.winsize.ws_col, MAX_COLS);
+	int search_len = strlen(wutui.search_known_networks);
+	bool is_filtered = search_len != 0;
+	bool is_searching = wutui.section == SECTION_KN && wutui.searching;
 
 	if (wutui.selected_kn < wutui.kn_offset)
 		wutui.kn_offset = wutui.selected_kn;
@@ -668,7 +672,12 @@ render_known_networks(struct sbuf *sb)
 	scrollbar = get_scrollbar_pos(wutui.kn_offset, wutui.kns->len,
 	    wutui.kn_entries, 1);
 
-	heading(sb, "Known Networks", false, MARGIN, COLS);
+	heading(sb,
+	    is_filtered || is_searching ? wutui.search_known_networks :
+					  "Known Networks",
+	    is_searching ? COLOR(FG, CYAN) : NULL,
+	    search_len - display_width(wutui.search_known_networks), false,
+	    is_filtered || is_searching, MARGIN, COLS);
 	sbuf_printf(sb, "%*s│" BOLD COLOR(FG, BLUE), MARGIN, "");
 	sbuf_sliding_printf(sb, wutui.horizontal_pos, MAX(COLS - 2, 0),
 	    L"  %-*s  Security  Hidden  Priority  Auto Connect  ",
@@ -716,6 +725,9 @@ render_network_scan(struct sbuf *sb)
 	const int SIGNAL_LEN = sizeof("Signal") - 1;
 	const int FREQ_LEN = sizeof("5180") - 1;
 	const int COLS = MIN(wutui.winsize.ws_col, MAX_COLS);
+	int search_len = strlen(wutui.search_scan_results);
+	bool is_filtered = strlen(wutui.search_scan_results) != 0;
+	bool is_searching = wutui.section == SECTION_NS && wutui.searching;
 
 	if (wutui.selected_sr < wutui.sr_offset)
 		wutui.sr_offset = wutui.selected_sr;
@@ -725,7 +737,12 @@ render_network_scan(struct sbuf *sb)
 	scrollbar = get_scrollbar_pos(wutui.sr_offset, wutui.srs->len,
 	    wutui.sr_entries, 1);
 
-	heading(sb, "Network Scan", false, MARGIN, COLS);
+	heading(sb,
+	    is_filtered || is_searching ? wutui.search_scan_results :
+					  "Network Scan",
+	    is_searching ? COLOR(FG, CYAN) : NULL,
+	    search_len - display_width(wutui.search_scan_results), false,
+	    is_filtered || is_searching, MARGIN, COLS);
 	sbuf_printf(sb, "%*s│" BOLD COLOR(FG, BLUE), MARGIN, "");
 	sbuf_sliding_printf(sb, wutui.horizontal_pos, MAX(COLS - 2, 0),
 	    L"  %-*s      Security      Signal      Frequency   ",
@@ -800,21 +817,23 @@ render_help(struct sbuf *sb)
 	sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
 	sbuf_cat(sb, COLOR(FG, MAGENTA));
 
-	heading(sb, "Help", true, help_margin, max_help_cols);
+	heading(sb, "Help", NULL, 0, true, false, help_margin, max_help_cols);
 	for (size_t i = 0; i < nitems(general_keys); i++) {
 		draw_margin(sb, help_margin);
 		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
 		    general_keys[i].keys, max_desc_len, general_keys[i].desc);
 	}
 
-	heading(sb, "Known Networks", false, help_margin, max_help_cols);
+	heading(sb, "Known Networks", NULL, 0, false, false, help_margin,
+	    max_help_cols);
 	for (size_t i = 0; i < nitems(kn_keys); i++) {
 		draw_margin(sb, help_margin);
 		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
 		    kn_keys[i].keys, max_desc_len, kn_keys[i].desc);
 	}
 
-	heading(sb, "Network Scan", false, help_margin, max_help_cols);
+	heading(sb, "Network Scan", NULL, 0, false, false, help_margin,
+	    max_help_cols);
 	for (size_t i = 0; i < nitems(ns_keys); i++) {
 		draw_margin(sb, help_margin);
 		sbuf_printf(sb, "│  %-*s %-*s  │\r\n", max_key_len,
@@ -848,7 +867,8 @@ render_dialog(struct sbuf *sb)
 	sbuf_printf(sb, CURSOR_DOWN_FMT, vertical_offset);
 	sbuf_cat(sb, COLOR(FG, GREEN));
 
-	heading(sb, wutui.dialog_title, true, dialog_margin, dialog_cols);
+	heading(sb, wutui.dialog_title, NULL, 0, true, false, dialog_margin,
+	    dialog_cols);
 
 	draw_margin(sb, dialog_margin);
 	sbuf_printf(sb, "│ %*s │\r\n", text_width, "");
@@ -955,7 +975,8 @@ read_dialog_input(const char *title, int min, int max, bool hide_text)
 }
 
 static void
-heading(struct sbuf *sb, const char *text, bool rounded, int margin,
+heading(struct sbuf *sb, const char *text, const char *text_color,
+    int extra_utf8_width, bool rounded, bool search_icon, int margin,
     int max_cols)
 {
 	int len = strlen(text) + 3; /* == len(─┐%s┌) */
@@ -964,7 +985,11 @@ heading(struct sbuf *sb, const char *text, bool rounded, int margin,
 
 	draw_margin(sb, margin);
 	sbuf_printf(sb, "%s", left_corner);
-	sbuf_printf(sb, "─┐" BOLD "%s" NORMAL_INTENSITY "┌", text);
+	sbuf_printf(sb, "─%s" BOLD "%s%s%s" NORMAL_INTENSITY "┌",
+	    search_icon ? "/" : "┐", text_color == NULL ? "" : text_color, text,
+	    text_color == NULL ? "" : DEFAULT_FG);
+	for (int i = 0; i < extra_utf8_width; i++)
+		sbuf_cat(sb, "─");
 	for (int i = 0; i < max_cols - 2 - len; i++)
 		sbuf_cat(sb, "─");
 	sbuf_printf(sb, "%s\r\n", right_corner);
