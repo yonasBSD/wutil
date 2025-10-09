@@ -128,6 +128,7 @@ static void register_events(void);
 
 static void pop_notification(struct notifications *ns);
 static void push_notification(struct notifications *ns, const char *msg);
+static void push_notificationf(struct notifications *ns, const char *fmt, ...);
 static void clear_notifactions(struct notifications *);
 static void free_notifactions(struct notifications *);
 
@@ -392,6 +393,27 @@ push_notification(struct notifications *ns, const char *msg)
 	}
 
 	TAILQ_INSERT_TAIL(ns, notification, next);
+}
+
+static void
+push_notificationf(struct notifications *ns, const char *fmt, ...)
+{
+	struct sbuf *sb = sbuf_new_auto();
+
+	if (sb == NULL)
+		die("sbuf_new_auto()");
+
+	va_list ap;
+	va_start(ap, fmt);
+	sbuf_vprintf(sb, fmt, ap);
+	va_end(ap);
+
+	if (sbuf_finish(sb) != 0)
+		die("sbuf failed");
+
+	push_notification(ns, sbuf_data(sb));
+
+	sbuf_delete(sb);
 }
 
 static void
@@ -1192,6 +1214,9 @@ connect_scan_result(void)
 	if (nwid == -1 && (nwid = wutui_configure_network(selected_sr)) == -1)
 		return;
 
+	push_notificationf(wutui.notifications, "Connecting to %s [freq=%d]",
+	    selected_sr->ssid, selected_sr->freq);
+
 	if (select_network(wutui.ctrl, nwid, selected_sr->freq) != 0)
 		diex("failed to select network: %s", selected_sr->ssid);
 
@@ -1402,6 +1427,7 @@ handle_input(void *udata)
 		update_supplicant_status();
 		break;
 	case 's':
+		push_notification(wutui.notifications, "Starting scan...");
 		set_passive_scan(wutui.ctrl, true);
 		scan(wutui.ctrl);
 		set_passive_scan(wutui.ctrl, false);
