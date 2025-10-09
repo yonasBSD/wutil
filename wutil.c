@@ -569,7 +569,7 @@ cmd_disconnect(int argc, char *argv[], void *udata)
 static int
 cmd_connect(int argc, char *argv[], void *udata)
 {
-	int nwid = -1, opt = -1;
+	int ret = 0, nwid = -1, opt = -1;
 	struct known_networks *nws = NULL;
 	const char *ssid;
 	const char *identity = NULL, *password = NULL;
@@ -628,14 +628,13 @@ cmd_connect(int argc, char *argv[], void *udata)
 		}
 	}
 
-	free_known_networks(nws);
-
 	if (nwid == -1) {
 		int config_ret;
 
 		if ((nwid = add_network(ctrl, ssid)) == -1) {
 			warnx("failed to create new network");
-			return (1);
+			ret = 1;
+			goto exit;
 		}
 
 		config_ret = hidden ?
@@ -645,21 +644,35 @@ cmd_connect(int argc, char *argv[], void *udata)
 		if (config_ret != 0) {
 			warnx("failed to configure network: %s", ssid);
 			remove_network(ctrl, nwid);
-			return (1);
+			ret = 1;
+			goto exit;
 		}
 	}
 
 	if (select_network(ctrl, nwid, 0) != 0) {
 		warnx("failed to select network: %s", ssid);
-		return (1);
+		ret = 1;
+		goto exit;
+	}
+
+	for (size_t i = 0; i < nws->len; i++) {
+		struct known_network *nw = &nws->items[i];
+
+		if (nw->id == nwid)
+			continue;
+
+		set_autoconnect(ctrl, nw->id, nw->state == KN_ENABLED);
 	}
 
 	if (update_config(ctrl) != 0) {
 		warnx("failed to update wpa_supplicant config");
-		return (1);
+		ret = 1;
+		goto exit;
 	}
 
-	return (0);
+exit:
+	free_known_networks(nws);
+	return (ret);
 }
 
 static void

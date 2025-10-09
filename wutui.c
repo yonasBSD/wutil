@@ -1193,6 +1193,15 @@ connect_scan_result(void)
 	if (select_network(wutui.ctrl, nwid, selected_sr->freq) != 0)
 		diex("failed to select network: %s", selected_sr->ssid);
 
+	for (size_t i = 0; i < wutui.kns->len; i++) {
+		struct known_network *nw = &wutui.kns->items[i];
+
+		if (nw->id == nwid)
+			continue;
+
+		set_autoconnect(wutui.ctrl, nw->id, nw->state == KN_ENABLED);
+	}
+
 	if (update_config(wutui.ctrl) != 0)
 		diex("failed to update config");
 }
