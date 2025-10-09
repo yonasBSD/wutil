@@ -49,6 +49,7 @@
 .Op Fl i Ar username
 .Op Fl p Ar password
 .Op Fl h
+.Op Fl f Ar frequency
 .Ar SSID
 .Op Ar password
 .Sh DESCRIPTION
@@ -158,6 +159,7 @@ Disconnect from currently connected access point.
 .Op Fl i Ar username
 .Op Fl p Ar password
 .Op Fl h
+.Op Fl f Ar frequency
 .Ar SSID
 .Op Ar password
 .Xc
@@ -166,6 +168,7 @@ Disconnect from currently connected access point.
 .Op Fl -identity Ar username
 .Op Fl -password Ar password
 .Op Fl -hidden
+.Op Fl -frequency Ar frequency
 .Ar SSID
 .Op Ar password
 .Xc
@@ -189,6 +192,10 @@ and
 for a WPA-EAP network. To connect to a hidden network, the
 .Fl -hidden
 flag is used.
+The
+.Fl f
+flag can be used to specify the frequency (in MHz) of the
+WiFi channel to use.
 .El
 .Sh EXAMPLES
 Trigger scan for available WiFi access points:
