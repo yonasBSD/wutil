@@ -1,6 +1,6 @@
-From c59ed7d236586867d3deb51b7b612d946e758365 Mon Sep 17 00:00:00 2001
+From 4cffbd1f02f1ff6a912aecc750fbc9589f7dd6e8 Mon Sep 17 00:00:00 2001
 From: Muhammad Saheed <saheed@FreeBSD.org>
-Date: Sun, 21 Sep 2025 02:14:46 +0530
+Date: Thu, 9 Oct 2025 20:52:22 +0530
 Subject: [PATCH] sysutils/wutil: Add new port
 
 wutil provides a CLI and TUI for WiFi management. It interacts with
@@ -8,21 +8,21 @@ wpa_supplicant over its control interface.
 ---
  sysutils/wutil/Makefile  | 31 +++++++++++++++++++++++++++++++
  sysutils/wutil/distinfo  |  3 +++
- sysutils/wutil/pkg-descr |  2 ++
- 3 files changed, 36 insertions(+)
+ sysutils/wutil/pkg-descr |  3 +++
+ 3 files changed, 37 insertions(+)
  create mode 100644 sysutils/wutil/Makefile
  create mode 100644 sysutils/wutil/distinfo
  create mode 100644 sysutils/wutil/pkg-descr
 
 diff --git a/sysutils/wutil/Makefile b/sysutils/wutil/Makefile
 new file mode 100644
-index 0000000000..75335a872a
+index 0000000000..280c8b9b22
 --- /dev/null
 +++ b/sysutils/wutil/Makefile
 @@ -0,0 +1,31 @@
 +PORTNAME=	wutil
 +DISTVERSIONPREFIX=	v
-+DISTVERSION=	0.3.0
++DISTVERSION=	0.4.0
 +CATEGORIES=	sysutils
 +
 +MAINTAINER=	saheed@FreeBSD.org
@@ -53,21 +53,22 @@ index 0000000000..75335a872a
 +.include <bsd.port.mk>
 diff --git a/sysutils/wutil/distinfo b/sysutils/wutil/distinfo
 new file mode 100644
-index 0000000000..b9b56f96b0
+index 0000000000..b9b16dc4f8
 --- /dev/null
 +++ b/sysutils/wutil/distinfo
 @@ -0,0 +1,3 @@
-+TIMESTAMP = 1758400904
-+SHA256 (MainKt-wutil-v0.3.0_GH0.tar.gz) = c3883d0f264e868c90da0cb3323aa36c27594058eb2608c3d1a929fca3696be7
-+SIZE (MainKt-wutil-v0.3.0_GH0.tar.gz) = 40403
++TIMESTAMP = 1760025901
++SHA256 (MainKt-wutil-v0.4.0_GH0.tar.gz) = 448c12b4ade2534f60f85f40f12f7b2a8527f4a184d5ef20694f07766829104e
++SIZE (MainKt-wutil-v0.4.0_GH0.tar.gz) = 36386
 diff --git a/sysutils/wutil/pkg-descr b/sysutils/wutil/pkg-descr
 new file mode 100644
-index 0000000000..42cdebf0d4
+index 0000000000..6fc42f637e
 --- /dev/null
 +++ b/sysutils/wutil/pkg-descr
-@@ -0,0 +1,2 @@
-+wutil is a WiFi management utility for FreeBSD.
-+It provides a CLI, wutil, and a TUI, wutui.
+@@ -0,0 +1,3 @@
++wutil is a WiFi management utility for FreeBSD with a CLI (wutil) and
++a TUI (wutui). It supports station-mode operations and manages
++wpa_supplicant configuration.
 -- 
 2.49.0
 
