@@ -847,10 +847,32 @@ sort_known_networks(struct known_networks *nws)
 }
 
 void
+filter_known_networks(struct known_networks *nws, const char *filter)
+{
+	size_t end = 0;
+	for (size_t i = 0; i < nws->len; i++) {
+		if (strcasestr(nws->items[i].ssid, filter) != NULL)
+			nws->items[end++] = nws->items[i];
+	}
+	nws->len = end;
+}
+
+void
 sort_scan_results(struct scan_results *srs)
 {
 	if (srs->len != 0) {
 		qsort(srs->items, srs->len, sizeof(srs->items[0]),
 		    scan_result_cmp_signal);
 	}
+}
+
+void
+filter_scan_results(struct scan_results *srs, const char *filter)
+{
+	size_t end = 0;
+	for (size_t i = 0; i < srs->len; i++) {
+		if (strcasestr(srs->items[i].ssid, filter) != NULL)
+			srs->items[end++] = srs->items[i];
+	}
+	srs->len = end;
 }
