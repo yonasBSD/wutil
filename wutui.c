@@ -556,6 +556,9 @@ render_tui(void)
 {
 	struct sbuf *sb = sbuf_new_auto();
 
+	if (sb == NULL)
+		die("sbuf_new_auto()");
+
 	sbuf_cat(sb, ERASE_IN_DISPLAY(ERASE_ENTIRE) CURSOR_MOVE(1, 1));
 
 	if (wutui.is_window_small) {
@@ -909,6 +912,9 @@ read_dialog_input(const char *title, int min, int max, bool hide_text)
 		struct sbuf *input_sb;
 		int min, max;
 	} udata = { input_sb, min, max };
+
+	if (input_sb == NULL)
+		die("sbuf_new_auto()");
 
 	wutui.dialog_title = title;
 	wutui.hide_dialog_text = hide_text;
