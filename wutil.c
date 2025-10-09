@@ -577,8 +577,9 @@ cmd_disconnect(int argc, char *argv[], void *udata)
 static int
 cmd_connect(int argc, char *argv[], void *udata)
 {
-	int ret = 0, nwid = -1, opt = -1;
+	int ret = 0, nwid = -1, opt = -1, freq = 0;
 	struct known_networks *nws = NULL;
+	char *endptr;
 	const char *ssid;
 	const char *identity = NULL, *password = NULL;
 	bool hidden = false;
@@ -587,10 +588,12 @@ cmd_connect(int argc, char *argv[], void *udata)
 		{ "identity", required_argument, NULL, 'i' },
 		{ "password", required_argument, NULL, 'p' },
 		{ "hidden", no_argument, NULL, 'h' },
+		{ "frequency", required_argument, NULL, 'f' },
 		{ NULL, 0, NULL, 0 },
 	};
 
-	while ((opt = getopt_long(argc, argv, "i:p:h", options, NULL)) != -1) {
+	while (
+	    (opt = getopt_long(argc, argv, "i:p:hf:", options, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
 			identity = optarg;
@@ -600,6 +603,14 @@ cmd_connect(int argc, char *argv[], void *udata)
 			break;
 		case 'h':
 			hidden = true;
+			break;
+		case 'f':
+			freq = strtol(optarg, &endptr, 10);
+			if (*endptr != '\0') {
+				warnx("invalid value '%s' for --frequency",
+				    optarg);
+				return (-1);
+			}
 			break;
 		case '?':
 			break;
@@ -657,7 +668,7 @@ cmd_connect(int argc, char *argv[], void *udata)
 		}
 	}
 
-	if (select_network(ctrl, nwid, 0) != 0) {
+	if (select_network(ctrl, nwid, freq) != 0) {
 		warnx("failed to select network: %s", ssid);
 		ret = 1;
 		goto exit;
