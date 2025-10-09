@@ -242,6 +242,8 @@ cmd_known_networks(int argc, char *argv[], void *udata)
 		return (1);
 	}
 
+	sort_known_networks(nws);
+
 	printf("  %-*s %-8s %-6s %-8s\n", IEEE80211_NWID_LEN, "SSID",
 	    "Security", "Hidden", "Priority");
 	for (size_t i = 0; i < nws->len; i++) {
@@ -499,6 +501,7 @@ cmd_networks(int argc, char *argv[], void *udata)
 		warnx("failed to retrieve scan results");
 		return (1);
 	}
+	sort_scan_results(srs);
 
 	printf("%-*s %-8s %-9s %-8s\n", IEEE80211_NWID_LEN, "SSID", "Signal",
 	    "Frequency", "Security");

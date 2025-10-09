@@ -317,11 +317,6 @@ get_known_networks(struct wpa_ctrl *ctrl)
 		}
 	}
 
-	if (nws->len != 0) {
-		qsort(nws->items, nws->len, sizeof(nws->items[0]),
-		    known_networks_cmp);
-	}
-
 	return (nws);
 }
 
@@ -401,11 +396,6 @@ get_scan_results(struct wpa_ctrl *ctrl)
 			free_scan_results(srs);
 			return (NULL);
 		}
-	}
-
-	if (srs->len != 0) {
-		qsort(srs->items, srs->len, sizeof(srs->items[0]),
-		    scan_result_cmp_signal);
 	}
 
 	return (srs);
@@ -845,4 +835,22 @@ set_priority(struct wpa_ctrl *ctrl, int nwid, int priority)
 
 	return (wpa_ctrl_ack_request(ctrl, reply, &reply_len,
 	    "SET_NETWORK %d priority %d", nwid, priority));
+}
+
+void
+sort_known_networks(struct known_networks *nws)
+{
+	if (nws->len != 0) {
+		qsort(nws->items, nws->len, sizeof(nws->items[0]),
+		    known_networks_cmp);
+	}
+}
+
+void
+sort_scan_results(struct scan_results *srs)
+{
+	if (srs->len != 0) {
+		qsort(srs->items, srs->len, sizeof(srs->items[0]),
+		    scan_result_cmp_signal);
+	}
 }

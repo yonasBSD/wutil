@@ -40,6 +40,8 @@ ARRAY(known_networks, struct known_network);
 
 ARRAY_APPEND_PROTOTYPE(known_networks)
 
+void sort_known_networks(struct known_networks *nws);
+
 extern const char *security_to_string[];
 
 struct scan_result {
@@ -53,6 +55,8 @@ struct scan_result {
 ARRAY(scan_results, struct scan_result);
 
 ARRAY_APPEND_PROTOTYPE(scan_results)
+
+void sort_scan_results(struct scan_results *srs);
 
 struct supplicant_status {
 	int freq;

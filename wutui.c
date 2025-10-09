@@ -440,9 +440,11 @@ init_wutui(const char *ctrl_path)
 
 	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve known networks");
+	sort_known_networks(wutui.kns);
 
 	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
 		errx(EXIT_FAILURE, "failed to retrieve scan results");
+	sort_scan_results(wutui.srs);
 
 	if (wpa_ctrl_attach(wutui.ctrl) != 0) {
 		err(EXIT_FAILURE,
@@ -1587,6 +1589,7 @@ update_scan_results(void)
 	free_scan_results(wutui.srs);
 	if ((wutui.srs = get_scan_results(wutui.ctrl)) == NULL)
 		diex("failed to retrieve scan results");
+	sort_scan_results(wutui.srs);
 	wutui.selected_sr = MIN(wutui.selected_sr,
 	    SUB_CLAMP_ZERO(wutui.srs->len, 1));
 }
@@ -1597,6 +1600,7 @@ update_known_networks(void)
 	free_known_networks(wutui.kns);
 	if ((wutui.kns = get_known_networks(wutui.ctrl)) == NULL)
 		diex("failed to retrieve known networks");
+	sort_known_networks(wutui.kns);
 	wutui.selected_kn = MIN(wutui.selected_kn,
 	    SUB_CLAMP_ZERO(wutui.kns->len, 1));
 }
