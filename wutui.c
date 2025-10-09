@@ -1193,6 +1193,8 @@ wutui_configure_network(struct scan_result *selected_sr)
 	free(identity);
 	free(password);
 
+	update_known_networks();
+
 	return (nwid);
 
 fail:
