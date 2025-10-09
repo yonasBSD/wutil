@@ -1583,6 +1583,7 @@ handle_wpa_event(void *udata)
 		die("wpa ctrl interface socket closed");
 	buf[len] = '\0';
 
+	update_supplicant_status();
 	if (strstr(buf, WPA_EVENT_SCAN_RESULTS) != NULL ||
 	    strstr(buf, WPA_EVENT_BSS_ADDED) != NULL ||
 	    strstr(buf, WPA_EVENT_BSS_REMOVED) != NULL ||
@@ -1593,8 +1594,6 @@ handle_wpa_event(void *udata)
 	    strstr(buf, WPA_EVENT_NETWORK_NOT_FOUND) != NULL ||
 	    strstr(buf, WPA_EVENT_ASSOCIATED) != NULL) {
 		update_known_networks();
-	} else {
-		update_supplicant_status();
 	}
 
 	push_notification(wutui.notifications, buf);
