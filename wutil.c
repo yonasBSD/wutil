@@ -459,6 +459,11 @@ cmd_set(int argc, char *argv[], void *udata)
 		goto cleanup;
 	}
 
+	if (update_config(ctrl) != 0) {
+		warnx("failed to update config");
+		ret = 1;
+	}
+
 cleanup:
 	free_known_networks(nws);
 
