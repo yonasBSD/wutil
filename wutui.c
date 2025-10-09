@@ -64,6 +64,9 @@ struct wutui {
 	int tty, wpa_fd, kq;
 	bool show_help, is_window_small, show_dialog, hide_dialog_text;
 	const char *dialog_title, *dialog_text;
+	bool searching;
+	char search_scan_results[IEEE80211_NWID_LEN + 1],
+	    search_known_networks[IEEE80211_NWID_LEN + 1];
 	struct termios cooked;
 	struct wpa_ctrl *ctrl;
 	struct winsize winsize;
@@ -177,6 +180,7 @@ static void quit(void);
 static int wutui_configure_network(struct scan_result *selected_sr);
 
 static void connect_scan_result(void);
+static void search_by_ssid(void);
 
 static void die(const char *, ...);
 static void diex(const char *, ...);
@@ -188,6 +192,7 @@ static enum handler_return handle_input(void *);
 static enum handler_return handle_dialog_input(void *);
 static enum handler_return handle_wpa_event(void *);
 static enum handler_return handle_sigwinch(void *);
+static enum handler_return handle_search_input(void *);
 
 static void update_scan_results(void);
 static void update_known_networks(void);
@@ -769,6 +774,7 @@ render_help(struct sbuf *sb)
 		{ "r", "Reconnect to known AP" },
 		{ "s", "Trigger Scan" },
 		{ "Tab", "Switch between sections" },
+		{ "/", "Search by SSID" },
 		{ "<C-l>", "Clear notifications" },
 	};
 	struct keybinding kn_keys[] = {
@@ -1242,6 +1248,44 @@ connect_scan_result(void)
 }
 
 static void
+search_by_ssid(void)
+{
+	struct event_handler *eh = NULL;
+	handler_f old_handler = NULL;
+	void *old_udata = NULL;
+	char *search_str = wutui.section == SECTION_KN ?
+	    wutui.search_known_networks :
+	    wutui.search_scan_results;
+	struct {
+		const char *search_str;
+	} udata = { search_str };
+
+	SLIST_FOREACH(eh, wutui.handlers, next) {
+		if (eh->ident == (uintptr_t)wutui.tty)
+			break;
+	}
+	assert(eh != NULL);
+
+	old_handler = eh->handler;
+	old_udata = eh->udata;
+
+	eh->handler = handle_search_input;
+	eh->udata = &udata;
+	wutui.searching = true;
+
+	event_loop();
+
+	eh->handler = old_handler;
+	eh->udata = old_udata;
+	wutui.searching = false;
+
+	if (wutui.section == SECTION_KN)
+		update_known_networks();
+	else
+		update_scan_results();
+}
+
+static void
 die(const char *fmt, ...)
 {
 	leave_alt_buffer();
@@ -1440,6 +1484,9 @@ handle_input(void *udata)
 		scan(wutui.ctrl);
 		set_passive_scan(wutui.ctrl, false);
 		break;
+	case '/':
+		search_by_ssid();
+		break;
 	case HOME_KEY:
 		if (wutui.section == SECTION_KN)
 			wutui.selected_kn = 0;
@@ -1612,6 +1659,39 @@ handle_sigwinch(void *udata)
 
 	wutui.horizontal_pos = CLAMP(wutui.horizontal_pos, 0,
 	    SUB_CLAMP_ZERO(MAX_COLS, wutui.winsize.ws_col));
+
+	return (HANDLER_CONTINUE);
+}
+
+static enum handler_return
+handle_search_input(void *udata)
+{
+	struct {
+		char *search_str;
+	} *data = NULL;
+	int search_len = 0;
+	int key = read_key();
+
+	assert(udata != NULL);
+	data = udata;
+
+	assert(data->search_str != NULL);
+	search_len = strlen(data->search_str);
+
+	if ((key == DEL_KEY || key == BACKSPACE || key == CTRL('h')) &&
+	    search_len != 0) {
+		data->search_str[--search_len] = '\0';
+	} else if (key == CTRL('u')) {
+		memset(data->search_str, '\0', search_len);
+	} else if (!iscntrl(key) && key < 128 &&
+	    search_len != IEEE80211_NWID_LEN) {
+		data->search_str[search_len++] = key;
+	} else if (key == '\r' || key == ESC_CHAR) {
+		return (HANDLER_BREAK);
+	}
+
+	if (search_len == 0)
+		return (HANDLER_BREAK);
 
 	return (HANDLER_CONTINUE);
 }
