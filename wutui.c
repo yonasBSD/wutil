@@ -1733,8 +1733,8 @@ update_scan_results(void)
 		diex("failed to retrieve scan results");
 
 	sort_scan_results(wutui.srs);
-	if (strlen(wutui.search_scan_results) > 1)
-		filter_scan_results(wutui.srs, wutui.search_scan_results + 1);
+	if (strlen(wutui.search_scan_results) > 0)
+		filter_scan_results(wutui.srs, wutui.search_scan_results);
 
 	wutui.selected_sr = MIN(wutui.selected_sr,
 	    SUB_CLAMP_ZERO(wutui.srs->len, 1));
@@ -1748,10 +1748,8 @@ update_known_networks(void)
 		diex("failed to retrieve known networks");
 
 	sort_known_networks(wutui.kns);
-	if (strlen(wutui.search_known_networks) > 1) {
-		filter_known_networks(wutui.kns,
-		    wutui.search_known_networks + 1);
-	}
+	if (strlen(wutui.search_known_networks) > 0)
+		filter_known_networks(wutui.kns, wutui.search_known_networks);
 
 	wutui.selected_kn = MIN(wutui.selected_kn,
 	    SUB_CLAMP_ZERO(wutui.kns->len, 1));
