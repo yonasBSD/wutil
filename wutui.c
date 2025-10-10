@@ -1466,6 +1466,7 @@ handle_input(void *udata)
 		if (disconnect(wutui.ctrl) != 0)
 			diex("failed to disconnect");
 		update_supplicant_status();
+		update_known_networks();
 		break;
 	case 'f':
 		if (wutui.section == SECTION_KN && wutui.kns->len != 0) {
