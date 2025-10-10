@@ -1669,6 +1669,8 @@ handle_wpa_event(void *udata)
 	} else if (strstr(buf, WPA_EVENT_NETWORK_ADDED) != NULL ||
 	    strstr(buf, WPA_EVENT_NETWORK_REMOVED) != NULL ||
 	    strstr(buf, WPA_EVENT_NETWORK_NOT_FOUND) != NULL ||
+	    strstr(buf, WPA_EVENT_CONNECTED) != NULL ||
+	    strstr(buf, WPA_EVENT_DISCONNECTED) != NULL ||
 	    strstr(buf, WPA_EVENT_ASSOCIATED) != NULL) {
 		update_known_networks();
 	}
