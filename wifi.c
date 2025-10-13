@@ -8,7 +8,6 @@
 #include <sys/event.h>
 #include <sys/ioccom.h>
 #include <sys/queue.h>
-#include <sys/queue_mergesort.h>
 #include <sys/sockio.h>
 
 #include <net/ethernet.h>
