@@ -625,6 +625,13 @@ render_wifi_info(struct sbuf *sb)
 	    wutui.status->freq);
 	const int right_val_width = MAX(IP_LEN, freq_str_len);
 	const int cols = MIN(wutui.winsize.ws_col, MAX_COLS);
+	const char *ip_address = wutui.status->ssid == NULL ||
+		wutui.status->ip_address == NULL ?
+	    "N/A" :
+	    wutui.status->ip_address;
+
+	if (wutui.status->ssid != NULL && wutui.status->ip_address == NULL)
+		ip_address = "Acquiring...";
 
 	heading(sb, "WiFi Info", NULL, 0, true, false, MARGIN, cols);
 	sbuf_printf(sb, "%*s│", MARGIN, "");
@@ -643,9 +650,7 @@ render_wifi_info(struct sbuf *sb)
 	    "WPA State", left_val_width, left_val_width,
 	    wutui.status->state == NULL ? "N/A" : wutui.status->state,
 	    right_key_width, right_key_width, "IP Address", right_val_width,
-	    right_val_width,
-	    wutui.status->ip_address == NULL ? "N/A" :
-					       wutui.status->ip_address);
+	    right_val_width, ip_address);
 	sbuf_printf(sb, "│\r\n");
 }
 
