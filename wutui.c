@@ -389,7 +389,7 @@ pop_notification(struct notifications *ns)
 	if (first == NULL)
 		return;
 
-	TAILQ_REMOVE_HEAD(ns, next);
+	TAILQ_REMOVE(ns, first, next);
 	free(first->msg);
 	free(first);
 }
