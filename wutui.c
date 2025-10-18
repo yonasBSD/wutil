@@ -11,6 +11,10 @@
 #include <sys/sbuf.h>
 #include <sys/socket.h>
 
+#include <netlink/netlink_route.h>
+#include <netlink/netlink_snl.h>
+#include <netlink/netlink_snl_route.h>
+
 #include <ctype.h>
 #include <err.h>
 #include <errno.h>
@@ -80,6 +84,7 @@ struct wutui {
 	struct notifications *notifications;
 	size_t max_rows;
 	size_t kn_entries, sr_entries;
+	struct snl_state *rtnl;
 };
 
 enum wutui_key {
@@ -193,6 +198,7 @@ static enum handler_return handle_dialog_input(void *);
 static enum handler_return handle_wpa_event(void *);
 static enum handler_return handle_sigwinch(void *);
 static enum handler_return handle_search_input(void *);
+static enum handler_return handle_rtnl_ip_change(void *);
 
 static void update_scan_results(void);
 static void update_known_networks(void);
@@ -346,7 +352,7 @@ free_handlers(struct event_handlers *ehs)
 static void
 register_events(void)
 {
-	struct kevent events[5];
+	struct kevent events[6];
 
 	EV_SET(&events[0], wutui.tty, EVFILT_READ, EV_ADD, 0, 0, NULL);
 	register_handler(wutui.handlers, wutui.tty, handle_input, NULL);
@@ -366,6 +372,10 @@ register_events(void)
 	    NOTE_SECONDS, timers[TIMER_PERIODIC_SCAN], NULL);
 	register_handler(wutui.handlers, TIMER_PERIODIC_SCAN,
 	    handle_periodic_scan, NULL);
+
+	EV_SET(&events[5], wutui.rtnl->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+	register_handler(wutui.handlers, wutui.rtnl->fd, handle_rtnl_ip_change,
+	    NULL);
 
 	if (kevent(wutui.kq, events, nitems(events), NULL, 0, NULL) == -1)
 		err(EXIT_FAILURE, "kevent register");
@@ -490,6 +500,20 @@ init_wutui(const char *ctrl_path)
 	if (fetch_winsize() == -1)
 		err(EXIT_FAILURE, "failed to fetch terminal winsize");
 
+	wutui.rtnl = malloc(sizeof(*wutui.rtnl));
+	if (wutui.rtnl == NULL)
+		err(EXIT_FAILURE, "malloc");
+	if (!snl_init(wutui.rtnl, NETLINK_ROUTE))
+		err(EXIT_FAILURE, "snl_init(NETLINK_ROUTE)");
+	if (bind(wutui.rtnl->fd,
+		(struct sockaddr *)&((struct sockaddr_nl) {
+		    .nl_family = NETLINK_ROUTE,
+		    .nl_groups = RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR,
+		}),
+		sizeof(struct sockaddr_nl)) == -1) {
+		err(EXIT_FAILURE, "bind(wutui.rtnl)");
+	}
+
 	if ((wutui.kq = kqueue()) == -1)
 		err(EXIT_FAILURE, "kqueue()");
 
@@ -512,6 +536,8 @@ deinit_wutui(void)
 
 	close(wutui.tty);
 	close(wutui.kq);
+
+	snl_free(wutui.rtnl);
 
 	free_supplicant_status(wutui.status);
 	free_known_networks(wutui.kns);
@@ -1728,6 +1754,22 @@ handle_search_input(void *udata)
 
 	if (search_len == 0)
 		return (HANDLER_BREAK);
+
+	return (HANDLER_CONTINUE);
+}
+
+static enum handler_return
+handle_rtnl_ip_change(void *udata)
+{
+	struct nlmsghdr *hdr = snl_read_message(wutui.rtnl);
+
+	(void)udata;
+
+	if (hdr == NULL)
+		return (HANDLER_CONTINUE);
+
+	if (hdr->nlmsg_type == RTM_NEWADDR || hdr->nlmsg_type == RTM_DELADDR)
+		update_supplicant_status();
 
 	return (HANDLER_CONTINUE);
 }
