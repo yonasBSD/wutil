@@ -547,7 +547,7 @@ cmd_status(int argc, char *argv[], void *udata)
 		printf("%15s: %s\n", "Connected BSSID", status->bssid);
 		printf("%15s: %d MHz\n", "Frequency", status->freq);
 	}
-	if (status->ip_address != NULL)
+	if (status->ssid != NULL && status->ip_address != NULL)
 		printf("%15s: %s\n", "IP Address", status->ip_address);
 	if (status->security != NULL)
 		printf("%15s: %s\n", "Security", status->security);
