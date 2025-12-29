@@ -1273,6 +1273,12 @@ connect_scan_result(void)
 {
 	int nwid = -1;
 	struct scan_result *selected_sr = &wutui.srs->items[wutui.selected_sr];
+	/* selected_sr might get invalidated due to a WPA event
+	 * during input handling for PSK */
+	int freq = selected_sr->freq;
+	char ssid[IEEE80211_NWID_LEN + 1];
+
+	strlcpy(ssid, selected_sr->ssid, sizeof(ssid));
 
 	for (size_t i = 0; i < wutui.kns->len; i++) {
 		struct known_network *nw = &wutui.kns->items[i];
@@ -1286,10 +1292,10 @@ connect_scan_result(void)
 		return;
 
 	push_notificationf(wutui.notifications, "Connecting to %s [freq=%d]",
-	    selected_sr->ssid, selected_sr->freq);
+	    ssid, freq);
 
-	if (select_network(wutui.ctrl, nwid, selected_sr->freq) != 0)
-		diex("failed to select network: %s", selected_sr->ssid);
+	if (select_network(wutui.ctrl, nwid, freq) != 0)
+		diex("failed to select network: %s", ssid);
 
 	for (size_t i = 0; i < wutui.kns->len; i++) {
 		struct known_network *nw = &wutui.kns->items[i];
