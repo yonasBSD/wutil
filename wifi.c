@@ -374,6 +374,9 @@ get_scan_results(struct wpa_ctrl *ctrl)
 		sr.freq = freq;
 		sr.signal = signal;
 
+		if (ssid == NULL) /* hidden network */
+			continue;
+
 		if (ssid != NULL) {
 			ssid = unescape(ssid, strlen(ssid));
 			if (ssid[0] == '\0') /* hidden network */

@@ -747,6 +747,7 @@ render_known_networks(struct sbuf *sb)
 			scrollbar));
 }
 
+/* TODO: add a way to connect to hidden networks */
 static void
 render_network_scan(struct sbuf *sb)
 {
